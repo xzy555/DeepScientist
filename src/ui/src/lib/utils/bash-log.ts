@@ -14,6 +14,7 @@ export type BashStatusMarker = {
 
 const MARKER_PREFIX = '__DS_BASH_STATUS__'
 const CARRIAGE_RETURN_PREFIX = '__DS_BASH_CR__'
+const PROGRESS_PREFIX = '__DS_PROGRESS__'
 const MARKER_FIELD_REGEX = /(\w+)=("([^"\\]*(\\.[^"\\]*)*)"|[^\s]+)/g
 
 function unescapeReason(value: string) {
@@ -21,6 +22,11 @@ function unescapeReason(value: string) {
 }
 
 export const BASH_CARRIAGE_RETURN_PREFIX = CARRIAGE_RETURN_PREFIX
+export const BASH_PROGRESS_PREFIX = PROGRESS_PREFIX
+
+export function isBashProgressMarker(line: string): boolean {
+  return Boolean(line && line.startsWith(PROGRESS_PREFIX))
+}
 
 export function splitBashLogLine(line: string): { kind: 'line' | 'carriage'; text: string } {
   if (line.startsWith(CARRIAGE_RETURN_PREFIX)) {

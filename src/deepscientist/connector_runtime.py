@@ -80,6 +80,29 @@ def parse_conversation_id(conversation_id: Any) -> dict[str, str] | None:
     }
 
 
+def normalize_conversation_id(conversation_id: Any) -> str:
+    raw = str(conversation_id or "").strip()
+    if not raw:
+        return "local:default"
+    lowered = raw.lower()
+    if lowered in {"web", "cli", "api", "command", "local", "local-ui", "tui-ink", "web-react", "tui-local"}:
+        return "local:default"
+    parsed = parse_conversation_id(raw)
+    if parsed is not None:
+        return f"{parsed['connector'].lower()}:{parsed['chat_type'].lower()}:{parsed['chat_id']}"
+    if ":" in raw:
+        return raw
+    return f"{lowered}:default"
+
+
+def conversation_identity_key(conversation_id: Any) -> str:
+    normalized = normalize_conversation_id(conversation_id)
+    parsed = parse_conversation_id(normalized)
+    if parsed is None:
+        return normalized.lower()
+    return f"{parsed['connector'].lower()}:{parsed['chat_type'].lower()}:{parsed['chat_id'].lower()}"
+
+
 def build_discovered_target(
     conversation_id: Any,
     *,

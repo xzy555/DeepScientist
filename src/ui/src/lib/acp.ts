@@ -27,8 +27,23 @@ type ParsedEvent = {
   data: string
 }
 
+function safeRandomUUID() {
+  if (typeof globalThis !== 'undefined') {
+    const cryptoApi = globalThis.crypto as Crypto | undefined
+    if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
+      return cryptoApi.randomUUID()
+    }
+  }
+
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+    const rand = (Math.random() * 16) | 0
+    const value = char === 'x' ? rand : (rand & 0x3) | 0x8
+    return value.toString(16)
+  })
+}
+
 function buildId(prefix: string, value?: string) {
-  return `${prefix}:${value || crypto.randomUUID()}`
+  return `${prefix}:${value || safeRandomUUID()}`
 }
 
 function parseEventBlock(block: string): ParsedEvent | null {
@@ -90,7 +105,7 @@ function normalizeUpdate(raw: Record<string, unknown>): FeedItem {
     const comment = extractOperationComment({ args, output, metadata })
     const monitorFields = extractOperationMonitorFields({ metadata, comment })
     return {
-      id: buildId('operation', String(raw.event_id ?? raw.created_at ?? crypto.randomUUID())),
+      id: buildId('operation', String(raw.event_id ?? raw.created_at ?? safeRandomUUID())),
       type: 'operation',
       label: toolLabel,
       content: buildToolOperationContent(toolLabel, toolName, args, output),
@@ -127,7 +142,7 @@ function normalizeUpdate(raw: Record<string, unknown>): FeedItem {
     const message = (raw.message ?? {}) as Record<string, unknown>
     const isReasoning = eventType === 'runner.reasoning'
     return {
-      id: buildId('message', String(raw.event_id ?? raw.created_at ?? crypto.randomUUID())),
+      id: buildId('message', String(raw.event_id ?? raw.created_at ?? safeRandomUUID())),
       type: 'message',
       role: String(message.role ?? 'assistant') === 'user' ? 'user' : 'assistant',
       source: message.source ? String(message.source) : undefined,
@@ -146,7 +161,7 @@ function normalizeUpdate(raw: Record<string, unknown>): FeedItem {
   if (kind === 'artifact') {
     const artifact = (raw.artifact ?? {}) as Record<string, unknown>
     return {
-      id: buildId('artifact', String(raw.event_id ?? raw.created_at ?? crypto.randomUUID())),
+      id: buildId('artifact', String(raw.event_id ?? raw.created_at ?? safeRandomUUID())),
       type: 'artifact',
       artifactId: artifact.artifact_id ? String(artifact.artifact_id) : undefined,
       kind: String(artifact.kind ?? 'artifact'),
@@ -188,7 +203,7 @@ function normalizeUpdate(raw: Record<string, unknown>): FeedItem {
   }
 
   return {
-    id: buildId('event', String(raw.event_id ?? raw.created_at ?? crypto.randomUUID())),
+    id: buildId('event', String(raw.event_id ?? raw.created_at ?? safeRandomUUID())),
     type: 'event',
     label: String(data.label ?? raw.event_type ?? 'event'),
     content: String(data.summary ?? data.run_id ?? raw.event_type ?? 'Event updated.'),
@@ -327,7 +342,7 @@ function applyIncomingFeedUpdates(state: FeedState, incoming: FeedItem[]): FeedS
 
 function createLocalUserFeedItem(content: string, clientMessageId: string): FeedItem {
   return {
-    id: buildId('local-user', `${Date.now()}-${crypto.randomUUID()}`),
+    id: buildId('local-user', `${Date.now()}-${safeRandomUUID()}`),
     type: 'message',
     role: 'user',
     content,
@@ -794,7 +809,7 @@ export function useQuestWorkspace(questId: string | null) {
         return
       }
 
-      const clientMessageId = crypto.randomUUID()
+      const clientMessageId = safeRandomUUID()
       const localUserItem = createLocalUserFeedItem(trimmed, clientMessageId)
       updateFeedState({
         history: historyRef.current,
@@ -803,11 +818,25 @@ export function useQuestWorkspace(questId: string | null) {
       clearPendingStreamCleanup()
 
       try {
-        await client.sendChat(questId, trimmed, replyTargetId, clientMessageId)
+        const response = await client.sendChat(questId, trimmed, replyTargetId, clientMessageId)
+        const nextDeliveryState =
+          response?.message?.delivery_state ? String(response.message.delivery_state) : 'sent'
+        updateFeedState({
+          history: historyRef.current,
+          pending: pendingFeedRef.current.map((item) =>
+            item.id === localUserItem.id && item.type === 'message'
+              ? { ...item, deliveryState: nextDeliveryState }
+              : item
+          ),
+        })
       } catch (caught) {
         updateFeedState({
           history: historyRef.current,
-          pending: pendingFeedRef.current.filter((item) => item.id !== localUserItem.id),
+          pending: pendingFeedRef.current.map((item) =>
+            item.id === localUserItem.id && item.type === 'message'
+              ? { ...item, deliveryState: 'failed' }
+              : item
+          ),
         })
         throw caught
       }

@@ -170,7 +170,15 @@ type QuestLayoutJson = {
   [key: string]: unknown
 }
 
-type BranchStage = 'idea' | 'experiment' | 'writing_eligible' | 'writing' | 'completed'
+type BranchStage =
+  | 'scout'
+  | 'baseline'
+  | 'idea'
+  | 'experiment'
+  | 'analysis-campaign'
+  | 'write'
+  | 'finalize'
+  | 'completed'
 
 type BranchInsight = {
   branchName: string
@@ -232,15 +240,15 @@ const isKeyEventType = (raw?: string | null) => {
   const value = String(raw || '').toLowerCase()
   if (!value) return false
   return (
-    value.startsWith('decision.') ||
-    value.startsWith('error.') ||
-    value.startsWith('experiment.') ||
-    value.startsWith('baseline.') ||
-    value.startsWith('branch.') ||
-    value.startsWith('pi.') ||
-    value.startsWith('write.') ||
-    value.startsWith('idea.') ||
-    value.startsWith('research.')
+    value === 'artifact.recorded' ||
+    value === 'quest.control' ||
+    value === 'runner.tool_result' ||
+    value === 'decision' ||
+    value === 'approval' ||
+    value === 'baseline' ||
+    value === 'idea' ||
+    value === 'run' ||
+    value === 'report'
   )
 }
 
@@ -499,6 +507,13 @@ function extractEventPayload(raw?: Record<string, unknown> | null) {
   return null
 }
 
+function extractEmbeddedRawEvent(raw?: Record<string, unknown> | null) {
+  if (!raw || typeof raw !== 'object') return null
+  const event = (raw as any).event
+  if (event && typeof event === 'object') return event as Record<string, unknown>
+  return null
+}
+
 const asString = (value: unknown) => {
   if (typeof value === 'string') return value.trim() || null
   if (typeof value === 'number' || typeof value === 'boolean') return String(value)
@@ -512,14 +527,102 @@ const asRecord = (value: unknown) => {
 
 const asArray = (value: unknown) => (Array.isArray(value) ? value : [])
 
-const STAGE_ORDER: BranchStage[] = ['idea', 'experiment', 'writing_eligible', 'writing', 'completed']
+const resolveEventStageKey = (event: LabQuestEventItem) => {
+  const payload = extractEventPayload(event.payload_json as Record<string, unknown> | null)
+  const explicit = String(
+    event.stage_key || payload?.stage_key || payload?.protocol_step || payload?.flow_type || payload?.run_kind || ''
+  )
+    .trim()
+    .toLowerCase()
+  if (!explicit) return null
+  if (explicit.includes('analysis')) return 'analysis-campaign'
+  if (explicit.includes('write') || explicit.includes('paper')) return 'write'
+  if (explicit.includes('baseline') || explicit.includes('reproduce')) return 'baseline'
+  if (explicit.includes('scout') || explicit.includes('research') || explicit.includes('literature')) return 'scout'
+  if (explicit.includes('experiment')) return 'experiment'
+  if (explicit.includes('final')) return 'finalize'
+  if (explicit.includes('idea')) return 'idea'
+  if (explicit.includes('decision')) return 'decision'
+  return explicit
+}
+
+const resolveEventArtifactKind = (event: LabQuestEventItem) => {
+  const payload = extractEventPayload(event.payload_json as Record<string, unknown> | null)
+  return String(payload?.kind || '').trim().toLowerCase() || null
+}
+
+const isDecisionEvent = (event: LabQuestEventItem) => {
+  const kind = resolveEventArtifactKind(event)
+  const stage = resolveEventStageKey(event)
+  return event.event_type === 'quest.control' || kind === 'decision' || kind === 'approval' || stage === 'decision'
+}
+
+const isWritingEvent = (event: LabQuestEventItem) => {
+  const kind = resolveEventArtifactKind(event)
+  const stage = resolveEventStageKey(event)
+  return kind === 'report' || stage === 'write' || stage === 'finalize'
+}
+
+const isExperimentEvent = (event: LabQuestEventItem) => {
+  const kind = resolveEventArtifactKind(event)
+  const stage = resolveEventStageKey(event)
+  return kind === 'run' || stage === 'experiment' || stage === 'analysis-campaign'
+}
+
+const isIdeaEvent = (event: LabQuestEventItem) => {
+  const kind = resolveEventArtifactKind(event)
+  const stage = resolveEventStageKey(event)
+  return kind === 'idea' || stage === 'idea'
+}
+
+const isBaselineEvent = (event: LabQuestEventItem) => {
+  const kind = resolveEventArtifactKind(event)
+  const stage = resolveEventStageKey(event)
+  return kind === 'baseline' || stage === 'baseline'
+}
+
+const isErrorEvent = (event: LabQuestEventItem) => {
+  const payload = extractEventPayload(event.payload_json as Record<string, unknown> | null)
+  const rawEvent = asRecord((event.payload_json as Record<string, unknown> | null)?.event)
+  const status = String(payload?.status || rawEvent?.status || '').trim().toLowerCase()
+  return status === 'failed' || status === 'error'
+}
+
+const isConversationEvent = (event: LabQuestEventItem) =>
+  event.event_type === 'conversation.message' || event.event_type === 'interaction.reply_received'
+
+const isToolLifecycleEvent = (event: LabQuestEventItem) =>
+  event.event_type === 'runner.tool_call' || event.event_type === 'runner.tool_result'
+
+const STAGE_ORDER: BranchStage[] = [
+  'scout',
+  'baseline',
+  'idea',
+  'experiment',
+  'analysis-campaign',
+  'write',
+  'finalize',
+  'completed',
+]
 
 const BRANCH_STAGE_LABELS: Record<BranchStage, string> = {
+  scout: 'Scout',
+  baseline: 'Baseline',
   idea: 'Idea',
   experiment: 'Experiment',
-  writing_eligible: 'Writing eligible',
-  writing: 'Writing',
+  'analysis-campaign': 'Analysis',
+  write: 'Write',
+  finalize: 'Finalize',
   completed: 'Completed',
+}
+
+const formatStageBadge = (stageKey?: string | null) => {
+  const normalized = String(stageKey || '').trim().toLowerCase()
+  if (!normalized) return null
+  if (normalized in BRANCH_STAGE_LABELS) {
+    return BRANCH_STAGE_LABELS[normalized as BranchStage]
+  }
+  return formatStateLabel(normalized)
 }
 
 const resolveStageRank = (stage: BranchStage) => STAGE_ORDER.indexOf(stage)
@@ -537,14 +640,16 @@ const parseEventTime = (value?: string | null) => {
 const resolveDecisionReason = (event: LabQuestEventItem) => {
   const payload = extractEventPayload(event.payload_json as Record<string, unknown> | null)
   if (!payload) return event.reply_to_pi || event.payload_summary || null
-  if (event.event_type === 'decision.validate') {
-    return asString(payload.justification) || asString(payload.next_direction) || event.reply_to_pi || event.payload_summary || null
-  }
-  if (event.event_type === 'pi.outcome_reviewed') {
-    return asString(payload.reason) || asString(payload.action) || event.reply_to_pi || event.payload_summary || null
-  }
-  if (event.event_type === 'branch.promoted') {
-    return asString(payload.reason) || event.reply_to_pi || event.payload_summary || null
+  if (isDecisionEvent(event)) {
+    return (
+      asString(payload.reason) ||
+      asString(payload.justification) ||
+      asString(payload.action) ||
+      asString(payload.verdict) ||
+      event.reply_to_pi ||
+      event.payload_summary ||
+      null
+    )
   }
   return event.reply_to_pi || event.payload_summary || null
 }
@@ -563,26 +668,115 @@ const normalizeOutcomeVerdictValue = (value: unknown) => {
 
 const resolveOutcomeVerdict = (event: LabQuestEventItem) => {
   const payload = extractEventPayload(event.payload_json as Record<string, unknown> | null)
-  return normalizeOutcomeVerdictValue(payload?.verdict)
+  return normalizeOutcomeVerdictValue(payload?.verdict || payload?.status)
 }
 
 const resolveDecisionLabel = (event: LabQuestEventItem) => {
   const payload = extractEventPayload(event.payload_json as Record<string, unknown> | null)
-  if (event.event_type === 'decision.validate') {
-    return asString(payload?.decision)?.toUpperCase() || 'VALIDATE'
-  }
-  if (event.event_type === 'pi.outcome_reviewed') {
-    return asString(payload?.action)?.toUpperCase() || 'OUTCOME'
-  }
-  if (event.event_type === 'branch.promoted') {
-    return 'PROMOTED'
+  if (isDecisionEvent(event)) {
+    return (
+      asString(payload?.action)?.toUpperCase() ||
+      asString(payload?.verdict)?.toUpperCase() ||
+      asString(payload?.status)?.toUpperCase() ||
+      'DECISION'
+    )
   }
   return event.event_type
 }
 
 const summarizeEvent = (event?: LabQuestEventItem | null) => {
   if (!event) return null
-  return event.reply_to_pi || event.payload_summary || event.event_type || null
+  const payload = extractEventPayload(event.payload_json as Record<string, unknown> | null)
+  return (
+    event.reply_to_pi ||
+    asString(payload?.summary) ||
+    asString(payload?.reason) ||
+    event.payload_summary ||
+    resolveDecisionLabel(event) ||
+    event.event_type ||
+    null
+  )
+}
+
+const resolveEventToolName = (event: LabQuestEventItem) => {
+  const rawEvent = extractEmbeddedRawEvent(event.payload_json as Record<string, unknown> | null)
+  return (
+    asString(rawEvent?.tool_name) ||
+    asString(rawEvent?.mcp_tool) ||
+    asString(rawEvent?.tool) ||
+    null
+  )
+}
+
+const resolveEventHeadline = (event: LabQuestEventItem) => {
+  const payload = extractEventPayload(event.payload_json as Record<string, unknown> | null)
+  const rawEvent = extractEmbeddedRawEvent(event.payload_json as Record<string, unknown> | null)
+  if (isDecisionEvent(event)) {
+    return resolveDecisionLabel(event)
+  }
+  if (event.event_type === 'artifact.recorded') {
+    const kind = asString(payload?.kind) || resolveEventArtifactKind(event) || 'artifact'
+    const artifactId = asString(payload?.artifact_id) || asString(payload?.id)
+    return artifactId ? `${formatStateLabel(kind)} · ${artifactId}` : `${formatStateLabel(kind)} artifact`
+  }
+  if (event.event_type === 'conversation.message') {
+    const role = String(rawEvent?.role || '').trim().toLowerCase()
+    return role === 'user' ? 'User message' : `${formatStateLabel(role || 'message')}`
+  }
+  if (event.event_type === 'interaction.reply_received') {
+    return 'Queued reply'
+  }
+  if (isToolLifecycleEvent(event)) {
+    const toolName = resolveEventToolName(event) || event.event_type
+    const status =
+      event.event_type === 'runner.tool_call'
+        ? 'calling'
+        : asString(rawEvent?.status) || asString(payload?.status) || 'completed'
+    return `${toolName} · ${formatStateLabel(status)}`
+  }
+  if (event.event_type === 'quest.control') {
+    const action = asString(payload?.action)
+    return action ? `Control · ${formatStateLabel(action)}` : 'Quest control'
+  }
+  return event.event_type
+}
+
+const resolveEventSummaryText = (event: LabQuestEventItem) => {
+  const payload = extractEventPayload(event.payload_json as Record<string, unknown> | null)
+  const rawEvent = extractEmbeddedRawEvent(event.payload_json as Record<string, unknown> | null)
+  if (event.event_type === 'artifact.recorded') {
+    return (
+      clampCanvasText(asString(payload?.summary) || asString(payload?.reason) || event.payload_summary, 120) ||
+      'Artifact recorded.'
+    )
+  }
+  if (isConversationEvent(event)) {
+    return (
+      clampCanvasText(
+        asString(rawEvent?.content) || event.reply_to_pi || event.payload_summary || asString(payload?.summary),
+        120
+      ) || 'Conversation update.'
+    )
+  }
+  if (isToolLifecycleEvent(event)) {
+    return (
+      clampCanvasText(
+        asString(rawEvent?.output) ||
+          asString(rawEvent?.args) ||
+          asString(payload?.summary) ||
+          event.payload_summary ||
+          event.reply_to_pi,
+        120
+      ) || 'Tool activity recorded.'
+    )
+  }
+  if (event.event_type === 'quest.control') {
+    return (
+      clampCanvasText(asString(payload?.summary) || asString(payload?.reason) || event.payload_summary, 120) ||
+      'Control event recorded.'
+    )
+  }
+  return clampCanvasText(summarizeEvent(event), 120) || 'Event recorded.'
 }
 
 const isActiveAgentStatus = (status?: string | null) => {
@@ -751,6 +945,55 @@ const renderPaperList = (items: unknown) => {
 const renderStageEventDetails = (event: LabQuestEventItem, payload: Record<string, unknown> | null) => {
   if (!payload) return null
   const type = event.event_type
+  if (type === 'artifact.recorded') {
+    const pathValues = Object.values(asRecord(payload.paths) || {})
+      .map((entry) => asString(entry))
+      .filter((entry): entry is string => Boolean(entry))
+    return (
+      <div className="mt-2 space-y-1">
+        {renderRow('Kind', asString(payload.kind))}
+        {renderRow('Artifact ID', asString(payload.artifact_id) || asString(payload.id))}
+        {renderRow('Stage', resolveEventStageKey(event))}
+        {renderRow('Status', asString(payload.status))}
+        {renderRow('Branch', asString(payload.branch))}
+        {renderRow('Commit', asString(payload.head_commit))}
+        {renderRow('Idea ID', asString(payload.idea_id))}
+        {renderRow('Campaign ID', asString(payload.campaign_id))}
+        {renderRow('Summary', asString(payload.summary))}
+        {renderRow('Reason', asString(payload.reason))}
+        {pathValues.length ? renderRow('Paths', pathValues.join(', ')) : null}
+      </div>
+    )
+  }
+  if (type === 'conversation.message' || type === 'interaction.reply_received') {
+    const rawEvent = asRecord((event.payload_json as Record<string, unknown> | null)?.event)
+    return (
+      <div className="mt-2 space-y-1">
+        {renderRow('Role', asString(rawEvent?.role))}
+        {renderRow('Message', asString(rawEvent?.content) || event.reply_to_pi || event.payload_summary)}
+      </div>
+    )
+  }
+  if (type === 'runner.tool_call' || type === 'runner.tool_result') {
+    const rawEvent = asRecord((event.payload_json as Record<string, unknown> | null)?.event)
+    return (
+      <div className="mt-2 space-y-1">
+        {renderRow('Tool', asString(rawEvent?.tool_name))}
+        {renderRow('Status', asString(rawEvent?.status))}
+        {renderRow('Args', asString(rawEvent?.args))}
+        {renderRow('Output', asString(rawEvent?.output))}
+      </div>
+    )
+  }
+  if (type === 'quest.control') {
+    return (
+      <div className="mt-2 space-y-1">
+        {renderRow('Action', asString(payload.action))}
+        {renderRow('Status', asString(payload.status))}
+        {renderRow('Summary', asString(payload.summary))}
+      </div>
+    )
+  }
   if (type.startsWith('research.')) {
     const query = asString(payload.query)
     const count = payload.count
@@ -954,22 +1197,22 @@ const renderStageEventDetails = (event: LabQuestEventItem, payload: Record<strin
 const STAGE_EVENT_GROUPS: Array<{
   key: string
   label: string
-  match: (eventType: string) => boolean
+  match: (event: LabQuestEventItem) => boolean
 }> = [
-  { key: 'research', label: 'Research', match: (eventType) => eventType.startsWith('research.') },
-  { key: 'ideas', label: 'Ideas', match: (eventType) => eventType.startsWith('idea.') },
-  { key: 'decisions', label: 'Decisions', match: (eventType) => eventType.startsWith('decision.') },
-  { key: 'experiments', label: 'Experiments', match: (eventType) => eventType.startsWith('experiment.') },
-  { key: 'writing', label: 'Writing', match: (eventType) => eventType.startsWith('write.') },
-  { key: 'agents', label: 'Agents', match: (eventType) => eventType === 'agent.spawned' },
-  { key: 'pi', label: 'PI', match: (eventType) => eventType.startsWith('pi.') },
-  { key: 'errors', label: 'Errors', match: (eventType) => eventType.startsWith('error.') },
+  { key: 'scout', label: 'Scout', match: (event) => resolveEventStageKey(event) === 'scout' },
+  { key: 'baseline', label: 'Baseline', match: (event) => isBaselineEvent(event) },
+  { key: 'ideas', label: 'Ideas', match: (event) => isIdeaEvent(event) },
+  { key: 'decisions', label: 'Decisions', match: (event) => isDecisionEvent(event) },
+  { key: 'experiments', label: 'Experiments', match: (event) => isExperimentEvent(event) },
+  { key: 'writing', label: 'Writing', match: (event) => isWritingEvent(event) },
+  { key: 'conversation', label: 'Conversation', match: (event) => isConversationEvent(event) },
+  { key: 'errors', label: 'Errors', match: (event) => isErrorEvent(event) },
+  { key: 'tools', label: 'Tools', match: (event) => isToolLifecycleEvent(event) },
 ]
 
-const resolveStageGroupLabel = (eventType: string) => {
-  const raw = String(eventType || '').toLowerCase()
+const resolveStageGroupLabel = (event: LabQuestEventItem) => {
   for (const group of STAGE_EVENT_GROUPS) {
-    if (group.match(raw)) return group.label
+    if (group.match(event)) return group.label
   }
   return 'Other'
 }
@@ -977,7 +1220,7 @@ const resolveStageGroupLabel = (eventType: string) => {
 const groupStageEvents = (events: LabQuestEventItem[]) => {
   const buckets = new Map<string, LabQuestEventItem[]>()
   events.forEach((event) => {
-    const label = resolveStageGroupLabel(event.event_type || '')
+    const label = resolveStageGroupLabel(event)
     const bucket = buckets.get(label)
     if (bucket) {
       bucket.push(event)
@@ -2035,7 +2278,7 @@ function LabQuestGraphCanvasInner({
 
   const eventsQuery = useQuery({
     queryKey: ['lab-quest-events', projectId, questId, 'canvas'],
-    queryFn: () => eventFetcher(projectId, questId, { limit: 20 }),
+    queryFn: () => eventFetcher(projectId, questId, { limit: 40, includePayload: true }),
     enabled: Boolean(projectId && questId),
     staleTime: 10000,
     refetchInterval: shouldPollEventsData ? PANEL_POLL_MS : false,
@@ -2074,7 +2317,7 @@ function LabQuestGraphCanvasInner({
     queryKey: ['lab-quest-decision-events', projectId, questId],
     queryFn: () =>
       eventFetcher(projectId, questId, {
-        eventTypes: ['decision.validate', 'pi.outcome_reviewed', 'branch.promoted'],
+        eventTypes: ['artifact.recorded', 'quest.control'],
         limit: 200,
         includePayload: true,
       }),
@@ -2087,7 +2330,7 @@ function LabQuestGraphCanvasInner({
     queryKey: ['lab-quest-pi-qa-events', projectId, questId],
     queryFn: () =>
       eventFetcher(projectId, questId, {
-        eventTypes: ['pi.question', 'pi.answer'],
+        eventTypes: ['conversation.message', 'interaction.reply_received'],
         limit: 80,
         includePayload: true,
       }),
@@ -2100,18 +2343,14 @@ function LabQuestGraphCanvasInner({
     queryKey: ['lab-quest-branch-insights', projectId, questId],
     queryFn: () =>
       eventFetcher(projectId, questId, {
-        eventPrefixes: [
-          'research.',
-          'idea.',
-          'decision.',
-          'experiment.',
-          'pi.',
-          'branch.',
-          'write.',
-          'error.',
-          'baseline.',
+        eventTypes: [
+          'artifact.recorded',
+          'runner.tool_result',
+          'conversation.message',
+          'interaction.reply_received',
+          'quest.control',
         ],
-        limit: 500,
+        limit: 800,
         includePayload: true,
       }),
     enabled: Boolean(projectId && questId),
@@ -2271,7 +2510,9 @@ function LabQuestGraphCanvasInner({
     const map = new Map<string, BranchInsight>()
     branchNames.forEach((branchName) => {
       const branchEvents = groupedEvents.get(branchName) ?? []
-      let stage: BranchStage = 'idea'
+      const fallbackNode = branchNodeMap.get(branchName)
+      const fallbackStage = String(fallbackNode?.stage_key || 'baseline') as BranchStage
+      let stage: BranchStage = STAGE_ORDER.includes(fallbackStage) ? fallbackStage : 'baseline'
       let writingEligible = false
       let writingActive = false
       let completed = false
@@ -2279,65 +2520,57 @@ function LabQuestGraphCanvasInner({
       let latestDecisionEvent: LabQuestEventItem | null = null
 
       branchEvents.forEach((event) => {
-        const eventType = String(event.event_type || '').toLowerCase()
-        if (eventType === 'idea.created' || eventType === 'idea.review_ready') {
-          stage = elevateBranchStage(stage, 'idea')
+        const stageKey = resolveEventStageKey(event)
+        if (
+          stageKey &&
+          stageKey !== 'decision' &&
+          STAGE_ORDER.includes(stageKey as BranchStage)
+        ) {
+          stage = elevateBranchStage(stage, stageKey as BranchStage)
         }
-        if (eventType === 'decision.validate' || eventType === 'experiment.started' || eventType === 'experiment.finished') {
-          stage = elevateBranchStage(stage, 'experiment')
-        }
-        if (eventType === 'decision.validate' || eventType === 'pi.outcome_reviewed' || eventType === 'branch.promoted') {
+        if (isDecisionEvent(event)) {
           latestDecisionEvent = event
         }
-        if (eventType === 'pi.outcome_reviewed') {
-          const currentVerdict = resolveOutcomeVerdict(event)
-          if (currentVerdict) {
-            verdict = currentVerdict
-          }
-          if (currentVerdict === 'good') {
-            writingEligible = true
-            stage = elevateBranchStage(stage, 'writing_eligible')
-          }
+        const currentVerdict = resolveOutcomeVerdict(event)
+        if (currentVerdict) {
+          verdict = currentVerdict
         }
-        if (eventType === 'branch.promoted') {
+        if (currentVerdict === 'good' && (stage === 'experiment' || stage === 'analysis-campaign')) {
           writingEligible = true
-          stage = elevateBranchStage(stage, 'writing_eligible')
         }
-        if (eventType === 'write.needs_experiment') {
-          writingActive = false
-          stage = elevateBranchStage(stage, 'experiment')
-        } else if (eventType.startsWith('write.')) {
+        if (isWritingEvent(event)) {
           writingActive = true
-          stage = elevateBranchStage(stage, 'writing')
-          if (eventType === 'write.completed') {
-            completed = true
-            writingActive = false
-            stage = 'completed'
-          }
         }
       })
 
-      if (completed) {
-        stage = 'completed'
-      } else if (writingActive) {
-        stage = elevateBranchStage(stage, 'writing')
-      } else if (writingEligible) {
-        stage = elevateBranchStage(stage, 'writing_eligible')
+      if (stage === 'write' || stage === 'finalize') {
+        writingEligible = true
+      }
+      if (stage === 'finalize') {
+        completed = true
+        writingActive = false
+      } else if (stage === 'write') {
+        writingActive = true
       }
 
       const latestEvent = branchEvents.length ? branchEvents[branchEvents.length - 1] : null
-      const fallbackNode = branchNodeMap.get(branchName)
       const updatedAt = latestEvent?.created_at || fallbackNode?.created_at || null
       const nowDoing =
         clampCanvasText(activeAgentByBranch.get(branchName), 88) ||
         clampCanvasText(summarizeEvent(latestEvent), 88) ||
+        clampCanvasText(fallbackNode?.node_summary?.last_reply, 88) ||
         null
       const decisionReason = latestDecisionEvent
         ? clampCanvasText(resolveDecisionReason(latestDecisionEvent), 100)
         : null
-      const writingStatus = completed ? 'completed' : writingActive ? 'active' : writingEligible ? 'eligible' : 'not-ready'
       const stale = Boolean(updatedAt) && Date.now() - parseEventTime(updatedAt) > STALE_BRANCH_MS
-      const evidenceParts = [verdict ? `verdict ${verdict}` : 'verdict pending', `writing ${writingStatus}`]
+      const evidenceParts = [`stage ${BRANCH_STAGE_LABELS[stage]}`]
+      if (verdict) {
+        evidenceParts.push(`verdict ${verdict}`)
+      }
+      if (decisionReason) {
+        evidenceParts.push('decision recorded')
+      }
       if (stale) {
         evidenceParts.push('stale')
       }
@@ -2428,7 +2661,7 @@ function LabQuestGraphCanvasInner({
         counts.writingActive += 1
       } else if (insight.writingEligible) {
         counts.writingEligible += 1
-      } else if (insight.stage === 'experiment') {
+      } else if (insight.stage === 'experiment' || insight.stage === 'analysis-campaign') {
         counts.experimenting += 1
       } else {
         counts.ideasOnly += 1
@@ -2449,7 +2682,7 @@ function LabQuestGraphCanvasInner({
   }, [branchInsights])
 
   const decisionLogItems = React.useMemo(() => {
-    const items = decisionEventsQuery.data?.items ?? []
+    const items = (decisionEventsQuery.data?.items ?? []).filter((event) => isDecisionEvent(event))
     return [...items].sort((left, right) => parseEventTime(right.created_at) - parseEventTime(left.created_at))
   }, [decisionEventsQuery.data?.items])
 
@@ -2491,7 +2724,7 @@ function LabQuestGraphCanvasInner({
     const map = new Map<string, Record<string, unknown>>()
     const items = decisionEventsQuery.data?.items ?? []
     items.forEach((event) => {
-      if (event.event_type !== 'decision.validate') return
+      if (!isDecisionEvent(event)) return
       const payload = extractEventPayload(event.payload_json as Record<string, unknown> | null)
       if (payload) {
         map.set(event.event_id, payload)
@@ -2586,11 +2819,14 @@ function LabQuestGraphCanvasInner({
         )
         const trend = extractTrend(node, { metricKey: curveMetric || null, mode: curveMode }) || undefined
         const isStage = viewMode === 'stage'
-        const isDecision = viewMode === 'event' && node.status === 'decision.validate'
+        const isDecision = viewMode === 'event' && String(node.stage_key || '').toLowerCase() === 'decision'
         const decisionPayload = isDecision ? decisionPayloads.get(node.node_id) : null
-        const decisionValue = decisionPayload?.decision ? String(decisionPayload.decision) : ''
-        const decisionTarget = decisionPayload?.target_idea_id
-          ? String(decisionPayload.target_idea_id)
+        const decisionValue =
+          decisionPayload?.action || decisionPayload?.verdict || decisionPayload?.status
+            ? String(decisionPayload?.action || decisionPayload?.verdict || decisionPayload?.status)
+            : ''
+        const decisionTarget = decisionPayload?.target_idea_id || decisionPayload?.idea_id
+          ? String(decisionPayload?.target_idea_id || decisionPayload?.idea_id)
           : null
         const branchInsight =
           viewMode === 'branch' && node.branch_name ? branchInsights.get(node.branch_name) : null
@@ -2600,8 +2836,8 @@ function LabQuestGraphCanvasInner({
           ? node.stage_title || node.stage_key || node.branch_name || 'stage'
           : viewMode === 'event'
             ? isDecision
-              ? `DECISION: ${decisionValue || 'validate'}`
-              : node.status || node.branch_name || 'event'
+              ? `DECISION: ${decisionValue || 'recorded'}`
+              : node.target_label || node.stage_title || node.status || node.branch_name || 'event'
             : node.branch_name
         const subtitle = isStage
           ? typeof node.event_count === 'number'
@@ -2609,12 +2845,12 @@ function LabQuestGraphCanvasInner({
             : null
           : viewMode === 'event'
             ? isDecision
-              ? decisionPayload?.expected_roi
-                ? clampCanvasText(String(decisionPayload.expected_roi), 80)
+              ? decisionPayload?.reason
+                ? clampCanvasText(String(decisionPayload.reason), 80)
                 : decisionPayload?.justification
                   ? clampCanvasText(String(decisionPayload.justification), 80)
                   : node.branch_name
-              : node.branch_name
+              : node.stage_title || node.branch_name
             : branchInsight?.stageLabel || node.idea_id || 'Idea'
         const nodeStatus =
           viewMode === 'branch'
@@ -2697,8 +2933,10 @@ function LabQuestGraphCanvasInner({
     ]
   )
 
+  const runtimeOverlayEnabled = false
+
   const agentGraph = React.useMemo(() => {
-    if (questAgents.length === 0 || viewMode === 'stage' || atEventId) {
+    if (!runtimeOverlayEnabled || questAgents.length === 0 || viewMode === 'stage' || atEventId) {
       return { nodes: [] as QuestFlowNode[], edges: [] as Edge[] }
     }
     const anchorLayout = viewMode === 'branch' ? layoutMap : branchLayoutMap
@@ -2707,7 +2945,11 @@ function LabQuestGraphCanvasInner({
       String(a.created_at || '').localeCompare(String(b.created_at || ''))
     )
     const piAgent = sortedAgents.find(
-      (agent) => String(agent.agent_id || '').trim().toLowerCase() === 'pi'
+      (agent) => {
+        const agentId = String(agent.agent_id || '').trim().toLowerCase()
+        const mention = String(agent.mention_label || '').trim().replace(/^@/, '').toLowerCase()
+        return agentId === 'pi' || agentId.endsWith(':pi') || mention === 'pi'
+      }
     )
     const piAgentInstanceId = piAgent?.instance_id ?? null
     const piAgentNodeId = piAgentInstanceId ? `agent:${piAgentInstanceId}` : null
@@ -2717,7 +2959,8 @@ function LabQuestGraphCanvasInner({
     const fallbackBaseX = -GRID_X * 2
     sortedAgents.forEach((agent, index) => {
       const normalizedAgentId = String(agent.agent_id || '').trim().toLowerCase()
-      const isPiAgent = normalizedAgentId === 'pi'
+      const normalizedMention = String(agent.mention_label || '').trim().replace(/^@/, '').toLowerCase()
+      const isPiAgent = normalizedAgentId === 'pi' || normalizedAgentId.endsWith(':pi') || normalizedMention === 'pi'
       const piAnchorBranch =
         headBranch && branchNodeByName.has(headBranch)
           ? headBranch
@@ -2798,7 +3041,7 @@ function LabQuestGraphCanvasInner({
       }
     })
     return { nodes, edges }
-  }, [atEventId, branchLayoutMap, branchNodeByName, headBranch, layoutMap, questAgents, viewMode, viewNodeIds])
+  }, [atEventId, branchLayoutMap, branchNodeByName, headBranch, layoutMap, questAgents, runtimeOverlayEnabled, viewMode, viewNodeIds])
 
   const overlayGraph = React.useMemo(() => {
     return { nodes: [] as QuestFlowNode[], edges: [] as Edge[] }
@@ -3008,40 +3251,43 @@ function LabQuestGraphCanvasInner({
   const recentEvents = eventsQuery.data?.items ?? []
   const papers = papersQuery.data?.items ?? []
   const latestWriteEvent = React.useMemo(
-    () => recentEvents.find((event) => String(event.event_type || '').startsWith('write.')) ?? null,
+    () => recentEvents.find((event) => isWritingEvent(event)) ?? null,
     [recentEvents]
   )
   const writingBranch = latestWriteEvent?.branch_name || activeBranch || 'main'
   const filteredEvents = React.useMemo(() => {
     if (eventFilter === 'all') return recentEvents
     return recentEvents.filter((event) => {
-      const raw = String(event.event_type || '').toLowerCase()
-      if (eventFilter === 'error') return raw.startsWith('error.')
-      if (eventFilter === 'decision') {
-        return raw.startsWith('decision.') || raw === 'pi.outcome_reviewed' || raw === 'branch.promoted'
-      }
+      if (eventFilter === 'error') return isErrorEvent(event)
+      if (eventFilter === 'decision') return isDecisionEvent(event)
       if (eventFilter === 'activity') {
         return (
-          raw.startsWith('idea.') ||
-          raw.startsWith('experiment.') ||
-          raw.startsWith('write.') ||
-          raw.startsWith('pi.') ||
-          raw.startsWith('agent.') ||
-          raw.startsWith('research.')
+          event.event_type === 'artifact.recorded' ||
+          isBaselineEvent(event) ||
+          isIdeaEvent(event) ||
+          isExperimentEvent(event) ||
+          isWritingEvent(event) ||
+          isConversationEvent(event) ||
+          isToolLifecycleEvent(event)
         )
       }
       return true
     })
   }, [eventFilter, recentEvents])
 
+  const groupedFilteredEvents = React.useMemo(
+    () => groupStageEvents(filteredEvents),
+    [filteredEvents]
+  )
+
   const piQaPairs = React.useMemo(() => {
     const sourceEvents =
       piQaEventsQuery.data?.items && piQaEventsQuery.data.items.length
         ? piQaEventsQuery.data.items
-        : recentEvents.filter((event) => {
-            const type = String(event.event_type || '').toLowerCase()
-            return type === 'pi.question' || type === 'pi.answer'
-          })
+        : recentEvents.filter(
+            (event) =>
+              event.event_type === 'conversation.message' || event.event_type === 'interaction.reply_received'
+          )
 
     const ordered = [...sourceEvents].sort((a, b) => {
       const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
@@ -3049,51 +3295,75 @@ function LabQuestGraphCanvasInner({
       return aTime - bTime
     })
 
-    const pairMap = new Map<
-      string,
-      {
-        questionId: string
-        question: string | null
-        answer: string | null
-        branchName: string | null
-        updatedAt: string | null
-      }
-    >()
+    const pairs: Array<{
+      questionId: string
+      question: string | null
+      answer: string | null
+      branchName: string | null
+      updatedAt: string | null
+    }> = []
+    let pendingQuestion: {
+      questionId: string
+      question: string | null
+      branchName: string | null
+      updatedAt: string | null
+    } | null = null
 
     ordered.forEach((event) => {
       const rawPayload = event.payload_json as Record<string, unknown> | null
       const payload = extractEventPayload(rawPayload)
-      const questionId = asString(payload?.question_id)
-      if (!questionId) return
-      const existing =
-        pairMap.get(questionId) ??
-        {
-          questionId,
-          question: null,
-          answer: null,
+      const rawEvent = asRecord(rawPayload?.event)
+      const role = String(rawEvent?.role || '').trim().toLowerCase()
+      const content =
+        event.reply_to_pi ||
+        event.payload_summary ||
+        asString(payload?.content) ||
+        asString(rawEvent?.content) ||
+        null
+      if (!content) return
+
+      if (event.event_type === 'conversation.message' && role === 'user') {
+        pendingQuestion = {
+          questionId: event.event_id,
+          question: content,
           branchName: event.branch_name || null,
           updatedAt: event.created_at || null,
         }
-
-      const next = {
-        questionId,
-        question: existing.question,
-        answer: existing.answer,
-        branchName: existing.branchName || event.branch_name || null,
-        updatedAt: event.created_at || existing.updatedAt,
+        return
       }
 
-      if (event.event_type === 'pi.question') {
-        next.question = asString(payload?.question) || event.payload_summary || event.reply_to_pi || null
-      }
-      if (event.event_type === 'pi.answer') {
-        next.answer = asString(payload?.answer) || event.payload_summary || event.reply_to_pi || null
+      if (!pendingQuestion) {
+        pairs.push({
+          questionId: event.event_id,
+          question: null,
+          answer: content,
+          branchName: event.branch_name || null,
+          updatedAt: event.created_at || null,
+        })
+        return
       }
 
-      pairMap.set(questionId, next)
+      pairs.push({
+        questionId: pendingQuestion.questionId,
+        question: pendingQuestion.question,
+        answer: content,
+        branchName: pendingQuestion.branchName || event.branch_name || null,
+        updatedAt: event.created_at || pendingQuestion.updatedAt,
+      })
+      pendingQuestion = null
     })
 
-    return [...pairMap.values()].sort((a, b) => {
+    if (pendingQuestion) {
+      pairs.push({
+        questionId: pendingQuestion.questionId,
+        question: pendingQuestion.question,
+        answer: null,
+        branchName: pendingQuestion.branchName,
+        updatedAt: pendingQuestion.updatedAt,
+      })
+    }
+
+    return pairs.sort((a, b) => {
       const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0
       const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
       return bTime - aTime
@@ -3463,7 +3733,7 @@ function LabQuestGraphCanvasInner({
   const baselineReady = React.useMemo(() => {
     if (metricCatalog.length > 0) return true
     const events = branchInsightEventsQuery.data?.items ?? []
-    return events.some((event) => String(event.event_type || '').toLowerCase().startsWith('baseline.'))
+    return events.some((event) => isBaselineEvent(event))
   }, [branchInsightEventsQuery.data?.items, metricCatalog.length])
   const selectedBranchName = activeBranch || headBranch || sortedBranches[0]?.branch_name || null
   const selectedBranchInsight = selectedBranchName ? branchInsights.get(selectedBranchName) ?? null : null
@@ -3481,36 +3751,26 @@ function LabQuestGraphCanvasInner({
   )
   const selectedBranchPipelineSteps = React.useMemo(() => {
     const stageRank = selectedBranchInsight ? resolveStageRank(selectedBranchInsight.stage) : -1
-    const hasIdea = stageRank >= resolveStageRank('idea')
-    const hasExperiment = stageRank >= resolveStageRank('experiment')
-    const hasOutcome = stageRank >= resolveStageRank('writing_eligible') || selectedBranchHasDecision
-    const writingEligible = Boolean(selectedBranchInsight?.writingEligible)
-    const writingActive = Boolean(selectedBranchInsight?.writingActive)
-    const completed = Boolean(selectedBranchInsight?.completed)
-
-    const baselineStatus: PipelineStepStatus = baselineReady ? 'done' : 'active'
-    const ideaStatus: PipelineStepStatus =
-      hasExperiment || hasOutcome || writingActive || completed
-        ? 'done'
-        : hasIdea || baselineReady
-          ? 'active'
-          : 'pending'
-    const experimentStatus: PipelineStepStatus =
-      hasOutcome || writingActive || completed ? 'done' : hasExperiment ? 'active' : 'pending'
-    const outcomeStatus: PipelineStepStatus =
-      writingActive || completed ? 'done' : hasOutcome ? 'active' : hasExperiment ? 'pending' : 'pending'
-    const writingStatus: PipelineStepStatus = completed
-      ? 'done'
-      : writingActive
-        ? 'active'
-        : writingEligible
+    const statusForStage = (target: BranchStage, dependsOnReady = false): PipelineStepStatus => {
+      const targetRank = resolveStageRank(target)
+      if (stageRank > targetRank) return 'done'
+      if (stageRank === targetRank) return 'active'
+      if (dependsOnReady && baselineReady) return 'active'
+      return 'pending'
+    }
+    const finalizeStatus: PipelineStepStatus =
+      selectedBranchInsight?.completed || stageRank >= resolveStageRank('finalize')
+        ? stageRank > resolveStageRank('finalize') || selectedBranchInsight?.completed
+          ? 'done'
+          : 'active'
+        : selectedBranchHasDecision && stageRank >= resolveStageRank('write')
           ? 'pending'
           : 'pending'
 
     return [
       {
         key: 'baseline',
-        status: baselineStatus,
+        status: baselineReady ? (stageRank > resolveStageRank('baseline') ? 'done' : 'active') : 'active',
         label: t('quest_process_step_baseline', undefined, 'Baseline'),
         description: t(
           'quest_process_step_baseline_desc',
@@ -3520,7 +3780,7 @@ function LabQuestGraphCanvasInner({
       },
       {
         key: 'idea',
-        status: ideaStatus,
+        status: statusForStage('idea', true),
         label: t('quest_process_step_idea', undefined, 'Idea'),
         description: t(
           'quest_process_step_idea_desc',
@@ -3530,7 +3790,7 @@ function LabQuestGraphCanvasInner({
       },
       {
         key: 'experiment',
-        status: experimentStatus,
+        status: statusForStage('experiment'),
         label: t('quest_process_step_experiment', undefined, 'Experiment'),
         description: t(
           'quest_process_step_experiment_desc',
@@ -3539,23 +3799,33 @@ function LabQuestGraphCanvasInner({
         ),
       },
       {
-        key: 'outcome',
-        status: outcomeStatus,
-        label: t('quest_process_step_outcome', undefined, 'Outcome'),
+        key: 'analysis',
+        status: statusForStage('analysis-campaign'),
+        label: t('quest_process_step_outcome', undefined, 'Analysis'),
         description: t(
           'quest_process_step_outcome_desc',
           undefined,
-          'Evaluate evidence and make PI decision.'
+          'Run follow-up analyses and verify claims.'
         ),
       },
       {
-        key: 'writing',
-        status: writingStatus,
+        key: 'write',
+        status: statusForStage('write'),
         label: t('quest_process_step_writing', undefined, 'Writing'),
         description: t(
           'quest_process_step_writing_desc',
           undefined,
           'Draft and finalize paper artifacts.'
+        ),
+      },
+      {
+        key: 'finalize',
+        status: finalizeStatus,
+        label: t('quest_process_step_writing', undefined, 'Finalize'),
+        description: t(
+          'quest_process_step_writing_desc',
+          undefined,
+          'Freeze the final claim set, summary, and graph exports.'
         ),
       },
     ] as Array<{
@@ -4330,6 +4600,10 @@ function LabQuestGraphCanvasInner({
                         type="button"
                         className="lab-quest-event-item"
                         onClick={() => {
+                          if (onEventSelect) {
+                            onEventSelect(event.event_id, event.branch_name || undefined)
+                            return
+                          }
                           if (event.branch_name && onBranchSelect) {
                             onBranchSelect(event.branch_name)
                           }
@@ -4358,29 +4632,42 @@ function LabQuestGraphCanvasInner({
                 ) : filteredEvents.length === 0 ? (
                   <div className="lab-quest-empty">No matching events.</div>
                 ) : (
-                  <div className="space-y-2">
-                    {filteredEvents.map((event) => (
-                      <button
-                        key={event.event_id}
-                        type="button"
-                        className="lab-quest-event-item"
-                        onClick={() => {
-                          if (event.branch_name && onBranchSelect) {
-                            onBranchSelect(event.branch_name)
-                          }
-                        }}
-                      >
-                        <div className="lab-quest-event-item__title">{event.event_type}</div>
-                        <div className="lab-quest-event-item__meta">
-                          <span>{event.branch_name || 'main'}</span>
-                          <span>{formatRelativeTime(event.created_at)}</span>
+                  <div className="space-y-3">
+                    {groupedFilteredEvents.map((group) => (
+                      <div key={`event-group-${group.label}`} className="space-y-2">
+                        <div className="px-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--lab-text-secondary)]">
+                          {group.label}
                         </div>
-                        {event.reply_to_pi ? (
-                          <div className="lab-quest-event-item__summary">{event.reply_to_pi}</div>
-                        ) : event.payload_summary ? (
-                          <div className="lab-quest-event-item__summary">{event.payload_summary}</div>
-                        ) : null}
-                      </button>
+                        <div className="space-y-2">
+                          {group.items.map((event) => {
+                            const stageBadge = formatStageBadge(resolveEventStageKey(event))
+                            return (
+                              <button
+                                key={event.event_id}
+                                type="button"
+                                className="lab-quest-event-item"
+                                onClick={() => {
+                                  if (onEventSelect) {
+                                    onEventSelect(event.event_id, event.branch_name || undefined)
+                                    return
+                                  }
+                                  if (event.branch_name && onBranchSelect) {
+                                    onBranchSelect(event.branch_name)
+                                  }
+                                }}
+                              >
+                                <div className="lab-quest-event-item__title">{resolveEventHeadline(event)}</div>
+                                <div className="lab-quest-event-item__meta">
+                                  <span>{event.branch_name || 'main'}</span>
+                                  {stageBadge ? <span>{stageBadge}</span> : null}
+                                  <span>{formatRelativeTime(event.created_at)}</span>
+                                </div>
+                                <div className="lab-quest-event-item__summary">{resolveEventSummaryText(event)}</div>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}

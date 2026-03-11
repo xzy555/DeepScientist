@@ -5,6 +5,7 @@ from typing import Any
 
 from ..channels import get_channel_factory, register_builtin_channels
 from ..config import ConfigManager
+from ..connector_runtime import conversation_identity_key, normalize_conversation_id
 from ..gitops import (
     canonical_worktree_root,
     checkpoint_repo,
@@ -2061,8 +2062,27 @@ class ArtifactService:
     def _bound_conversations(self, quest_root: Path) -> list[str]:
         state_path = quest_root / ".ds" / "bindings.json"
         payload = read_json(state_path, {"sources": ["local:default"]})
-        sources = payload.get("sources") or ["local:default"]
-        return [str(item) for item in sources]
+        sources = [self._normalize_conversation_id(str(item)) for item in (payload.get("sources") or ["local:default"])]
+        connector_sources = self._connector_bound_conversations(self._quest_id(quest_root))
+        return self._dedupe_targets([*connector_sources, *sources])
+
+    def _connector_bound_conversations(self, quest_id: str) -> list[str]:
+        root = self.home / "logs" / "connectors"
+        if not root.exists():
+            return []
+        targets: list[str] = []
+        for bindings_path in sorted(root.glob("*/bindings.json")):
+            payload = read_json(bindings_path, {})
+            bindings = payload.get("bindings") if isinstance(payload.get("bindings"), dict) else {}
+            for conversation_id, binding in bindings.items():
+                if not isinstance(binding, dict):
+                    continue
+                if str(binding.get("quest_id") or "").strip() != quest_id:
+                    continue
+                normalized = self._normalize_conversation_id(str(conversation_id))
+                if normalized:
+                    targets.append(normalized)
+        return targets
 
     def _connectors_config(self) -> dict[str, Any]:
         return ConfigManager(self.home).load_named("connectors")
@@ -2125,9 +2145,10 @@ class ArtifactService:
         seen: set[str] = set()
         for target in targets:
             normalized = str(target or "").strip()
-            if not normalized or normalized in seen:
+            identity = conversation_identity_key(normalized)
+            if not normalized or identity in seen:
                 continue
-            seen.add(normalized)
+            seen.add(identity)
             ordered.append(normalized)
         return ordered
 
@@ -2151,6 +2172,9 @@ class ArtifactService:
             return False
         channel = factory(home=self.home, config=resolved_connectors.get(channel_name, {}))
         result = channel.send(payload)
+        delivery = result.get("delivery")
+        if isinstance(delivery, dict):
+            return bool(delivery.get("ok", False) or delivery.get("queued", False))
         return bool(result.get("ok", False) or result.get("queued", False))
 
     def _recent_inbound_messages(self, quest_root: Path, *, limit: int) -> list[dict]:
@@ -2295,12 +2319,7 @@ class ArtifactService:
 
     @staticmethod
     def _normalize_conversation_id(source: str) -> str:
-        normalized = (source or "local").strip().lower()
-        if normalized in {"web", "cli", "api", "command", "local", "local-ui"}:
-            return "local:default"
-        if ":" in normalized:
-            return normalized
-        return f"{normalized}:default"
+        return normalize_conversation_id(source)
 
     def _close_interaction_request(
         self,

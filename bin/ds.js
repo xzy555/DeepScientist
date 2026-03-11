@@ -457,6 +457,15 @@ function healthMatchesManagedState({ health, state, home }) {
   return expectedDaemonId === actualDaemonId;
 }
 
+function healthMatchesHome({ health, home }) {
+  if (!health || health.status !== 'ok') {
+    return false;
+  }
+  const expectedHome = normalizeHomePath(home);
+  const actualHome = typeof health.home === 'string' && health.home ? normalizeHomePath(health.home) : null;
+  return Boolean(actualHome && actualHome === expectedHome);
+}
+
 function daemonIdentityError({ url, home, health, state }) {
   const expectedHome = normalizeHomePath(home);
   const actualHome = typeof health?.home === 'string' ? health.home : 'unknown';
@@ -550,9 +559,11 @@ async function stopDaemon(home) {
   const state = readDaemonState(home);
   const configured = readConfiguredUiAddressFromFile(home);
   const url = state?.url || localUiUrl(state?.host || configured.host, state?.port || configured.port);
-  const pid = state?.pid;
   const healthBefore = await fetchHealth(url);
   const healthyBefore = Boolean(healthBefore && healthBefore.status === 'ok');
+  const sameHomeHealthy = healthMatchesHome({ health: healthBefore, home });
+  const pid = state?.pid || (sameHomeHealthy ? healthBefore?.pid : null);
+  const shutdownDaemonId = sameHomeHealthy ? healthBefore?.daemon_id : state?.daemon_id;
 
   if (!state && !healthyBefore) {
     console.log('No managed DeepScientist daemon is running.');
@@ -561,24 +572,28 @@ async function stopDaemon(home) {
   }
 
   if (!state && healthyBefore) {
-    console.error(
-      [
-        `A DeepScientist daemon is reachable at ${url}, but there is no managed daemon state for ${normalizeHomePath(home)}.`,
-        'Refusing to stop an unverified daemon.',
-      ].join('\n')
-    );
-    process.exit(1);
+    if (!sameHomeHealthy) {
+      console.error(
+        [
+          `A DeepScientist daemon is reachable at ${url}, but there is no managed daemon state for ${normalizeHomePath(home)}.`,
+          'Refusing to stop an unverified daemon.',
+        ].join('\n')
+      );
+      process.exit(1);
+    }
   }
 
   if (healthyBefore && !healthMatchesManagedState({ health: healthBefore, state, home })) {
-    console.error(daemonIdentityError({ url, home, health: healthBefore, state }));
-    process.exit(1);
+    if (!sameHomeHealthy) {
+      console.error(daemonIdentityError({ url, home, health: healthBefore, state }));
+      process.exit(1);
+    }
   }
 
   let stopped = false;
 
   if (healthyBefore) {
-    await requestDaemonShutdown(url, state?.daemon_id);
+    await requestDaemonShutdown(url, shutdownDaemonId || null);
     stopped = await waitForDaemonStop({ url, pid, attempts: 20, delayMs: 200 });
   }
 

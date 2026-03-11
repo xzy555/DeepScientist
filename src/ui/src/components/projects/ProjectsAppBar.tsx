@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { assetUrl } from '@/lib/assets'
 import { useI18n } from '@/lib/i18n'
+import { useThemeStore } from '@/lib/stores/theme'
 import { cn } from '@/lib/utils'
 
 export function ProjectsAppBar({
@@ -19,10 +20,12 @@ export function ProjectsAppBar({
   onSearchChange?: (value: string) => void
 }) {
   const { locale, toggleLocale, t } = useI18n()
+  const resolvedTheme = useThemeStore((state) => state.resolvedTheme)
   const resolvedTitle = title || t('projectsTitle')
   const resolvedSubtitle = subtitle || (title ? undefined : t('sharedApiHint'))
-  const logoSrc = assetUrl('assets/branding/logo.svg')
-  const logoInvertedSrc = assetUrl('assets/branding/logo-inverted.svg')
+  const logoSrc = assetUrl(
+    resolvedTheme === 'dark' ? 'assets/branding/logo-inverted.svg' : 'assets/branding/logo.svg'
+  )
 
   const navClassName = ({ isActive }: { isActive: boolean }) =>
     cn(
@@ -41,8 +44,7 @@ export function ProjectsAppBar({
             end
             className="inline-flex min-w-0 items-center gap-2 rounded-full px-2 py-1 transition hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
           >
-            <img src={logoSrc} alt="DeepScientist" className="h-7 w-auto dark:hidden" draggable={false} />
-            <img src={logoInvertedSrc} alt="DeepScientist" className="hidden h-7 w-auto dark:block" draggable={false} />
+            <img src={logoSrc} alt="DeepScientist" className="h-7 w-auto" draggable={false} />
             <span className="hidden text-sm font-semibold tracking-tight sm:inline">{t('brand')}</span>
           </NavLink>
 

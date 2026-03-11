@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import threading
+import time
 from pathlib import Path
 
 from deepscientist.artifact import ArtifactService
@@ -300,3 +303,99 @@ def test_codex_runner_executes_inside_active_worktree_and_sets_env(temp_home: Pa
     assert command_payload["workspace_root"] == str(worktree_root)
     assert command_payload["cwd"] == str(worktree_root)
     assert (worktree_root / ".codex" / "config.toml").exists()
+
+
+def test_codex_runner_interrupt_stops_spawned_process_group(temp_home: Path, monkeypatch) -> None:
+    if os.name == "nt":
+        return
+
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    quest_service = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home))
+    quest = quest_service.create("runner interrupt quest")
+    quest_root = Path(quest["quest_root"])
+
+    fake_bin_root = temp_home / "bin"
+    fake_bin_root.mkdir(parents=True, exist_ok=True)
+    child_state_path = temp_home / "codex-child-state.txt"
+    fake_codex = fake_bin_root / "codex"
+    fake_codex.write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env python3",
+                "import json, subprocess, sys, textwrap, time",
+                "sys.stdin.read()",
+                f"child_state_path = {str(child_state_path)!r}",
+                "child_code = textwrap.dedent('''",
+                "import pathlib, signal, sys, time",
+                "path = pathlib.Path(sys.argv[1])",
+                "path.write_text(\"alive\", encoding=\"utf-8\")",
+                "def _stop(*_args):",
+                "    path.write_text(\"stopped\", encoding=\"utf-8\")",
+                "    raise SystemExit(0)",
+                "signal.signal(signal.SIGTERM, _stop)",
+                "signal.signal(signal.SIGINT, _stop)",
+                "while True:",
+                "    time.sleep(0.2)",
+                "''')",
+                "subprocess.Popen([sys.executable, '-c', child_code, child_state_path])",
+                "print(json.dumps({'item': {'type': 'agent_message', 'text': 'interrupt test ready'}}), flush=True)",
+                "while True:",
+                "    time.sleep(0.5)",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    fake_codex.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{fake_bin_root}:{os.environ.get('PATH', '')}")
+
+    runner = CodexRunner(
+        home=temp_home,
+        repo_root=repo_root(),
+        binary="codex",
+        logger=JsonlLogger(temp_home / "logs", level="debug"),
+        prompt_builder=PromptBuilder(repo_root(), temp_home),
+        artifact_service=ArtifactService(temp_home),
+    )
+
+    holder: dict[str, object] = {}
+
+    def _run() -> None:
+        holder["result"] = runner.run(
+            RunRequest(
+                quest_id=quest["quest_id"],
+                quest_root=quest_root,
+                worktree_root=None,
+                run_id="run-interrupt-001",
+                skill_id="decision",
+                message="Start and wait.",
+                model="gpt-5.4",
+                approval_policy="never",
+                sandbox_mode="workspace-write",
+            )
+        )
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        if child_state_path.exists() and child_state_path.read_text(encoding="utf-8").strip() == "alive":
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("fake codex child process did not start")
+
+    assert runner.interrupt(quest["quest_id"]) is True
+
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+
+    deadline = time.time() + 3
+    while time.time() < deadline:
+        if child_state_path.read_text(encoding="utf-8").strip() == "stopped":
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("interrupt did not stop the spawned child process")

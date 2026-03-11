@@ -134,12 +134,26 @@ export default function LabCanvasStudio({
     [agents, selectedAgentId]
   )
   const piAgentInstance = React.useMemo(() => {
-    const piTemplate = templates.find((template) => template.template_key === 'pi') ?? null
-    if (piTemplate) {
-      const fromTemplate = agents.find((agent) => agent.template_id === piTemplate.template_id) ?? null
+    const piTemplates = templates.filter((template) =>
+      ['pi', 'principal-investigator'].includes(String(template.template_key || '').trim().toLowerCase())
+    )
+    if (piTemplates.length) {
+      const fromTemplate =
+        agents.find((agent) => piTemplates.some((template) => agent.template_id === template.template_id)) ?? null
       if (fromTemplate) return fromTemplate
     }
-    return agents.find((agent) => String(agent.agent_id || '').trim().toLowerCase() === 'pi') ?? null
+    return (
+      agents.find((agent) => {
+        const agentId = String(agent.agent_id || '').trim().toLowerCase()
+        const mention = String(agent.mention_label || '').trim().replace(/^@/, '').toLowerCase()
+        return (
+          agentId === 'pi' ||
+          mention === 'pi' ||
+          agentId.endsWith(':pi') ||
+          String(agent.template_id || '').trim().toLowerCase().includes('principal')
+        )
+      }) ?? null
+    )
   }, [agents, templates])
   const piTemplate = piAgentInstance?.template_id
     ? templatesById.get(piAgentInstance.template_id) ?? null
@@ -489,6 +503,8 @@ export default function LabCanvasStudio({
             </div>
 
             <LabNodeTraceDetail
+              projectId={projectId}
+              questId={selectedQuestId}
               trace={selectedNodeTraceQuery.data?.trace ?? null}
               isLoading={selectedNodeTraceQuery.isLoading}
               payloadJson={selectedEventPayloadQuery.data?.payload_json ?? null}

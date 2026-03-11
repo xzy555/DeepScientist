@@ -1,5 +1,6 @@
 import { client as questClient } from '@/lib/api'
-import type { FileAPIResponse, FileTextPreviewResponse, FileTreeResponse } from '@/lib/types/file'
+import type { FileAPIResponse, FileNode, FileTextPreviewResponse, FileTreeResponse } from '@/lib/types/file'
+import { transformToFileNode } from '@/lib/types/file'
 import type { ExplorerNode, ExplorerPayload, OpenDocumentPayload, QuestDocumentAssetUploadPayload } from '@/types'
 
 const QUEST_FILE_PREFIX = 'quest-file::'
@@ -278,6 +279,17 @@ function upsertFileFromDocument(fileId: string, ref: Extract<QuestNodeRef, { typ
   return next
 }
 
+function resolveQuestDocumentPath(document: OpenDocumentPayload): string | null {
+  if (typeof document.path === 'string' && document.path.trim()) {
+    return document.path.trim()
+  }
+  if (document.document_id.startsWith('path::')) {
+    const candidate = document.document_id.slice('path::'.length).trim()
+    return candidate || null
+  }
+  return null
+}
+
 export async function listQuestFiles(projectId: string, parentId?: string | null): Promise<FileAPIResponse[]> {
   const tree = await loadQuestTree(projectId)
   if (parentId === undefined || parentId === null) {
@@ -327,6 +339,36 @@ export async function openQuestNodeDocument(fileId: string): Promise<OpenDocumen
   const document = await questClient.openDocument(ref.projectId, ref.documentId)
   upsertFileFromDocument(fileId, ref, document)
   return document
+}
+
+export function buildQuestFileNodeFromDocument(
+  projectId: string,
+  document: OpenDocumentPayload
+): FileNode | null {
+  const path = resolveQuestDocumentPath(document)
+  if (!path) {
+    return null
+  }
+  const ref: Extract<QuestNodeRef, { type: 'file' }> = {
+    type: 'file',
+    projectId,
+    documentId: document.document_id,
+    path,
+  }
+  const fileId = encodeQuestFileId(projectId, document.document_id, path)
+  return transformToFileNode(upsertFileFromDocument(fileId, ref, document))
+}
+
+export async function openQuestDocumentAsFileNode(
+  projectId: string,
+  documentId: string
+): Promise<FileNode> {
+  const document = await questClient.openDocument(projectId, documentId)
+  const node = buildQuestFileNodeFromDocument(projectId, document)
+  if (!node) {
+    throw new Error(`Cannot resolve quest file node for document ${documentId}`)
+  }
+  return node
 }
 
 export async function getQuestFileContent(fileId: string): Promise<string> {

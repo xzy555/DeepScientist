@@ -10,7 +10,7 @@ import { useBashLogStream } from '@/lib/hooks/useBashLogStream'
 import { EnhancedTerminal } from '@/lib/plugins/cli/components/EnhancedTerminal'
 import { useChatScrollState } from '@/lib/plugins/ai-manus/lib/chat-scroll-context'
 import type { BashProgress, BashSessionStatus } from '@/lib/types/bash'
-import { parseBashStatusMarker, splitBashLogLine } from '@/lib/utils/bash-log'
+import { isBashProgressMarker, parseBashStatusMarker, splitBashLogLine } from '@/lib/utils/bash-log'
 import { formatProgressLabel, formatProgressMeta, getProgressPercent } from '@/lib/utils/bash-progress'
 import type { ToolViewProps } from './types'
 import '@/lib/plugins/cli/styles/terminal.css'
@@ -161,6 +161,9 @@ export function BashToolView({
 
   const handleLogLine = useCallback(
     (line: string) => {
+      if (isBashProgressMarker(line)) {
+        return
+      }
       const marker = parseBashStatusMarker(line)
       if (marker) {
         setSessionStatus(marker.status)

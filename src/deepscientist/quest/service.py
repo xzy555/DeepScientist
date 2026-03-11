@@ -10,6 +10,7 @@ from typing import Any
 from urllib.parse import quote
 
 from ..artifact.metrics import build_metrics_timeline, normalize_metrics_summary
+from ..connector_runtime import conversation_identity_key, normalize_conversation_id
 from ..gitops import current_branch, export_git_graph, head_commit, init_repo
 from ..home import repo_root
 from ..shared import append_jsonl, ensure_dir, generate_id, read_json, read_jsonl, read_text, read_yaml, resolve_within, run_command, sha256_text, slugify, utc_now, write_json, write_text, write_yaml
@@ -680,9 +681,28 @@ class QuestService:
         bindings_path = quest_root / ".ds" / "bindings.json"
         bindings = read_json(bindings_path, {"sources": []})
         normalized_source = self._normalize_binding_source(source)
-        sources = list(bindings.get("sources") or [])
-        if normalized_source not in sources:
+        normalized_key = conversation_identity_key(normalized_source)
+        changed = False
+        replaced = False
+        sources: list[str] = []
+        for item in list(bindings.get("sources") or []):
+            existing = self._normalize_binding_source(str(item))
+            if conversation_identity_key(existing) == normalized_key:
+                if not replaced:
+                    sources.append(normalized_source)
+                    replaced = True
+                    if existing != normalized_source:
+                        changed = True
+                else:
+                    changed = True
+                continue
+            sources.append(existing)
+            if existing != item:
+                changed = True
+        if not replaced:
             sources.append(normalized_source)
+            changed = True
+        if changed:
             bindings["sources"] = sources
             write_json(bindings_path, bindings)
         return bindings
@@ -913,6 +933,13 @@ class QuestService:
             "cursor": next_cursor,
             "has_more": start > 0 if tail else next_cursor < len(records),
             "events": enriched,
+        }
+
+    def artifacts(self, quest_id: str) -> dict:
+        quest_root = self._quest_root(quest_id)
+        return {
+            "quest_id": quest_id,
+            "items": self._collect_artifacts(quest_root),
         }
 
     def node_traces(self, quest_id: str, *, selection_type: str | None = None) -> dict:
@@ -1413,12 +1440,7 @@ class QuestService:
 
     @staticmethod
     def _normalize_binding_source(source: str) -> str:
-        normalized = (source or "local").strip().lower()
-        if normalized in {"web", "cli", "api", "command", "local", "local-ui", "tui-ink", "web-react", "tui-local"}:
-            return "local:default"
-        if ":" in normalized:
-            return normalized
-        return f"{normalized}:default"
+        return normalize_conversation_id(source)
 
     @staticmethod
     def _interaction_candidate_ids(item: dict[str, Any]) -> set[str]:
@@ -1471,6 +1493,10 @@ class QuestService:
         return quest_root / ".ds" / "runtime_state.json"
 
     @staticmethod
+    def _agent_status_path(quest_root: Path) -> Path:
+        return quest_root / ".ds" / "agent_status.json"
+
+    @staticmethod
     def _message_queue_path(quest_root: Path) -> Path:
         return quest_root / ".ds" / "user_message_queue.json"
 
@@ -1506,6 +1532,21 @@ class QuestService:
             "last_delivered_at": None,
         }
 
+    def _default_agent_status(self, quest_root: Path) -> dict[str, Any]:
+        quest_yaml = read_yaml(quest_root / "quest.yaml", {})
+        timestamp = quest_yaml.get("updated_at") or quest_yaml.get("created_at") or utc_now()
+        return {
+            "version": 1,
+            "quest_id": str(quest_yaml.get("quest_id") or quest_root.name),
+            "state": "idle",
+            "comment": "",
+            "current_focus": "",
+            "next_action": "",
+            "plan_items": [],
+            "related_paths": [],
+            "updated_at": timestamp,
+        }
+
     def _initialize_runtime_files(self, quest_root: Path) -> None:
         queue_path = self._message_queue_path(quest_root)
         if not queue_path.exists():
@@ -1516,6 +1557,9 @@ class QuestService:
         research_state_path = self._research_state_path(quest_root)
         if not research_state_path.exists():
             write_json(research_state_path, self._default_research_state(quest_root))
+        agent_status_path = self._agent_status_path(quest_root)
+        if not agent_status_path.exists():
+            write_json(agent_status_path, self._default_agent_status(quest_root))
 
     def _read_message_queue(self, quest_root: Path) -> dict[str, Any]:
         payload = read_json(self._message_queue_path(quest_root), self._default_message_queue())

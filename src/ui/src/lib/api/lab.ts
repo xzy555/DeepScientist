@@ -7,10 +7,14 @@ import type {
   GitComparePayload,
   MemoryCard,
   OpenDocumentPayload,
+  QuestArtifactListPayload,
+  QuestArtifactRecord,
+  QuestEventRecord,
   QuestNodeTrace,
   QuestNodeTraceAction,
   QuestNodeTraceDetailPayload,
   QuestNodeTraceListPayload,
+  QuestRawEventListPayload,
   QuestSummary,
   WorkflowEntry,
   WorkflowPayload,
@@ -1163,19 +1167,315 @@ function normalizeLabWorkingStatus(status?: string | null) {
   return 'idle'
 }
 
+const CANONICAL_STAGE_ORDER = [
+  'scout',
+  'baseline',
+  'idea',
+  'experiment',
+  'analysis-campaign',
+  'write',
+  'finalize',
+] as const
+
+const LOCAL_QUEST_EVENT_FETCH_CHUNK = 1000
+const LOCAL_QUEST_EVENT_FETCH_MAX = 8000
+
 function resolveStageKey(anchor?: string | null) {
   const normalized = String(anchor || '').trim().toLowerCase()
-  if (!normalized) return 'decision'
-  if (normalized.includes('scout') || normalized.includes('literature')) return 'scout'
+  if (!normalized) return 'baseline'
+  if (normalized.includes('scout') || normalized.includes('literature') || normalized.includes('research')) {
+    return 'scout'
+  }
+  if (normalized.includes('baseline') || normalized.includes('reproduce')) return 'baseline'
   if (normalized.includes('idea')) return 'idea'
   if (normalized.includes('decision')) return 'decision'
-  if (normalized.includes('analysis')) return 'analysis'
+  if (normalized.includes('analysis')) return 'analysis-campaign'
   if (normalized.includes('write') || normalized.includes('paper')) return 'write'
   if (normalized.includes('final')) return 'finalize'
-  if (normalized.includes('experiment') || normalized.includes('reproduce') || normalized.includes('baseline')) {
+  if (normalized.includes('experiment')) return 'experiment'
+  return normalized
+}
+
+function resolveStageRank(stage?: string | null) {
+  const normalized = resolveStageKey(stage)
+  const index = CANONICAL_STAGE_ORDER.indexOf(normalized as (typeof CANONICAL_STAGE_ORDER)[number])
+  return index >= 0 ? index : Number.MAX_SAFE_INTEGER
+}
+
+function isCanonicalStage(stage?: string | null) {
+  const normalized = resolveStageKey(stage)
+  return CANONICAL_STAGE_ORDER.includes(normalized as (typeof CANONICAL_STAGE_ORDER)[number])
+}
+
+function formatStageTitle(stage?: string | null) {
+  const normalized = resolveStageKey(stage)
+  if (!normalized) return 'General'
+  return normalized
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function asRecordValue(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
+function asArrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
+function asStringValue(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const text = value.trim()
+    return text || null
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+  return null
+}
+
+function safeJsonParse(value: unknown): unknown | null {
+  if (!value) return null
+  if (typeof value !== 'string') {
+    return typeof value === 'object' ? value : null
+  }
+  const text = value.trim()
+  if (!text) return null
+  if (!(text.startsWith('{') || text.startsWith('['))) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
+function compactText(value: unknown, limit = 240): string | null {
+  const text =
+    typeof value === 'string'
+      ? value.trim()
+      : value && typeof value === 'object'
+        ? JSON.stringify(value)
+        : asStringValue(value) || ''
+  if (!text) return null
+  if (text.length <= limit) return text
+  return `${text.slice(0, Math.max(0, limit - 1)).trimEnd()}…`
+}
+
+function stageKeyFromArtifactKind(kind?: string | null) {
+  const normalized = String(kind || '').trim().toLowerCase()
+  if (!normalized) return null
+  if (normalized === 'baseline') return 'baseline'
+  if (normalized === 'idea') return 'idea'
+  if (normalized === 'decision' || normalized === 'approval') return 'decision'
+  if (normalized === 'run') return 'experiment'
+  if (normalized === 'report') return 'write'
+  if (normalized === 'milestone') return 'finalize'
+  return null
+}
+
+function resolveArtifactStageKey(payload?: Record<string, unknown> | null, fallback?: string | null) {
+  if (payload) {
+    const explicitFields = [
+      payload.stage_key,
+      payload.protocol_step,
+      payload.flow_type,
+      payload.run_kind,
+      payload.skill_id,
+      payload.current_anchor,
+      payload.active_anchor,
+    ]
+    for (const candidate of explicitFields) {
+      const stage = resolveStageKey(asStringValue(candidate))
+      if (isCanonicalStage(stage)) {
+        return stage
+      }
+    }
+    const fromKind = stageKeyFromArtifactKind(asStringValue(payload.kind))
+    if (fromKind) return fromKind
+  }
+  const fallbackStage = resolveStageKey(fallback)
+  return isCanonicalStage(fallbackStage) ? fallbackStage : 'baseline'
+}
+
+function resolveDecisionActionStage(payload?: Record<string, unknown> | null, fallback?: string | null) {
+  const action = String(payload?.action || '').trim().toLowerCase()
+  if (!action) return resolveArtifactStageKey(null, fallback)
+  if (
+    action === 'attach_baseline' ||
+    action === 'reuse_baseline' ||
+    action === 'publish_baseline'
+  ) {
+    return 'baseline'
+  }
+  if (action === 'launch_experiment' || action === 'prepare_branch' || action === 'branch') {
     return 'experiment'
   }
-  return normalized
+  if (action === 'launch_analysis_campaign') {
+    return 'analysis-campaign'
+  }
+  if (action === 'write') return 'write'
+  if (action === 'finalize') return 'finalize'
+  return resolveArtifactStageKey(null, fallback)
+}
+
+function normalizePathMap(value: unknown): Record<string, string | null> | null {
+  if (Array.isArray(value)) {
+    const result: Record<string, string | null> = {}
+    value.forEach((entry, index) => {
+      const normalized = asStringValue(entry)
+      if (normalized) {
+        result[String(index)] = normalized
+      }
+    })
+    return Object.keys(result).length ? result : null
+  }
+  const record = asRecordValue(value)
+  if (!record) return null
+  const result: Record<string, string | null> = {}
+  Object.entries(record).forEach(([key, raw]) => {
+    result[key] = asStringValue(raw)
+  })
+  return Object.keys(result).length ? result : null
+}
+
+function normalizeRelativePath(path: string, workspaceRoot?: string | null) {
+  const normalized = path.trim()
+  if (!normalized) return null
+  if (!normalized.startsWith('/')) {
+    return normalized.replace(/^[.][/\\]/, '').replace(/\\/g, '/')
+  }
+  const root = String(workspaceRoot || '').trim()
+  if (root && normalized.startsWith(root)) {
+    return normalized
+      .slice(root.length)
+      .replace(/^[/\\]+/, '')
+      .replace(/\\/g, '/')
+  }
+  return null
+}
+
+function collectArtifactChangedFiles(payload?: Record<string, unknown> | null) {
+  if (!payload) return [] as string[]
+  const workspaceRoot = asStringValue(payload.workspace_root)
+  const rawLists = [
+    ...asArrayValue(payload.changed_files),
+    ...asArrayValue(payload.files_changed),
+    ...asArrayValue(payload.evidence_paths),
+    ...asArrayValue(payload.related_paths),
+  ]
+  const fromLists = rawLists
+    .map((entry) => asStringValue(entry))
+    .filter((entry): entry is string => Boolean(entry))
+    .map((entry) => normalizeRelativePath(entry, workspaceRoot) || entry)
+  const fromPaths = Object.values(normalizePathMap(payload.paths) || {})
+    .map((entry) => (entry ? normalizeRelativePath(entry, workspaceRoot) || entry : null))
+    .filter((entry): entry is string => Boolean(entry))
+  return [...new Set([...fromLists, ...fromPaths])]
+}
+
+function extractArtifactIdFromUnknown(value: unknown): string | null {
+  const record = asRecordValue(value)
+  if (!record) return null
+  const direct = asStringValue(record.artifact_id) || asStringValue(record.id)
+  if (direct) return direct
+  const structured = extractArtifactIdFromUnknown(record.structured_content)
+  if (structured) return structured
+  const payload = extractArtifactIdFromUnknown(record.payload)
+  if (payload) return payload
+  return null
+}
+
+function isArtifactToolEvent(event: QuestEventRecord) {
+  const server = String(event.mcp_server || '').trim().toLowerCase()
+  const tool = String(event.mcp_tool || event.tool_name || '').trim().toLowerCase()
+  return server === 'artifact' || tool.startsWith('artifact.')
+}
+
+function isCanvasRelevantToolEvent(event: QuestEventRecord) {
+  const type = String(event.type || '').trim().toLowerCase()
+  if (type !== 'runner.tool_call' && type !== 'runner.tool_result') {
+    return false
+  }
+  if (isArtifactToolEvent(event)) {
+    return true
+  }
+  const tool = String(event.tool_name || event.mcp_tool || '').trim().toLowerCase()
+  const status = String(event.status || '').trim().toLowerCase()
+  if (status === 'failed' || status === 'error') {
+    return true
+  }
+  return tool === 'web_search' || tool === 'file_change'
+}
+
+function extractArtifactIdFromRawEvent(event: QuestEventRecord): string | null {
+  const direct = asStringValue(event.artifact_id)
+  if (direct) return direct
+  const parsedOutput = extractArtifactIdFromUnknown(safeJsonParse(event.output))
+  if (parsedOutput) return parsedOutput
+  const parsedArgs = extractArtifactIdFromUnknown(safeJsonParse(event.args))
+  if (parsedArgs) return parsedArgs
+  return null
+}
+
+function resolveRawEventStageKey(
+  event: QuestEventRecord,
+  artifactPayload?: Record<string, unknown> | null,
+  fallback?: string | null
+) {
+  if (artifactPayload) {
+    return resolveArtifactStageKey(artifactPayload, fallback)
+  }
+  const explicit = resolveStageKey(asStringValue(event.skill_id))
+  if (isCanonicalStage(explicit)) return explicit
+  if (event.type === 'quest.control') return 'decision'
+  if (isArtifactToolEvent(event)) {
+    const argsJson = asRecordValue(safeJsonParse(event.args))
+    const stage = resolveArtifactStageKey(argsJson, fallback)
+    if (stage) return stage
+  }
+  return resolveArtifactStageKey(null, fallback)
+}
+
+function resolveRawEventBranchName(
+  event: QuestEventRecord,
+  artifactPayload?: Record<string, unknown> | null,
+  fallback?: string | null
+) {
+  return (
+    asStringValue(event.branch) ||
+    asStringValue(artifactPayload?.branch) ||
+    asStringValue(asRecordValue(safeJsonParse(event.args))?.branch) ||
+    asStringValue(fallback) ||
+    'main'
+  )
+}
+
+function resolveRawEventSummary(event: QuestEventRecord, artifactPayload?: Record<string, unknown> | null) {
+  return (
+    compactText(artifactPayload?.summary) ||
+    compactText(artifactPayload?.reason) ||
+    compactText(event.summary) ||
+    compactText(event.reason) ||
+    compactText(event.content) ||
+    compactText(event.status ? `${event.type}: ${event.status}` : event.type)
+  )
+}
+
+function buildEventPayloadEnvelope(
+  event: QuestEventRecord,
+  artifactPayload?: Record<string, unknown> | null
+) {
+  const normalizedEvent = {
+    ...event,
+    args_json: safeJsonParse(event.args),
+    output_json: safeJsonParse(event.output),
+  }
+  return {
+    payload: artifactPayload ?? normalizedEvent,
+    event: normalizedEvent,
+  }
 }
 
 function resolveBranchClass(node: GitBranchNode): 'main' | 'idea' | 'analysis' | 'paper' {
@@ -1198,10 +1498,10 @@ function latestMetrics(summary: QuestSummary) {
 function buildLocalQuestNodes(summary: QuestSummary): LabQuestNode[] {
   const stages = [
     { key: 'scout', title: 'Scout' },
+    { key: 'baseline', title: 'Baseline' },
     { key: 'idea', title: 'Idea' },
-    { key: 'decision', title: 'Decision' },
-    { key: 'experiment', title: 'Main Experiment' },
-    { key: 'analysis', title: 'Analysis' },
+    { key: 'experiment', title: 'Experiment' },
+    { key: 'analysis-campaign', title: 'Analysis Campaign' },
     { key: 'write', title: 'Write' },
     { key: 'finalize', title: 'Finalize' },
   ]
@@ -1243,7 +1543,7 @@ function buildLocalBranchWorkbench(summary: QuestSummary, branches?: GitBranches
     parentBranch: node.parent_ref ?? null,
     worktreeRelPath: node.worktree_root ?? null,
     isHead: Boolean(node.current),
-    stage: node.run_kind ?? resolveStageKey(summary.active_anchor),
+    stage: node.run_kind ? resolveStageKey(node.run_kind) : resolveStageKey(summary.active_anchor),
     nowDoing: node.latest_summary ?? node.subject ?? null,
     latestMetrics: node.latest_metric?.key
       ? { [node.latest_metric.key]: node.latest_metric.value ?? null }
@@ -1424,11 +1724,27 @@ function mapQuestSummaryToLabAgent(summary: QuestSummary): LabAgentInstance {
   }
 }
 
-function mapGitNodeToLabQuestGraphNode(questId: string, summary: QuestSummary, node: GitBranchNode): LabQuestGraphNode {
+function extractTraceMetrics(trace?: LabQuestNodeTrace | null) {
+  const payload = asRecordValue(trace?.payload_json)
+  const metricsSummary = asRecordValue(payload?.metrics_summary)
+  if (metricsSummary) return metricsSummary
+  const details = asRecordValue(payload?.details)
+  return asRecordValue(details?.metrics_summary)
+}
+
+function mapGitNodeToLabQuestGraphNode(
+  questId: string,
+  summary: QuestSummary,
+  node: GitBranchNode,
+  branchTrace?: LabQuestNodeTrace | null
+): LabQuestGraphNode {
+  const traceMetrics = extractTraceMetrics(branchTrace)
   const metrics =
     node.latest_metric?.key
       ? { [node.latest_metric.key]: node.latest_metric.value ?? null }
-      : latestMetrics(summary)
+      : traceMetrics || latestMetrics(summary)
+  const stageKey =
+    branchTrace?.stage_key || (node.run_kind ? resolveStageKey(node.run_kind) : resolveStageKey(summary.active_anchor))
 
   return {
     node_id: node.ref,
@@ -1436,24 +1752,29 @@ function mapGitNodeToLabQuestGraphNode(questId: string, summary: QuestSummary, n
     parent_branch: node.parent_ref ?? null,
     branch_class: resolveBranchClass(node),
     worktree_rel_path: node.worktree_root ?? null,
-    latest_commit: node.head ?? null,
+    latest_commit: branchTrace?.head_commit || node.head || null,
     status: node.current ? 'active' : 'ready',
-    idea_id: node.idea_id ?? null,
+    idea_id: (asStringValue(asRecordValue(branchTrace?.payload_json)?.idea_id) || node.idea_id) ?? null,
     metrics_json: metrics,
-    verdict: node.latest_summary ?? null,
+    verdict: branchTrace?.summary || node.latest_summary || null,
     claim_verdict: null,
     go_decision: null,
-    created_at: normalizeTimestamp(node.updated_at || summary.updated_at),
-    stage_key: node.run_kind ?? resolveStageKey(summary.active_anchor),
-    stage_title: node.branch_kind || null,
-    event_ids: [],
-    event_count: node.commit_count ?? 0,
+    created_at: normalizeTimestamp(branchTrace?.updated_at || node.updated_at || summary.updated_at),
+    stage_key: stageKey,
+    stage_title: formatStageTitle(stageKey),
+    event_ids: branchTrace?.actions
+      ?.map((action) => String(action.action_id || '').trim())
+      .filter((value): value is string => Boolean(value)),
+    event_count: branchTrace?.counts?.actions ?? node.commit_count ?? 0,
     baseline_state: 'tracked',
     runtime_state: node.current ? normalizeLabWorkingStatus(summary.status) : 'idle',
     target_label: node.label,
     node_summary: {
-      last_event_type: node.run_kind ?? node.branch_kind ?? null,
-      last_reply: node.latest_summary ?? node.subject ?? null,
+      last_event_type:
+        branchTrace?.artifact_kind ||
+        branchTrace?.actions?.[branchTrace.actions.length - 1]?.raw_event_type ||
+        stageKey,
+      last_reply: branchTrace?.summary || node.latest_summary || node.subject || null,
       latest_metrics: metrics,
       trend_preview: null,
       claim_verdict: null,
@@ -1462,29 +1783,35 @@ function mapGitNodeToLabQuestGraphNode(questId: string, summary: QuestSummary, n
   }
 }
 
-function buildFallbackGraphNode(summary: QuestSummary): LabQuestGraphNode {
+function buildFallbackGraphNode(summary: QuestSummary, branchTrace?: LabQuestNodeTrace | null): LabQuestGraphNode {
+  const stageKey = branchTrace?.stage_key || resolveStageKey(summary.active_anchor)
   return {
     node_id: summary.branch || 'main',
     branch_name: summary.branch || 'main',
     parent_branch: null,
     branch_class: 'main',
     worktree_rel_path: null,
-    latest_commit: summary.head || null,
+    latest_commit: branchTrace?.head_commit || summary.head || null,
     status: 'active',
-    metrics_json: latestMetrics(summary),
-    verdict: summary.summary?.status_line ?? null,
-    created_at: normalizeTimestamp(summary.updated_at),
-    stage_key: resolveStageKey(summary.active_anchor),
-    stage_title: 'Quest',
-    event_ids: [],
-    event_count: Number(summary.counts?.artifacts || 0),
+    metrics_json: extractTraceMetrics(branchTrace) || latestMetrics(summary),
+    verdict: branchTrace?.summary || summary.summary?.status_line || null,
+    created_at: normalizeTimestamp(branchTrace?.updated_at || summary.updated_at),
+    stage_key: stageKey,
+    stage_title: formatStageTitle(stageKey),
+    event_ids: branchTrace?.actions
+      ?.map((action) => String(action.action_id || '').trim())
+      .filter((value): value is string => Boolean(value)),
+    event_count: branchTrace?.counts?.actions ?? Number(summary.counts?.artifacts || 0),
     baseline_state: 'tracked',
     runtime_state: normalizeLabWorkingStatus(summary.status),
     target_label: summary.title || summary.quest_id,
     node_summary: {
-      last_event_type: resolveStageKey(summary.active_anchor),
-      last_reply: summary.summary?.status_line ?? null,
-      latest_metrics: latestMetrics(summary),
+      last_event_type:
+        branchTrace?.artifact_kind ||
+        branchTrace?.actions?.[branchTrace.actions.length - 1]?.raw_event_type ||
+        stageKey,
+      last_reply: branchTrace?.summary || summary.summary?.status_line || null,
+      latest_metrics: extractTraceMetrics(branchTrace) || latestMetrics(summary),
       trend_preview: null,
       claim_verdict: null,
       go_decision: null,
@@ -1525,25 +1852,30 @@ function mapTraceToGraphNode(
   const lastAction = trace.actions[trace.actions.length - 1] ?? null
   const branchName = trace.branch_name || summary.branch || 'main'
   const status =
+    trace.artifact_kind ||
     trace.status ||
+    lastAction?.artifact_kind ||
     lastAction?.raw_event_type ||
     lastAction?.kind ||
     (view === 'stage' ? trace.stage_key : 'event')
   const actionIds = trace.actions
     .map((action) => String(action.action_id || '').trim())
     .filter((actionId): actionId is string => Boolean(actionId))
+  const payload = asRecordValue(trace.payload_json)
+  const metrics = extractTraceMetrics(trace)
+  const ideaId = asStringValue(payload?.idea_id)
   return {
     node_id: trace.selection_ref,
     branch_name: branchName,
     parent_branch: null,
     branch_class: branchName === 'main' ? 'main' : branchName.startsWith('analysis/') ? 'analysis' : null,
     worktree_rel_path: trace.worktree_rel_path || null,
-    latest_commit: null,
+    latest_commit: trace.head_commit || null,
     status,
-    idea_id: null,
-    idea_json: null,
-    metrics_json: null,
-    verdict: null,
+    idea_id: ideaId,
+    idea_json: ideaId ? payload : null,
+    metrics_json: metrics,
+    verdict: trace.summary || null,
     claim_verdict: null,
     go_decision: null,
     created_at: trace.updated_at || null,
@@ -1565,7 +1897,7 @@ function mapTraceToGraphNode(
     commit_trust: null,
     target_label: trace.title,
     node_summary: {
-      last_event_type: lastAction?.raw_event_type || lastAction?.kind || null,
+      last_event_type: trace.artifact_kind || lastAction?.artifact_kind || lastAction?.raw_event_type || lastAction?.kind || null,
       last_reply: trace.summary || lastAction?.summary || null,
       last_error:
         String(lastAction?.status || '').toLowerCase().includes('fail') ||
@@ -1573,7 +1905,7 @@ function mapTraceToGraphNode(
           ? trace.summary || lastAction?.summary || lastAction?.output || null
           : null,
       metrics_delta: null,
-      latest_metrics: null,
+      latest_metrics: metrics,
       trend_preview: null,
       metric_curves: null,
       claim_verdict: null,
@@ -1595,9 +1927,13 @@ function buildTraceEdges(
   })
   const edges: LabQuestGraphEdge[] = []
   grouped.forEach((items, branchName) => {
-    const ordered = [...items].sort((left, right) =>
-      String(left.updated_at || '').localeCompare(String(right.updated_at || ''))
-    )
+    const ordered = [...items].sort((left, right) => {
+      if (view === 'stage') {
+        const rankDelta = resolveStageRank(left.stage_key) - resolveStageRank(right.stage_key)
+        if (rankDelta !== 0) return rankDelta
+      }
+      return String(left.updated_at || '').localeCompare(String(right.updated_at || ''))
+    })
     ordered.forEach((item, index) => {
       if (index === 0) return
       const previous = ordered[index - 1]
@@ -1612,17 +1948,423 @@ function buildTraceEdges(
   return edges
 }
 
+async function loadLocalQuestSummary(projectId: string): Promise<QuestSummary> {
+  const session = await questClient.session(projectId)
+  return session.snapshot as QuestSummary
+}
+
+async function loadLocalQuestWorkflow(projectId: string): Promise<WorkflowPayload | null> {
+  try {
+    return await questClient.workflow(projectId)
+  } catch {
+    return null
+  }
+}
+
+async function loadLocalQuestNodeTraces(
+  projectId: string
+): Promise<LabQuestNodeTraceListResponse | null> {
+  try {
+    const summary = await loadLocalQuestSummary(projectId)
+    const artifacts = await loadLocalQuestArtifacts(projectId)
+    const events = await loadLocalQuestEvents(projectId)
+    return buildLocalTracePayload(summary, artifacts, events)
+  } catch {
+    return null
+  }
+}
+
+async function loadLocalQuestBranches(projectId: string): Promise<GitBranchesPayload | null> {
+  try {
+    return await questClient.gitBranches(projectId)
+  } catch {
+    return null
+  }
+}
+
+async function loadLocalQuestArtifacts(projectId: string): Promise<QuestArtifactListPayload | null> {
+  try {
+    return await questClient.artifacts(projectId)
+  } catch {
+    return null
+  }
+}
+
+async function loadLocalQuestEvents(projectId: string): Promise<QuestRawEventListPayload | null> {
+  try {
+    let after = 0
+    let hasMore = true
+    let questId = projectId
+    const events: QuestEventRecord[] = []
+    while (hasMore && events.length < LOCAL_QUEST_EVENT_FETCH_MAX) {
+      const response = await questClient.rawEvents(projectId, {
+        after,
+        limit: Math.min(LOCAL_QUEST_EVENT_FETCH_CHUNK, LOCAL_QUEST_EVENT_FETCH_MAX - events.length),
+      })
+      questId = response.quest_id || questId
+      events.push(...(response.events || []))
+      hasMore = Boolean(response.has_more)
+      after = response.cursor || after + (response.events?.length || 0)
+      if (!(response.events?.length || 0)) {
+        break
+      }
+    }
+    return {
+      quest_id: questId,
+      cursor: after,
+      has_more: hasMore,
+      format: 'raw',
+      events,
+    }
+  } catch {
+    return null
+  }
+}
+
+function buildArtifactTitle(item: QuestArtifactRecord, payload?: Record<string, unknown> | null) {
+  const artifactId =
+    asStringValue(payload?.artifact_id) ||
+    asStringValue(payload?.id) ||
+    item.path.split('/').pop()?.replace(/\.json$/i, '') ||
+    item.kind
+  const stage = formatStageTitle(resolveArtifactStageKey(payload))
+  return `${stage} · ${artifactId}`
+}
+
+function mapRawEventToTimeline(
+  event: QuestEventRecord,
+  artifactPayload?: Record<string, unknown> | null
+): LabQuestTimelineEntry {
+  return {
+    event_id: event.event_id,
+    event_type: event.type,
+    branch_name: resolveRawEventBranchName(event, artifactPayload, null),
+    created_at: asStringValue(event.created_at) || nowIso(),
+    payload_summary: resolveRawEventSummary(event, artifactPayload),
+    source: event.type,
+    source_ref: asStringValue(event.run_id),
+    authority_level: null,
+  }
+}
+
+function isDisplayableQuestEvent(event: QuestEventRecord) {
+  if (event.type === 'artifact.recorded') return true
+  if (event.type === 'conversation.message') return true
+  if (event.type === 'interaction.reply_received') return true
+  if (event.type === 'quest.control') return true
+  if (event.type === 'runner.tool_call' || event.type === 'runner.tool_result') {
+    return isCanvasRelevantToolEvent(event)
+  }
+  return false
+}
+
+function mapRawEventToQuestEvent(
+  event: QuestEventRecord,
+  artifactPayload?: Record<string, unknown> | null,
+  includePayload = false,
+  fallbackStage?: string | null
+): LabQuestEventItem {
+  return {
+    event_id: event.event_id,
+    event_type: event.type,
+    branch_name: resolveRawEventBranchName(event, artifactPayload, null),
+    stage_key: resolveRawEventStageKey(event, artifactPayload, fallbackStage),
+    commit_hash: asStringValue(event.head_commit) || asStringValue(artifactPayload?.head_commit),
+    payload_summary: resolveRawEventSummary(event, artifactPayload),
+    reply_to_pi:
+      asStringValue(event.content) ||
+      asStringValue(artifactPayload?.reason) ||
+      asStringValue(artifactPayload?.summary),
+    created_at: asStringValue(event.created_at) || nowIso(),
+    payload_json: includePayload ? buildEventPayloadEnvelope(event, artifactPayload) : null,
+  }
+}
+
+function buildTraceCounts(actions: LabQuestNodeTraceAction[]) {
+  return {
+    actions: actions.length,
+    tool_calls: actions.filter((action) => action.kind === 'tool_call').length,
+    tool_results: actions.filter((action) => action.kind === 'tool_result').length,
+    artifacts: actions.filter((action) => action.kind === 'artifact').length,
+    messages: actions.filter((action) => action.raw_event_type === 'conversation.message').length,
+  }
+}
+
+function dedupeTraceActions(actions: LabQuestNodeTraceAction[]) {
+  const byId = new Map<string, LabQuestNodeTraceAction>()
+  actions.forEach((action) => {
+    const key = String(action.action_id || '').trim()
+    if (key) {
+      byId.set(key, action)
+    }
+  })
+  return [...byId.values()].sort((left, right) =>
+    String(left.created_at || left.action_id || '').localeCompare(String(right.created_at || right.action_id || ''))
+  )
+}
+
+function buildTraceSummary(actions: LabQuestNodeTraceAction[], fallback?: string | null) {
+  for (let index = actions.length - 1; index >= 0; index -= 1) {
+    const action = actions[index]
+    const summary = compactText(action.summary) || compactText(action.output) || compactText(action.title)
+    if (summary) return summary
+  }
+  return fallback || null
+}
+
+function mapRawEventToTraceAction(
+  event: QuestEventRecord,
+  artifactPayload?: Record<string, unknown> | null,
+  artifactItem?: QuestArtifactRecord | null,
+  fallbackStage?: string | null
+): LabQuestNodeTraceAction {
+  const branchName = resolveRawEventBranchName(event, artifactPayload, null)
+  const stageKey = resolveRawEventStageKey(event, artifactPayload, fallbackStage)
+  const pathsMap = normalizePathMap(artifactPayload?.paths || event.paths)
+  const title =
+    event.type === 'artifact.recorded'
+      ? `${String(artifactPayload?.kind || artifactItem?.kind || 'artifact')} recorded`
+      : event.type === 'conversation.message'
+        ? `${String(event.role || 'message')} message`
+        : String(event.tool_name || event.mcp_tool || event.type || 'event')
+  const kind =
+    event.type === 'artifact.recorded'
+      ? 'artifact'
+      : event.type === 'runner.tool_call'
+        ? 'tool_call'
+        : event.type === 'runner.tool_result'
+          ? 'tool_result'
+          : event.type
+  return {
+    action_id: event.event_id,
+    kind,
+    title,
+    summary: resolveRawEventSummary(event, artifactPayload),
+    status: asStringValue(event.status),
+    created_at: asStringValue(event.created_at) || nowIso(),
+    run_id: asStringValue(event.run_id),
+    skill_id: asStringValue(event.skill_id),
+    branch_name: branchName,
+    stage_key: stageKey,
+    worktree_rel_path: asStringValue(artifactPayload?.workspace_rel_path),
+    tool_name: asStringValue(event.tool_name) || asStringValue(event.mcp_tool),
+    tool_call_id: asStringValue(event.tool_call_id),
+    mcp_server: asStringValue(event.mcp_server),
+    mcp_tool: asStringValue(event.mcp_tool),
+    args: asStringValue(event.args),
+    output: asStringValue(event.output) || asStringValue(event.content),
+    reason: asStringValue(event.reason) || asStringValue(artifactPayload?.reason),
+    raw_event_type: event.type,
+    paths: Object.values(pathsMap || {}).filter((entry): entry is string => Boolean(entry)),
+    paths_map: pathsMap,
+    artifact_id:
+      asStringValue(artifactPayload?.artifact_id) ||
+      asStringValue(artifactPayload?.id) ||
+      extractArtifactIdFromRawEvent(event),
+    artifact_kind: asStringValue(artifactPayload?.kind) || artifactItem?.kind || asStringValue(event.kind),
+    artifact_path: artifactItem?.path || asStringValue(event.artifact_path),
+    head_commit: asStringValue(artifactPayload?.head_commit) || asStringValue(event.head_commit),
+    payload_json: artifactPayload || buildEventPayloadEnvelope(event).payload,
+    details_json: asRecordValue(artifactPayload?.details) || asRecordValue(event.details),
+    checkpoint_json: asRecordValue(event.checkpoint),
+    changed_files: collectArtifactChangedFiles(artifactPayload),
+    trace_confidence: artifactPayload ? 'artifact' : isArtifactToolEvent(event) ? 'tool_event' : 'event',
+  }
+}
+
+function buildLocalTracePayload(
+  summary: QuestSummary,
+  artifacts: QuestArtifactListPayload | null,
+  rawEvents: QuestRawEventListPayload | null
+): LabQuestNodeTraceListResponse {
+  const rawEventItems = [...(rawEvents?.events || [])].sort((left, right) =>
+    String(left.created_at || left.event_id || '').localeCompare(String(right.created_at || right.event_id || ''))
+  )
+  const artifactItems = [...(artifacts?.items || [])]
+  const artifactPayloadById = new Map<string, Record<string, unknown>>()
+  artifactItems.forEach((item) => {
+    const payload = asRecordValue(item.payload)
+    const artifactId = asStringValue(payload?.artifact_id) || asStringValue(payload?.id)
+    if (payload && artifactId) {
+      artifactPayloadById.set(artifactId, payload)
+    }
+  })
+  const relatedEventsByArtifactId = new Map<string, QuestEventRecord[]>()
+  rawEventItems.forEach((event) => {
+    const artifactId = extractArtifactIdFromRawEvent(event)
+    if (!artifactId) return
+    const bucket = relatedEventsByArtifactId.get(artifactId) || []
+    bucket.push(event)
+    relatedEventsByArtifactId.set(artifactId, bucket)
+  })
+
+  const eventTraces: LabQuestNodeTrace[] = artifactItems.map((item) => {
+    const payload = asRecordValue(item.payload) || {}
+    const artifactId =
+      asStringValue(payload.artifact_id) ||
+      asStringValue(payload.id) ||
+      item.path.split('/').pop()?.replace(/\.json$/i, '') ||
+      item.kind
+    const relatedEvents = relatedEventsByArtifactId.get(artifactId) || []
+    const recordedEvent =
+      relatedEvents.find((event) => event.type === 'artifact.recorded') ||
+      ({
+        event_id: `artifact:${artifactId}`,
+        type: 'artifact.recorded',
+        artifact_id: artifactId,
+        created_at: asStringValue(payload.updated_at) || asStringValue(payload.created_at) || nowIso(),
+        branch: asStringValue(payload.branch) || summary.branch || 'main',
+        head_commit: asStringValue(payload.head_commit),
+        kind: item.kind,
+        status: asStringValue(payload.status),
+        summary: asStringValue(payload.summary),
+        reason: asStringValue(payload.reason),
+      } satisfies QuestEventRecord)
+    const branchName = resolveRawEventBranchName(recordedEvent, payload, summary.branch || 'main')
+    const stageKey = resolveArtifactStageKey(payload, summary.active_anchor)
+    const actions = dedupeTraceActions(
+      [...relatedEvents, recordedEvent].map((event) =>
+        mapRawEventToTraceAction(event, payload, item, summary.active_anchor)
+      )
+    )
+    return {
+      selection_type: 'event_node',
+      selection_ref: String(recordedEvent.event_id || `artifact:${artifactId}`),
+      title: buildArtifactTitle(item, payload),
+      summary: buildTraceSummary(actions, compactText(payload.summary) || compactText(payload.reason)),
+      status: asStringValue(payload.status) || item.kind,
+      branch_name: branchName,
+      stage_key: stageKey,
+      stage_title: formatStageTitle(stageKey),
+      worktree_rel_path: asStringValue(payload.workspace_rel_path),
+      updated_at:
+        asStringValue(payload.updated_at) ||
+        asStringValue(recordedEvent.created_at) ||
+        normalizeTimestamp(summary.updated_at),
+      counts: buildTraceCounts(actions),
+      run_ids: [...new Set(actions.map((action) => action.run_id).filter((value): value is string => Boolean(value)))],
+      skill_ids: [...new Set(actions.map((action) => action.skill_id).filter((value): value is string => Boolean(value)))],
+      artifact_id: artifactId,
+      artifact_kind: item.kind,
+      head_commit: asStringValue(payload.head_commit),
+      payload_json: payload,
+      details_json: asRecordValue(payload.details),
+      paths_map: normalizePathMap(payload.paths),
+      changed_files: collectArtifactChangedFiles(payload),
+      actions,
+    }
+  })
+
+  const stageGroups = new Map<string, LabQuestNodeTrace[]>()
+  const branchGroups = new Map<string, LabQuestNodeTrace[]>()
+  const latestCanonicalStageByBranch = new Map<string, string>()
+  ;[...eventTraces]
+    .sort((left, right) => String(left.updated_at || '').localeCompare(String(right.updated_at || '')))
+    .forEach((trace) => {
+    const branchName = trace.branch_name || 'main'
+    const payload = asRecordValue(trace.payload_json)
+    const stageKey =
+      trace.stage_key === 'decision'
+        ? resolveDecisionActionStage(payload, latestCanonicalStageByBranch.get(branchName) || summary.active_anchor)
+        : trace.stage_key || 'baseline'
+    if (isCanonicalStage(stageKey)) {
+      latestCanonicalStageByBranch.set(branchName, stageKey)
+    }
+    stageGroups.set(`${branchName}:${stageKey}`, [...(stageGroups.get(`${branchName}:${stageKey}`) || []), trace])
+    branchGroups.set(branchName, [...(branchGroups.get(branchName) || []), trace])
+    })
+
+  const stageTraces: LabQuestNodeTrace[] = [...stageGroups.entries()].map(([groupKey, traces]) => {
+    const latest = [...traces].sort((left, right) =>
+      String(left.updated_at || '').localeCompare(String(right.updated_at || ''))
+    )[traces.length - 1]
+    const mergedActions = dedupeTraceActions(traces.flatMap((trace) => trace.actions))
+    const [branchName, stageKey] = groupKey.split(':', 2)
+    return {
+      selection_type: 'stage_node',
+      selection_ref: `stage:${branchName}:${stageKey}`,
+      title: `${branchName} · ${formatStageTitle(stageKey)}`,
+      summary: buildTraceSummary(mergedActions, latest?.summary),
+      status: stageKey,
+      branch_name: branchName,
+      stage_key: stageKey,
+      stage_title: formatStageTitle(stageKey),
+      worktree_rel_path: latest?.worktree_rel_path || null,
+      updated_at: latest?.updated_at || normalizeTimestamp(summary.updated_at),
+      counts: buildTraceCounts(mergedActions),
+      run_ids: [...new Set(traces.flatMap((trace) => trace.run_ids || []))],
+      skill_ids: [...new Set(traces.flatMap((trace) => trace.skill_ids || []))],
+      artifact_id: latest?.artifact_id || null,
+      artifact_kind: latest?.artifact_kind || null,
+      head_commit: latest?.head_commit || null,
+      payload_json: latest?.payload_json || null,
+      details_json: latest?.details_json || null,
+      paths_map: latest?.paths_map || null,
+      changed_files: latest?.changed_files || null,
+      actions: mergedActions,
+    }
+  })
+
+  const branchTraces: LabQuestNodeTrace[] = [...branchGroups.entries()].map(([branchName, traces]) => {
+    const latest = [...traces].sort((left, right) =>
+      String(left.updated_at || '').localeCompare(String(right.updated_at || ''))
+    )[traces.length - 1]
+    const mergedActions = dedupeTraceActions(traces.flatMap((trace) => trace.actions))
+    return {
+      selection_type: 'branch_node',
+      selection_ref: branchName,
+      title: branchName,
+      summary: buildTraceSummary(mergedActions, latest?.summary),
+      status: latest?.status || null,
+      branch_name: branchName,
+      stage_key: latest?.stage_key || null,
+      stage_title: latest?.stage_title || null,
+      worktree_rel_path: latest?.worktree_rel_path || null,
+      updated_at: latest?.updated_at || normalizeTimestamp(summary.updated_at),
+      counts: buildTraceCounts(mergedActions),
+      run_ids: [...new Set(traces.flatMap((trace) => trace.run_ids || []))],
+      skill_ids: [...new Set(traces.flatMap((trace) => trace.skill_ids || []))],
+      artifact_id: latest?.artifact_id || null,
+      artifact_kind: latest?.artifact_kind || null,
+      head_commit: latest?.head_commit || null,
+      payload_json: latest?.payload_json || null,
+      details_json: latest?.details_json || null,
+      paths_map: latest?.paths_map || null,
+      changed_files: latest?.changed_files || null,
+      actions: mergedActions,
+    }
+  })
+
+  const items = [...branchTraces, ...stageTraces, ...eventTraces].sort((left, right) => {
+    const typeDelta = String(left.selection_type || '').localeCompare(String(right.selection_type || ''))
+    if (typeDelta !== 0) return typeDelta
+    return String(left.updated_at || '').localeCompare(String(right.updated_at || ''))
+  })
+
+  return {
+    quest_id: summary.quest_id,
+    generated_at: nowIso(),
+    materialized_path: null,
+    items,
+  }
+}
+
 function buildLocalQuestGraphResponse(
   summary: QuestSummary,
   branches: GitBranchesPayload | null,
-  _workflow: WorkflowPayload | null,
   params?: { view?: 'branch' | 'event' | 'stage'; search?: string; atEventId?: string | null },
   nodeTraces?: LabQuestNodeTraceListResponse | null
 ): LabQuestGraphResponse {
   const view = params?.view ?? 'branch'
+  const items = nodeTraces?.items ?? []
+  const branchTraceByName = new Map(
+    items
+      .filter((trace) => trace.selection_type === 'branch_node' && trace.selection_ref)
+      .map((trace) => [trace.selection_ref, trace] as const)
+  )
   if (view === 'event' || view === 'stage') {
     const selectionType = view === 'event' ? 'event_node' : 'stage_node'
-    const traces = (nodeTraces?.items ?? [])
+    const traces = items
       .filter((trace) => trace.selection_type === selectionType)
       .filter((trace) => traceMatchesSearch(trace, params?.search))
       .sort((left, right) => String(left.updated_at || '').localeCompare(String(right.updated_at || '')))
@@ -1641,8 +2383,10 @@ function buildLocalQuestGraphResponse(
     view,
     nodes:
       branches?.nodes?.length
-        ? branches.nodes.map((node) => mapGitNodeToLabQuestGraphNode(summary.quest_id, summary, node))
-        : [buildFallbackGraphNode(summary)],
+        ? branches.nodes.map((node) =>
+            mapGitNodeToLabQuestGraphNode(summary.quest_id, summary, node, branchTraceByName.get(node.ref) || null)
+          )
+        : [buildFallbackGraphNode(summary, branchTraceByName.get(summary.branch || 'main') || null)],
     edges:
       branches?.edges?.map((edge, index) => ({
         edge_id: `edge:${index}:${edge.from}:${edge.to}`,
@@ -1664,38 +2408,6 @@ function buildLocalQuestGraphResponse(
       : [],
     governance_vm: buildLocalGovernanceVm(summary, branches),
     overlay_actions: [],
-  }
-}
-
-async function loadLocalQuestSummary(projectId: string): Promise<QuestSummary> {
-  const session = await questClient.session(projectId)
-  return session.snapshot as QuestSummary
-}
-
-async function loadLocalQuestWorkflow(projectId: string): Promise<WorkflowPayload | null> {
-  try {
-    return await questClient.workflow(projectId)
-  } catch {
-    return null
-  }
-}
-
-async function loadLocalQuestNodeTraces(
-  projectId: string,
-  selectionType?: string | null
-): Promise<LabQuestNodeTraceListResponse | null> {
-  try {
-    return await questClient.nodeTraces(projectId, selectionType)
-  } catch {
-    return null
-  }
-}
-
-async function loadLocalQuestBranches(projectId: string): Promise<GitBranchesPayload | null> {
-  try {
-    return await questClient.gitBranches(projectId)
-  } catch {
-    return null
   }
 }
 
@@ -2293,12 +3005,8 @@ export async function getLabQuestGraph(
   if (await shouldUseLocalQuestLab(projectId)) {
     const summary = await loadLocalQuestSummary(projectId)
     const branches = await loadLocalQuestBranches(projectId)
-    const workflow = await loadLocalQuestWorkflow(projectId)
-    const nodeTraces = await loadLocalQuestNodeTraces(
-      projectId,
-      params?.view === 'event' ? 'event_node' : params?.view === 'stage' ? 'stage_node' : null
-    )
-    return buildLocalQuestGraphResponse(summary, branches, workflow, params, nodeTraces)
+    const nodeTraces = await loadLocalQuestNodeTraces(projectId)
+    return buildLocalQuestGraphResponse(summary, branches, params, nodeTraces)
   }
   try {
     const response = await apiClient.get(`${LAB_BASE(projectId)}/quests/${questId}/graph`, {
@@ -2352,8 +3060,15 @@ export async function listLabQuestNodeTraces(
   params?: { selectionType?: string | null }
 ): Promise<LabQuestNodeTraceListResponse> {
   if (await shouldUseLocalQuestLab(projectId)) {
-    const response = await loadLocalQuestNodeTraces(projectId, params?.selectionType ?? null)
-    return response ?? { quest_id: questId, items: [] }
+    const response = await loadLocalQuestNodeTraces(projectId)
+    return {
+      quest_id: questId,
+      items: (response?.items ?? []).filter((trace) =>
+        params?.selectionType ? trace.selection_type === params.selectionType : true
+      ),
+      generated_at: response?.generated_at ?? null,
+      materialized_path: response?.materialized_path ?? null,
+    }
   }
   const response = await apiClient.get(`${LAB_BASE(projectId)}/quests/${questId}/node-traces`, {
     params: {
@@ -2370,7 +3085,21 @@ export async function getLabQuestNodeTrace(
   params?: { selectionType?: string | null }
 ): Promise<LabQuestNodeTraceResponse> {
   if (await shouldUseLocalQuestLab(projectId)) {
-    return questClient.nodeTrace(projectId, selectionRef, params?.selectionType ?? null)
+    const response = await loadLocalQuestNodeTraces(projectId)
+    const trace =
+      (response?.items ?? []).find((item) => {
+        if (item.selection_ref !== selectionRef) return false
+        return params?.selectionType ? item.selection_type === params.selectionType : true
+      }) ?? null
+    if (!trace) {
+      throw new Error(`Unknown node trace \`${selectionRef}\`.`)
+    }
+    return {
+      quest_id: questId,
+      generated_at: response?.generated_at ?? null,
+      materialized_path: response?.materialized_path ?? null,
+      trace,
+    }
   }
   const response = await apiClient.get(
     `${LAB_BASE(projectId)}/quests/${questId}/node-traces/${encodeURIComponent(selectionRef)}`,
@@ -2632,7 +3361,7 @@ export async function getLabQuestBranchAudit(
       head_branch: summary.branch || branchName,
       parent_branch: selectedNode?.parent_ref || baseBranch,
       latest_commit: selectedNode?.head || summary.head || null,
-      stage: selectedNode?.run_kind || resolveStageKey(summary.active_anchor),
+      stage: selectedNode?.run_kind ? resolveStageKey(selectedNode.run_kind) : resolveStageKey(summary.active_anchor),
       audit_level: 'local',
       branch_summary: {
         title: selectedNode?.label || branchName,
@@ -2696,7 +3425,7 @@ export async function getLabQuestBranchAudit(
       head_branch: summary.branch || branchName,
       parent_branch: selectedNode?.parent_ref || baseBranch,
       latest_commit: selectedNode?.head || summary.head || null,
-      stage: selectedNode?.run_kind || resolveStageKey(summary.active_anchor),
+      stage: selectedNode?.run_kind ? resolveStageKey(selectedNode.run_kind) : resolveStageKey(summary.active_anchor),
       audit_level: 'local',
       branch_summary: {
         title: selectedNode?.label || branchName,
@@ -2920,8 +3649,37 @@ export async function listLabQuestEvents(
   }
 ): Promise<LabQuestEventListResponse> {
   if (await shouldUseLocalQuestLab(projectId)) {
-    const workflow = await loadLocalQuestWorkflow(projectId)
-    const items = (workflow?.entries ?? []).map(mapWorkflowEntryToQuestEvent)
+    const summary = await loadLocalQuestSummary(projectId)
+    const artifacts = await loadLocalQuestArtifacts(projectId)
+    const rawEvents = await loadLocalQuestEvents(projectId)
+    const artifactPayloadById = new Map<string, Record<string, unknown>>()
+    ;(artifacts?.items || []).forEach((item) => {
+      const payload = asRecordValue(item.payload)
+      const artifactId = asStringValue(payload?.artifact_id) || asStringValue(payload?.id)
+      if (payload && artifactId) {
+        artifactPayloadById.set(artifactId, payload)
+      }
+    })
+    const sourceEvents = [...(rawEvents?.events || [])]
+    const cutoffIndex = params?.atEventId
+      ? sourceEvents.findIndex((event) => event.event_id === params.atEventId)
+      : -1
+    const boundedEvents =
+      cutoffIndex >= 0 ? sourceEvents.slice(0, cutoffIndex + 1) : sourceEvents
+    const items = boundedEvents
+      .filter(isDisplayableQuestEvent)
+      .map((event) => {
+        const artifactPayload = artifactPayloadById.get(extractArtifactIdFromRawEvent(event) || '')
+        return mapRawEventToQuestEvent(event, artifactPayload, Boolean(params?.includePayload), summary.active_anchor)
+      })
+      .filter((event) => (params?.branch ? (event.branch_name || 'main') === params.branch : true))
+      .filter((event) => (params?.eventIds?.length ? params.eventIds.includes(event.event_id) : true))
+      .filter((event) => (params?.eventTypes?.length ? params.eventTypes.includes(event.event_type) : true))
+      .filter((event) =>
+        params?.eventPrefixes?.length
+          ? params.eventPrefixes.some((prefix) => event.event_type.startsWith(prefix))
+          : true
+      )
     return {
       items: items
         .sort((left, right) => String(right.created_at || '').localeCompare(String(left.created_at || '')))
@@ -2948,8 +3706,35 @@ export async function listLabQuestEvents(
     if (!isLocalLabFallbackError(error)) {
       throw error
     }
-    const workflow = await loadLocalQuestWorkflow(projectId)
-    const items = (workflow?.entries ?? []).map(mapWorkflowEntryToQuestEvent)
+    const summary = await loadLocalQuestSummary(projectId)
+    const artifacts = await loadLocalQuestArtifacts(projectId)
+    const rawEvents = await loadLocalQuestEvents(projectId)
+    const artifactPayloadById = new Map<string, Record<string, unknown>>()
+    ;(artifacts?.items || []).forEach((item) => {
+      const payload = asRecordValue(item.payload)
+      const artifactId = asStringValue(payload?.artifact_id) || asStringValue(payload?.id)
+      if (payload && artifactId) {
+        artifactPayloadById.set(artifactId, payload)
+      }
+    })
+    const items = (rawEvents?.events || [])
+      .filter(isDisplayableQuestEvent)
+      .map((event) =>
+        mapRawEventToQuestEvent(
+          event,
+          artifactPayloadById.get(extractArtifactIdFromRawEvent(event) || '') || null,
+          Boolean(params?.includePayload),
+          summary.active_anchor
+        )
+      )
+      .filter((event) => (params?.branch ? (event.branch_name || 'main') === params.branch : true))
+      .filter((event) => (params?.eventIds?.length ? params.eventIds.includes(event.event_id) : true))
+      .filter((event) => (params?.eventTypes?.length ? params.eventTypes.includes(event.event_type) : true))
+      .filter((event) =>
+        params?.eventPrefixes?.length
+          ? params.eventPrefixes.some((prefix) => event.event_type.startsWith(prefix))
+          : true
+      )
     return {
       items: items
         .sort((left, right) => String(right.created_at || '').localeCompare(String(left.created_at || '')))
@@ -2968,9 +3753,12 @@ export async function searchLabQuest(
   if (await shouldUseLocalQuestLab(projectId)) {
     const query = String(params?.query || '').trim().toLowerCase()
     const limit = Math.max(1, Math.min(100, params?.limit ?? 20))
-    const workflow = await loadLocalQuestWorkflow(projectId)
     const summary = await loadLocalQuestSummary(projectId)
     const branches = await loadLocalQuestBranches(projectId)
+    const events = await listLabQuestEvents(projectId, questId, {
+      limit: Math.max(80, limit * 4),
+      includePayload: false,
+    })
     const branchItems = (branches?.nodes ?? [buildFallbackGraphNode(summary)])
       .filter((branch) => {
         if (!query) return true
@@ -2987,16 +3775,16 @@ export async function searchLabQuest(
         return haystack.includes(query)
       })
       .map((branch) => ({ item_type: 'branch' as const, branch, event: null }))
-    const eventItems = (workflow?.entries ?? [])
+    const eventItems = (events.items ?? [])
       .filter((entry) => {
         if (!query) return true
-        const haystack = [entry.title, entry.summary, entry.raw_event_type, entry.skill_id]
+        const haystack = [entry.event_type, entry.payload_summary, entry.reply_to_pi, entry.stage_key]
           .filter(Boolean)
           .join(' ')
           .toLowerCase()
         return haystack.includes(query)
       })
-      .map((entry) => ({ item_type: 'event' as const, event: mapWorkflowEntryToQuestEvent(entry), branch: null }))
+      .map((entry) => ({ item_type: 'event' as const, event: entry, branch: null }))
     const items = [...branchItems, ...eventItems].slice(0, limit)
     return {
       items,
@@ -3023,24 +3811,25 @@ export async function getLabQuestEventPayload(
   params?: { source?: string; maxBytes?: number }
 ): Promise<LabQuestEventPayloadResponse> {
   if (await shouldUseLocalQuestLab(projectId)) {
-    const workflow = await loadLocalQuestWorkflow(projectId)
-    const matched = (workflow?.entries ?? []).find((entry) => entry.id === eventId)
+    const artifacts = await loadLocalQuestArtifacts(projectId)
+    const rawEvents = await loadLocalQuestEvents(projectId)
+    const artifactPayloadById = new Map<string, Record<string, unknown>>()
+    ;(artifacts?.items || []).forEach((item) => {
+      const payload = asRecordValue(item.payload)
+      const artifactId = asStringValue(payload?.artifact_id) || asStringValue(payload?.id)
+      if (payload && artifactId) {
+        artifactPayloadById.set(artifactId, payload)
+      }
+    })
+    const matched = (rawEvents?.events || []).find((entry) => entry.event_id === eventId)
+    const artifactPayload = matched ? artifactPayloadById.get(extractArtifactIdFromRawEvent(matched) || '') : null
     return {
       event_id: eventId,
-      payload_json: matched
-        ? {
-            title: matched.title,
-            summary: matched.summary,
-            status: matched.status,
-            tool_name: matched.tool_name,
-            args: matched.args,
-            output: matched.output,
-          }
-        : null,
+      payload_json: matched ? buildEventPayloadEnvelope(matched, artifactPayload || null) : null,
       payload_hash: null,
       payload_path: null,
       truncated: false,
-      source: params?.source ?? 'local-workflow',
+      source: params?.source ?? 'local-events',
       available: Boolean(matched),
     }
   }

@@ -12,6 +12,7 @@ Use this skill whenever continuation is non-trivial.
 - Treat `artifact.interact(...)` as the main long-lived communication thread across TUI, web, and bound connectors.
 - If `artifact.interact(...)` returns queued user requirements, treat them as the latest user instruction bundle before making the next decision.
 - Emit `artifact.interact(kind='progress', reply_mode='threaded', ...)` when the decision analysis spans multiple concrete steps.
+- Message templates are references only. Adapt to context and vary wording so updates feel respectful, human, and non-robotic.
 - Each progress update must state completed reasoning or evidence gathering, the durable output touched, and the immediate next step.
 - Use `reply_mode='blocking'` for the actual decision request when the user must choose before safe continuation.
 - For any blocking decision request, provide 1 to 3 concrete options, put the recommended option first, explain each option's actual content plus pros and cons, wait up to 1 day when feasible, then choose the best option yourself and notify the user of the chosen option if the timeout expires.

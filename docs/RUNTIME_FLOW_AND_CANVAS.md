@@ -38,7 +38,7 @@ It is a **prompt-led, skill-led, file-led quest runtime** where:
 - the daemon handles queueing, turn execution, API, connectors, and recovery
 - the prompt and skill files define most of the research discipline
 - durable state lives in quest files, memory cards, artifacts, Git, and run logs
-- the UI Canvas is reconstructed from Git branches plus quest workflow history
+- the UI Canvas is reconstructed from Git branches plus durable artifact records and raw quest events
 
 ## 3. Canonical Anchor Model
 
@@ -76,6 +76,8 @@ Typical examples:
 
 - `GET /api/quests/<id>/workflow`
 - `GET /api/quests/<id>/node-traces`
+- `GET /api/quests/<id>/artifacts`
+- `GET /api/quests/<id>/events?format=raw`
 - `GET /api/quests/<id>/git/branches`
 - `POST /api/quests/<id>/control`
 
@@ -392,18 +394,19 @@ So the runtime model remains:
 - quest events are the live operational stream
 - ACP is a compatibility envelope layered on top
 
-## 14. How Workflow Data Is Reconstructed
+## 14. How Operational Views Are Reconstructed
 
-The workflow view is not stored as one authoritative graph document.
+Neither workflow nor Canvas is stored as one authoritative graph document.
 
-Instead, `QuestService.workflow(...)` reconstructs a recent operational view from:
+Instead, the runtime reconstructs operational views from:
 
 - core quest documents
 - recent runs
 - recent artifacts
-- parsed Codex history events
+- raw quest events from `.ds/events.jsonl`
+- parsed Codex history events for compatibility surfaces
 
-The workflow payload contains:
+The compatibility workflow payload from `QuestService.workflow(...)` contains:
 
 - `entries`
 - `changed_files`
@@ -493,19 +496,20 @@ The branch view already has enough metadata to support the two user mental model
 
 The backend exposes `tier`, `mode`, `branch_kind`, `idea_id`, and related metadata specifically to support this kind of UI distinction.
 
-## 17. Event View: Workflow-Derived Canvas
+## 17. Event View: Artifact-And-Event-Derived Canvas
 
-Event view is reconstructed from workflow entries and then materialized into node traces.
+The current Lab Canvas event view is reconstructed from durable artifact records plus raw quest events.
 
-The pipeline is:
+In local quest mode the pipeline is:
 
-1. `QuestService.workflow(...)`
-2. `QuestNodeTraceManager.materialize(...)`
-3. frontend maps trace items into graph nodes
+1. `QuestService.artifacts(...)`
+2. raw quest events from `.ds/events.jsonl` through `GET /api/quests/<id>/events?format=raw`
+3. frontend local trace builder in `src/ui/src/lib/api/lab.ts`
+4. frontend maps trace items into graph nodes
 
 ### 16.1 Event nodes
 
-Each workflow entry becomes an `event_node` trace item.
+Each durable artifact becomes one primary `event_node` trace item.
 
 The trace captures:
 
@@ -518,13 +522,17 @@ The trace captures:
 - summary
 - counts
 - updated time
+- artifact id / kind
+- head commit
+- changed files
+- payload snapshot
 
 An event node may represent:
 
 - an artifact
-- a run
-- a tool call
-- another operational event extracted from durable history
+- a stage-significant decision or report
+- the related MCP / tool-call history attached to that artifact
+- another operational event when no durable artifact exists yet
 
 ### 16.2 Event edges
 
@@ -538,7 +546,7 @@ So current event edges are **sequence edges**, not deep semantic-causal edges.
 
 ## 18. Stage View: Aggregated Trace Canvas
 
-Stage view is also built from node traces, but event actions are grouped by:
+Stage view is also built from node traces, but durable artifact traces are grouped by:
 
 - branch name
 - inferred stage key
@@ -556,13 +564,18 @@ So stage view is:
 
 ## 19. Important Normalization Rules In Trace Materialization
 
-Current trace materialization compresses some stages:
+Current local trace materialization uses the canonical prompt anchors:
 
-- `analysis-campaign` is normalized into `experiment`
-- `write` and `finalize` are normalized into `writing`
-- `decision` remains its own special grouping
+- `scout`
+- `baseline`
+- `idea`
+- `experiment`
+- `analysis-campaign`
+- `write`
+- `finalize`
 
-This is an important implementation detail because the prompt-level anchor graph is richer than the current trace-level visualization grouping.
+`decision` is treated as cross-cutting.
+Decision artifacts are merged into the effective canonical stage for branch and stage summaries instead of becoming a standalone stage anchor.
 
 ## 20. What Canvas Does Not Yet Mean
 
@@ -575,7 +588,7 @@ The current Canvas should **not** be interpreted as:
 Today it is better understood as:
 
 - a reconstructed operational map
-- from Git topology plus durable workflow traces
+- from Git topology plus durable artifacts plus raw quest events
 
 ## 21. Current Gaps To Keep In Mind
 
@@ -608,14 +621,14 @@ If you are modifying this system, the safest current mental model is:
 5. Codex runs inside the quest repo with built-in MCP namespaces
 6. agent writes memory, artifacts, shell sessions, Git checkpoints, and reports
 7. `artifact.interact(...)` keeps user-facing continuity alive
-8. workflow and Canvas are reconstructed from those durable outputs
+8. workflow and Canvas are reconstructed from those durable outputs and the raw quest event stream
 
 ## 23. Suggested Next Hardening Direction
 
 If this runtime is tightened further, the most valuable next steps would be:
 
 1. make `active_anchor` advancement more explicit and durable
-2. preserve `analysis-campaign`, `write`, and `finalize` distinctly in trace-stage mapping
+2. keep remote and local Canvas semantics equally artifact-first
 3. add stronger decision/evidence edges in Canvas
 4. keep the core small while making the protocol clearer rather than adding a large scheduler
 

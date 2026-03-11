@@ -56,7 +56,7 @@ export function ProjectsHero({
             <div className="relative px-4 py-5 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
               <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
                 <div className="min-w-0">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/45 px-3 py-1.5 text-xs font-medium text-foreground/80 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.06] dark:text-white/85">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/45 px-3 py-1.5 text-xs font-medium text-foreground/80 backdrop-blur-sm dark:border-black/10 dark:bg-white/55 dark:text-foreground/80">
                     <Sparkles className="h-3.5 w-3.5" />
                     {t('landingEyebrow')}
                   </div>
@@ -88,7 +88,7 @@ export function ProjectsHero({
                         'flex w-full items-center gap-2 overflow-x-auto rounded-2xl px-3 py-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
                         'sm:inline-flex sm:w-auto sm:flex-wrap',
                         'border border-black/10 bg-white/40 backdrop-blur-sm',
-                        'dark:border-white/10 dark:bg-white/[0.06]'
+                        'dark:border-black/10 dark:bg-white/55'
                       )}
                       spotlightColor="rgba(255,255,255,0.22)"
                     >
@@ -117,7 +117,7 @@ export function ProjectsHero({
                         variant="outline"
                         size="lg"
                         onClick={onOpen}
-                        className="h-11 w-full gap-2 rounded-full border-black/10 bg-white/50 px-6 hover:bg-white/60 dark:border-white/10 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] sm:w-auto"
+                        className="h-11 w-full gap-2 rounded-full border-black/10 bg-white/50 px-6 hover:bg-white/60 dark:border-black/10 dark:bg-white/58 dark:hover:bg-white/68 sm:w-auto"
                       >
                         <FolderOpen className="h-4 w-4" />
                         {t('openProject')}
@@ -152,7 +152,7 @@ function StatBadge({
   return (
     <Badge
       variant="secondary"
-      className="shrink-0 border border-black/10 bg-white/60 text-foreground dark:border-white/10 dark:bg-white/[0.08] dark:text-white"
+      className="shrink-0 border border-black/10 bg-white/60 text-foreground dark:border-black/10 dark:bg-white/62 dark:text-foreground"
     >
       {loading ? (
         <span className="tabular-nums">...</span>

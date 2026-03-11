@@ -1,5 +1,4 @@
 export const WORKSPACE_LEFT_VISIBILITY_EVENT = 'ds:workspace:left-visibility'
-export const QUEST_FILE_OPEN_EVENT = 'ds:quest:file-open'
 export const QUEST_WORKSPACE_VIEW_EVENT = 'ds:quest:workspace-view'
 
 export type WorkspaceLeftVisibilityDetail = {
@@ -7,14 +6,7 @@ export type WorkspaceLeftVisibilityDetail = {
   visible: boolean
 }
 
-export type QuestFileOpenDetail = {
-  projectId: string
-  fileId: string
-  lineNumber?: number
-  query?: string
-}
-
-export type QuestWorkspaceView = 'canvas' | 'details'
+export type QuestWorkspaceView = 'canvas' | 'details' | 'terminal'
 
 export type QuestWorkspaceViewDetail = {
   projectId: string
@@ -25,15 +17,6 @@ export function dispatchWorkspaceLeftVisibility(detail: WorkspaceLeftVisibilityD
   if (typeof window === 'undefined') return
   window.dispatchEvent(
     new CustomEvent<WorkspaceLeftVisibilityDetail>(WORKSPACE_LEFT_VISIBILITY_EVENT, {
-      detail,
-    })
-  )
-}
-
-export function dispatchQuestFileOpen(detail: QuestFileOpenDetail) {
-  if (typeof window === 'undefined') return
-  window.dispatchEvent(
-    new CustomEvent<QuestFileOpenDetail>(QUEST_FILE_OPEN_EVENT, {
       detail,
     })
   )

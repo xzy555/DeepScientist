@@ -463,6 +463,83 @@ def test_terminal_handlers_ensure_input_restore_and_stop(temp_home: Path) -> Non
     assert final["status"] == "terminated"
 
 
+def test_terminal_handlers_create_new_terminal_session(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    app = DaemonApp(temp_home)
+    quest = app.quest_service.create("multi terminal api quest")
+    quest_id = quest["quest_id"]
+    quest_root = Path(quest["quest_root"])
+
+    ensured_main = app.handlers.terminal_session_ensure(
+        quest_id,
+        {
+            "source": "pytest",
+            "conversation_id": f"quest:{quest_id}:pytest",
+            "user_id": "user:pytest",
+        },
+    )
+    assert ensured_main["ok"] is True
+    assert ensured_main["session"]["bash_id"] == "terminal-main"
+
+    created = app.handlers.terminal_session_ensure(
+        quest_id,
+        {
+            "source": "pytest",
+            "conversation_id": f"quest:{quest_id}:pytest",
+            "user_id": "user:pytest",
+            "create_new": True,
+            "label": "Scratch",
+        },
+    )
+    assert created["ok"] is True
+    created_session = created["session"]
+    created_id = str(created_session.get("bash_id") or "")
+    assert created_id
+    assert created_id != "terminal-main"
+    assert created_session.get("kind") == "terminal"
+    assert created_session.get("label") == "Scratch"
+
+    accepted = app.handlers.terminal_input(
+        quest_id,
+        created_id,
+        {
+            "data": "echo hello\n",
+            "source": "pytest",
+            "conversation_id": f"quest:{quest_id}:pytest",
+            "user_id": "user:pytest",
+        },
+    )
+    assert isinstance(accepted, dict)
+    assert accepted["ok"] is True
+
+    deadline = time.time() + 6
+    saw_hello = False
+    while time.time() < deadline:
+        entries, _meta = app.bash_exec_service.read_log_entries(quest_root, created_id, limit=200, order="asc")
+        if any("hello" in str(entry.get("line") or "") for entry in entries):
+            saw_hello = True
+            break
+        time.sleep(0.2)
+    assert saw_hello is True
+
+    history_payload = app.handlers.terminal_history(quest_id, f"/api/quests/{quest_id}/terminal/history?limit=50")
+    assert history_payload["ok"] is True
+    assert any(item["bash_id"] == created_id for item in history_payload["terminal_sessions"])
+
+    stop_created = app.handlers.bash_stop(quest_id, created_id, {"reason": "pytest-stop"})
+    assert isinstance(stop_created, dict)
+    assert stop_created["success"] is True
+    stop_main = app.handlers.bash_stop(quest_id, "terminal-main", {"reason": "pytest-stop"})
+    assert isinstance(stop_main, dict)
+    assert stop_main["success"] is True
+
+    final_created = app.bash_exec_service.wait_for_session(quest_root, created_id, timeout_seconds=10)
+    assert final_created["status"] == "terminated"
+    final_main = app.bash_exec_service.wait_for_session(quest_root, "terminal-main", timeout_seconds=10)
+    assert final_main["status"] == "terminated"
+
+
 def test_chat_endpoint_schedules_background_runner(temp_home: Path) -> None:
     ensure_home_layout(temp_home)
     ConfigManager(temp_home).ensure_files()
@@ -559,6 +636,65 @@ def test_chat_endpoint_schedules_background_runner(temp_home: Path) -> None:
     else:
         raise AssertionError("quest status did not settle back to active after the background turn")
     assert quest_root.exists()
+
+
+def test_chat_endpoint_relays_assistant_reply_to_bound_connector(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    manager = ConfigManager(temp_home)
+    manager.ensure_files()
+    connectors = manager.load_named("connectors")
+    connectors["qq"]["enabled"] = True
+    write_yaml(manager.path_for("connectors"), connectors)
+
+    app = DaemonApp(temp_home)
+    quest = app.quest_service.create("background relay quest")
+    quest_id = quest["quest_id"]
+    app.quest_service.bind_source(quest_id, "qq:direct:UserABC123")
+
+    class FakeRunner:
+        binary = ""
+
+        def run(self, request):
+            history_root = ensure_dir(request.quest_root / ".ds" / "codex_history" / request.run_id)
+            run_root = ensure_dir(request.quest_root / ".ds" / "runs" / request.run_id)
+            return RunResult(
+                ok=True,
+                run_id=request.run_id,
+                model=request.model,
+                output_text="Assistant relay payload.",
+                exit_code=0,
+                history_root=history_root,
+                run_root=run_root,
+                stderr_text="",
+            )
+
+    app.runners["codex"] = FakeRunner()
+
+    sent: list[tuple[str, dict]] = []
+
+    def fake_send_to_channel(channel_name, payload, *, connectors=None):  # noqa: ANN001
+        sent.append((channel_name, dict(payload)))
+        return True
+
+    app.artifact_service._send_to_channel = fake_send_to_channel  # type: ignore[method-assign]
+
+    payload = app.handlers.chat(quest_id, {"text": "Please continue.", "source": "tui-ink"})
+    assert payload["ok"] is True
+
+    deadline = time.time() + 3
+    while time.time() < deadline:
+        qq_payloads = [item for item in sent if item[0] == "qq"]
+        if qq_payloads:
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("assistant reply was not relayed to the bound QQ connector")
+
+    channel_name, outbound = qq_payloads[-1]
+    assert channel_name == "qq"
+    assert outbound["conversation_id"] == "qq:direct:UserABC123"
+    assert outbound["kind"] == "assistant"
+    assert outbound["message"] == "Assistant relay payload."
 
 
 def test_chat_endpoint_persists_client_message_delivery_state(temp_home: Path) -> None:

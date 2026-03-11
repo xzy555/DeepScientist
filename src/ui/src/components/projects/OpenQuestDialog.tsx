@@ -68,7 +68,7 @@ export function OpenQuestDialog({
       className="h-[min(92vh,760px)] max-w-4xl"
     >
       <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-0 md:grid-cols-[280px_minmax(0,1fr)] md:grid-rows-1">
-        <aside className="feed-scrollbar min-h-0 overflow-auto border-b border-black/[0.06] px-5 py-5 dark:border-white/[0.08] md:border-b-0 md:border-r">
+        <aside className="feed-scrollbar min-h-0 overflow-auto border-b border-black/[0.06] px-5 py-5 dark:border-[rgba(45,42,38,0.08)] md:border-b-0 md:border-r">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold">
             <FolderOpen className="h-4 w-4 text-muted-foreground" />
             {t('openQuestTitle')}
@@ -132,7 +132,7 @@ export function OpenQuestDialog({
                         {pendingCount > 0 ? <Badge>{t('openQuestPending')}: {pendingCount}</Badge> : null}
                       </div>
 
-                      <div className="mt-4 inline-flex rounded-full border border-black/[0.08] bg-white/[0.72] px-3 py-1.5 text-xs font-medium text-foreground/82 dark:border-white/[0.12] dark:bg-white/[0.06] dark:text-white/84">
+                      <div className="mt-4 inline-flex rounded-full border border-black/[0.08] bg-white/[0.72] px-3 py-1.5 text-xs font-medium text-[rgba(38,36,33,0.9)] dark:border-black/[0.08] dark:bg-white/[0.78] dark:text-[rgba(38,36,33,0.9)]">
                         {t('landingOpen')}
                       </div>
                     </div>

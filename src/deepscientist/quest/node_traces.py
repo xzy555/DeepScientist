@@ -210,6 +210,8 @@ def _build_action(entry: dict[str, Any], context: dict[str, Any]) -> dict[str, A
         "worktree_rel_path": context.get("worktree_rel_path"),
         "tool_name": entry.get("tool_name"),
         "tool_call_id": entry.get("tool_call_id"),
+        "mcp_server": entry.get("mcp_server"),
+        "mcp_tool": entry.get("mcp_tool"),
         "args": entry.get("args"),
         "output": entry.get("output"),
         "reason": entry.get("reason"),

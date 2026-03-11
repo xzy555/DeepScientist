@@ -70,6 +70,7 @@ type CopilotDockOverlayProps = {
   bodyContent?: React.ReactNode
   hideNewChat?: boolean
   hideHistory?: boolean
+  hideFixWithAi?: boolean
   forceOpen?: boolean
   visible?: boolean
   keepAlive?: boolean
@@ -376,6 +377,7 @@ export function CopilotDockOverlay({
   bodyContent,
   hideNewChat,
   hideHistory,
+  hideFixWithAi = false,
   forceOpen,
   visible,
   keepAlive = true,
@@ -1065,7 +1067,7 @@ export function CopilotDockOverlay({
                       <FolderOpen size={16} />
                     </button>
                   ) : null}
-                  {!hasCustomHeader && copilotActions?.runFixWithAi ? (
+                  {!hasCustomHeader && !hideFixWithAi && copilotActions?.runFixWithAi ? (
                     <button
                       type="button"
                       onClick={handleFixWithAi}

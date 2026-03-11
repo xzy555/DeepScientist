@@ -152,7 +152,7 @@ def test_prompt_builder_includes_progress_interact_cadence_guidance(temp_home: P
         model="gpt-5.4",
     )
 
-    assert "every 3 to 10 tool calls" in prompt
+    assert "5 to 15 tool calls" in prompt
     assert "do not send empty filler" in prompt
     assert "do not open or rewrite large binary assets" in prompt
 

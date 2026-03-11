@@ -11,13 +11,11 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+	} from '@/components/ui/dropdown-menu'
 import { NotificationBell } from '@/components/ui/notification-bell'
 import { cn } from '@/lib/utils'
-import { useAuthStore } from '@/lib/stores/auth'
-import { BRAND_LOGO_SMALL_SRC, BRAND_LOGO_SMALL_SRC_INVERTED, DEFAULT_USER_AVATAR_SRC, DEFAULT_USER_AVATAR_SRC_INVERTED } from '@/lib/constants/assets'
-import { useUserAvatarSrc } from '@/lib/user-avatar'
+import { useThemeStore } from '@/lib/stores/theme'
+import { BRAND_LOGO_SMALL_SRC, BRAND_LOGO_SMALL_SRC_INVERTED } from '@/lib/constants/assets'
 import { fetchDocsIndex, searchDocs } from '@/lib/docs'
 import type {
   DocsDirNode,
@@ -56,8 +54,8 @@ interface DocsLayoutProps {
 
 export function DocsLayout({ slug = [] }: DocsLayoutProps) {
   const router = useRouter()
-  const { user, logout } = useAuthStore()
-  const avatarSrc = useUserAvatarSrc(user)
+  const resolvedTheme = useThemeStore((state) => state.resolvedTheme)
+  const brandLogoSrc = resolvedTheme === 'dark' ? BRAND_LOGO_SMALL_SRC_INVERTED : BRAND_LOGO_SMALL_SRC
 
   const [index, setIndex] = useState<DocsIndexResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -200,11 +198,6 @@ export function DocsLayout({ slug = [] }: DocsLayoutProps) {
       }
     }
   }, [searchQuery, currentLanguageKey])
-
-  const handleLogout = () => {
-    logout()
-    router.push('/')
-  }
 
   const navigateToSegments = useCallback(
     (segments: string[], replace = false) => {
@@ -374,22 +367,11 @@ export function DocsLayout({ slug = [] }: DocsLayoutProps) {
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4">
 	          <Link href="/projects" className="flex items-center gap-2">
 	            <img
-	              src={BRAND_LOGO_SMALL_SRC}
+	              src={brandLogoSrc}
 	              alt="DeepScientist"
 	              width={22}
 	              height={22}
-	              className="object-contain dark:hidden"
-	              loading="eager"
-	              fetchPriority="high"
-	              decoding="async"
-	              draggable={false}
-	            />
-	            <img
-	              src={BRAND_LOGO_SMALL_SRC_INVERTED}
-	              alt="DeepScientist"
-	              width={22}
-	              height={22}
-	              className="hidden object-contain dark:block"
+	              className="object-contain"
 	              loading="eager"
 	              fetchPriority="high"
 	              decoding="async"
@@ -489,50 +471,10 @@ export function DocsLayout({ slug = [] }: DocsLayoutProps) {
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
-            </DropdownMenu>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-gray-50">
-                  <Avatar className="h-8 w-8 border border-gray-200">
-                    <AvatarImage src={avatarSrc} alt={user?.email || 'User'} />
-		                    <AvatarFallback className="bg-white">
-		                      <img
-		                        src={DEFAULT_USER_AVATAR_SRC}
-		                        alt="User"
-		                        width={32}
-		                        height={32}
-		                        className="h-5 w-5 object-contain dark:hidden"
-		                        loading="lazy"
-		                        decoding="async"
-		                        draggable={false}
-		                      />
-		                      <img
-		                        src={DEFAULT_USER_AVATAR_SRC_INVERTED}
-		                        alt="User"
-		                        width={32}
-		                        height={32}
-		                        className="hidden h-5 w-5 object-contain dark:block"
-		                        loading="lazy"
-		                        decoding="async"
-		                        draggable={false}
-		                      />
-	                    </AvatarFallback>
-	                  </Avatar>
-                  <span className="hidden text-sm text-gray-700 sm:inline">{user?.email}</span>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => router.push('/settings')}>Settings</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-                  Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </header>
+	            </DropdownMenu>
+	          </div>
+	        </div>
+	      </header>
 
       <div className="mx-auto max-w-7xl px-4 pt-7">
         <section className="relative overflow-hidden rounded-3xl border border-black/10 bg-white/50 shadow-soft-card backdrop-blur-sm">

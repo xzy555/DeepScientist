@@ -9,8 +9,11 @@ import {
   FlaskConical,
   GitBranch,
   Lightbulb,
+  Plus,
   RefreshCw,
   Sparkles,
+  Square,
+  Terminal,
 } from 'lucide-react'
 import {
   CartesianGrid,
@@ -23,33 +26,41 @@ import {
   YAxis,
 } from 'recharts'
 
-import { DocumentSheet } from '@/components/DocumentSheet'
 import { Button } from '@/components/ui/button'
+import { useToast } from '@/components/ui/toast'
 import { client } from '@/lib/api'
+import { getBashLogs, stopBashSession } from '@/lib/api/bash'
+import { ensureTerminalSession, sendTerminalInput } from '@/lib/api/terminal'
 import { useQuestWorkspace } from '@/lib/acp'
-import { openQuestNodeDocument } from '@/lib/api/quest-files'
+import { openQuestDocumentAsFileNode } from '@/lib/api/quest-files'
+import { useOpenFile } from '@/hooks/useOpenFile'
+import { useBashLogStream } from '@/lib/hooks/useBashLogStream'
 import { useBashSessionStream } from '@/lib/hooks/useBashSessionStream'
+import { EnhancedTerminal } from '@/lib/plugins/cli/components/EnhancedTerminal'
 import LabSurface from '@/lib/plugins/lab/components/LabSurface'
 import { useLabCopilotStore } from '@/lib/stores/lab-copilot'
 import { useLabGraphSelectionStore } from '@/lib/stores/lab-graph-selection'
 import { cn } from '@/lib/utils'
 import { getProgressPercent } from '@/lib/utils/bash-progress'
-import type { ConfigDocumentName } from '@/components/settings/SettingsPage'
+import type { BashLogEntry, BashProgress, BashSession } from '@/lib/types/bash'
+import {
+  isBashProgressMarker,
+  parseBashStatusMarker,
+  splitBashLogLine,
+} from '@/lib/utils/bash-log'
 import type {
   FeedItem,
   GitBranchesPayload,
   GuidanceVm,
   MetricsTimelinePayload,
   MetricTimelineSeries,
-  OpenDocumentPayload,
 } from '@/types'
 import {
-  QUEST_FILE_OPEN_EVENT,
   QUEST_WORKSPACE_VIEW_EVENT,
-  type QuestFileOpenDetail,
   type QuestWorkspaceView,
   type QuestWorkspaceViewDetail,
 } from '@/components/workspace/workspace-events'
+import '@/lib/plugins/cli/styles/terminal.css'
 
 type LinkItem = {
   key: string
@@ -69,16 +80,6 @@ type QuestWorkspaceSurfaceInnerProps = {
   view?: QuestWorkspaceView
   onViewChange?: (view: QuestWorkspaceView) => void
   workspace: QuestWorkspaceState
-}
-
-function isConfigDocumentName(value: string | null): value is ConfigDocumentName {
-  return (
-    value === 'config' ||
-    value === 'runners' ||
-    value === 'connectors' ||
-    value === 'plugins' ||
-    value === 'mcp_servers'
-  )
 }
 
 function flattenText(value?: string | null) {
@@ -118,6 +119,26 @@ function formatDuration(value?: string | null) {
   if (days > 0) return `${days}d ${hours}h`
   if (hours > 0) return `${hours}h ${minutes}m`
   return `${minutes}m`
+}
+
+function formatBashSessionStatus(status?: string | null) {
+  if (!status) return 'idle'
+  return status.replace(/_/g, ' ')
+}
+
+function sortBashLogEntries(entries: BashLogEntry[]) {
+  return [...entries].sort((a, b) => a.seq - b.seq)
+}
+
+function mergeBashLogEntries(current: BashLogEntry[], incoming: BashLogEntry[]) {
+  const map = new Map<number, BashLogEntry>()
+  current.forEach((entry) => {
+    map.set(entry.seq, entry)
+  })
+  incoming.forEach((entry) => {
+    map.set(entry.seq, entry)
+  })
+  return sortBashLogEntries(Array.from(map.values()))
 }
 
 function formatConnectionState(
@@ -428,7 +449,7 @@ function DocumentListBlock({
   countLabel?: string | null
   items: LinkItem[]
   emptyLabel: string
-  onOpen: (documentId: string) => void
+  onOpen: (item: LinkItem) => void
 }) {
   return (
     <div className="min-w-0">
@@ -475,7 +496,7 @@ function DocumentListBlock({
               <button
                 key={item.key}
                 type="button"
-                onClick={() => onOpen(item.documentId as string)}
+                onClick={() => onOpen(item)}
                 className="flex w-full items-start justify-between gap-3 py-3 text-left transition hover:text-foreground"
               >
                 {body}
@@ -627,6 +648,855 @@ function QuestCanvasSurface({
   )
 }
 
+function QuestTerminalLegacySurface({
+  questId,
+  onRefresh,
+}: {
+  questId: string
+  onRefresh: () => Promise<void>
+}) {
+  const {
+    sessions,
+    connection,
+    reload: reloadSessions,
+  } = useBashSessionStream({
+    projectId: questId,
+    enabled: Boolean(questId),
+    limit: 40,
+  })
+  const [selectedBashId, setSelectedBashId] = React.useState<string | null>(null)
+  const [logEntries, setLogEntries] = React.useState<BashLogEntry[]>([])
+  const [progress, setProgress] = React.useState<BashProgress | null>(null)
+  const [logsLoading, setLogsLoading] = React.useState(false)
+  const [logsError, setLogsError] = React.useState<string | null>(null)
+  const [lastLogSeq, setLastLogSeq] = React.useState<number | null>(null)
+  const [stopPending, setStopPending] = React.useState(false)
+
+  const selectedSession = React.useMemo(() => {
+    if (!sessions.length) return null
+    return sessions.find((session) => session.bash_id === selectedBashId) ?? sessions[0]
+  }, [selectedBashId, sessions])
+
+  React.useEffect(() => {
+    if (!sessions.length) {
+      setSelectedBashId(null)
+      return
+    }
+    if (!selectedBashId || !sessions.some((session) => session.bash_id === selectedBashId)) {
+      setSelectedBashId(sessions[0].bash_id)
+    }
+  }, [selectedBashId, sessions])
+
+  const reloadSelectedLogs = React.useCallback(
+    async (bashId: string) => {
+      setLogsLoading(true)
+      setLogsError(null)
+      try {
+        const payload = await getBashLogs(questId, bashId, {
+          limit: 800,
+          order: 'asc',
+        })
+        setLogEntries(sortBashLogEntries(payload.entries))
+        setLastLogSeq(
+          payload.meta.latestSeq ??
+            payload.entries[payload.entries.length - 1]?.seq ??
+            null
+        )
+      } catch (error) {
+        setLogsError(error instanceof Error ? error.message : 'Failed to load terminal logs.')
+        setLogEntries([])
+        setLastLogSeq(null)
+      } finally {
+        setLogsLoading(false)
+      }
+    },
+    [questId]
+  )
+
+  React.useEffect(() => {
+    if (!selectedSession) {
+      setProgress(null)
+      setLogEntries([])
+      setLogsError(null)
+      setLastLogSeq(null)
+      return
+    }
+    setProgress(selectedSession.last_progress ?? null)
+    void reloadSelectedLogs(selectedSession.bash_id)
+  }, [reloadSelectedLogs, selectedSession])
+
+  useBashLogStream({
+    projectId: questId,
+    bashId: selectedSession?.bash_id ?? null,
+    enabled: Boolean(
+      selectedSession &&
+        (selectedSession.status === 'running' ||
+          selectedSession.status === 'terminating')
+    ),
+    lastEventId: lastLogSeq,
+    onSnapshot: (event) => {
+      if (!selectedSession || event.bash_id !== selectedSession.bash_id) return
+      const nextEntries = (event.lines || []).map((line) => ({
+        seq: line.seq,
+        stream: line.stream || 'stdout',
+        line: line.line || '',
+        timestamp: line.timestamp || '',
+      }))
+      setLogEntries(sortBashLogEntries(nextEntries))
+      setLastLogSeq(event.latest_seq ?? nextEntries[nextEntries.length - 1]?.seq ?? null)
+      setProgress(event.progress ?? selectedSession.last_progress ?? null)
+    },
+    onLogBatch: (event) => {
+      if (!selectedSession || event.bash_id !== selectedSession.bash_id) return
+      const nextEntries = (event.lines || []).map((line) => ({
+        seq: line.seq,
+        stream: line.stream || 'stdout',
+        line: line.line || '',
+        timestamp: line.timestamp || '',
+      }))
+      setLogEntries((current) => mergeBashLogEntries(current, nextEntries))
+      setLastLogSeq(event.to_seq ?? nextEntries[nextEntries.length - 1]?.seq ?? null)
+    },
+    onProgress: (event) => {
+      if (!selectedSession || event.bash_id !== selectedSession.bash_id) return
+      setProgress(event)
+    },
+    onGap: (event) => {
+      if (!selectedSession || event.bash_id !== selectedSession.bash_id) return
+      void reloadSelectedLogs(event.bash_id)
+    },
+    onDone: async (event) => {
+      if (!selectedSession || event.bash_id !== selectedSession.bash_id) return
+      await Promise.allSettled([reloadSelectedLogs(event.bash_id), reloadSessions(), onRefresh()])
+    },
+    onError: (error) => {
+      setLogsError(error.message)
+    },
+  })
+
+  const logText = React.useMemo(() => {
+    if (!logEntries.length) return ''
+    return logEntries
+      .map((entry) => {
+        const prefix = entry.stream === 'stderr' ? '! ' : ''
+        return `${prefix}${entry.line}`
+      })
+      .join('\n')
+  }, [logEntries])
+
+  const handleRefresh = React.useCallback(async () => {
+    await Promise.allSettled([
+      reloadSessions(),
+      selectedSession ? reloadSelectedLogs(selectedSession.bash_id) : Promise.resolve(),
+      onRefresh(),
+    ])
+  }, [onRefresh, reloadSelectedLogs, reloadSessions, selectedSession])
+
+  const handleStop = React.useCallback(async () => {
+    if (!selectedSession) return
+    setStopPending(true)
+    try {
+      await stopBashSession(questId, selectedSession.bash_id, 'Stopped from terminal panel')
+      await Promise.allSettled([
+        reloadSessions(),
+        reloadSelectedLogs(selectedSession.bash_id),
+        onRefresh(),
+      ])
+    } finally {
+      setStopPending(false)
+    }
+  }, [onRefresh, questId, reloadSelectedLogs, reloadSessions, selectedSession])
+
+  return (
+    <div className="feed-scrollbar h-full overflow-y-auto overflow-x-hidden">
+      <div className="mx-auto flex min-h-full max-w-[1120px] flex-col px-5 pb-10 pt-5 sm:px-6 lg:px-8">
+        <DetailSection
+          first
+          title="Terminal"
+          hint="Quest-local bash_exec sessions and logs. The latest running session streams here automatically."
+          actions={<WorkspaceRefreshButton onRefresh={handleRefresh} label="Refresh terminal" />}
+        >
+          {!sessions.length ? (
+            <div className="rounded-[24px] border border-dashed border-black/[0.10] px-4 py-6 text-sm text-muted-foreground dark:border-white/[0.12]">
+              No bash_exec sessions recorded yet.
+            </div>
+          ) : (
+            <div className="grid min-h-[620px] gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+              <div className="rounded-[26px] border border-black/[0.08] bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(244,239,233,0.94))] p-3 shadow-card dark:border-white/[0.10] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))]">
+                <div className="flex items-center justify-between gap-3 px-1 pb-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Sessions
+                  </div>
+                  <StatusPill>{formatBashSessionStatus(connection.status)}</StatusPill>
+                </div>
+                <div className="space-y-2">
+                  {sessions.map((session) => {
+                    const sessionProgress =
+                      getProgressPercent(session.last_progress) ??
+                      session.last_progress?.percent ??
+                      null
+                    const isActive = session.bash_id === selectedSession?.bash_id
+                    return (
+                      <button
+                        key={session.bash_id}
+                        type="button"
+                        onClick={() => setSelectedBashId(session.bash_id)}
+                        className={cn(
+                          'w-full rounded-[20px] border px-3 py-3 text-left transition',
+                          isActive
+                            ? 'border-[#9b8352]/50 bg-[#9b8352]/[0.08] shadow-sm'
+                            : 'border-black/[0.06] bg-white/[0.56] hover:border-black/[0.10] hover:bg-white/[0.78] dark:border-white/[0.08] dark:bg-white/[0.03] dark:hover:bg-white/[0.05]'
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold text-foreground">
+                              {session.command || 'bash_exec'}
+                            </div>
+                            <div className="mt-1 truncate text-xs text-muted-foreground">
+                              {session.workdir || 'quest root'}
+                            </div>
+                          </div>
+                          <StatusPill>{formatBashSessionStatus(session.status)}</StatusPill>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                          <span>{formatRelativeTime(session.started_at)}</span>
+                          <span>·</span>
+                          <span>{session.mode}</span>
+                          {typeof sessionProgress === 'number' ? (
+                            <>
+                              <span>·</span>
+                              <span>{sessionProgress.toFixed(0)}%</span>
+                            </>
+                          ) : null}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="min-w-0 rounded-[26px] border border-black/[0.08] bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(244,239,233,0.94))] p-4 shadow-card dark:border-white/[0.10] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))]">
+                {selectedSession ? (
+                  <>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/[0.04] text-foreground dark:bg-white/[0.06]">
+                            <Terminal className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <div className="break-words text-lg font-semibold text-foreground">
+                              {selectedSession.command || 'bash_exec'}
+                            </div>
+                            <div className="mt-1 break-all text-xs text-muted-foreground">
+                              {selectedSession.workdir}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <StatusPill>{formatBashSessionStatus(selectedSession.status)}</StatusPill>
+                          <StatusPill mono>{selectedSession.bash_id}</StatusPill>
+                          <StatusPill>{selectedSession.mode}</StatusPill>
+                          {selectedSession.exit_code != null ? (
+                            <StatusPill>exit {selectedSession.exit_code}</StatusPill>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {selectedSession.status === 'running' ||
+                        selectedSession.status === 'terminating' ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              void handleStop()
+                            }}
+                            disabled={stopPending}
+                            className="h-9 rounded-full border-black/[0.08] bg-white/[0.84] px-3 text-[11px] shadow-sm backdrop-blur hover:bg-white dark:border-white/[0.10] dark:bg-[rgba(18,18,18,0.72)] dark:hover:bg-[rgba(24,24,24,0.9)]"
+                          >
+                            <Square className="mr-1.5 h-3.5 w-3.5" />
+                            {stopPending ? 'Stopping…' : 'Stop'}
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="mt-6 grid gap-x-10 gap-y-6 sm:grid-cols-2 xl:grid-cols-4">
+                      <OverviewMetric
+                        icon={<Activity className="h-4 w-4" />}
+                        label="State"
+                        value={formatBashSessionStatus(selectedSession.status)}
+                        hint={connection.status === 'open' ? 'streaming live' : connection.status}
+                      />
+                      <OverviewMetric
+                        icon={<Clock3 className="h-4 w-4" />}
+                        label="Started"
+                        value={formatRelativeTime(selectedSession.started_at)}
+                        hint={selectedSession.finished_at ? `Finished ${formatRelativeTime(selectedSession.finished_at)}` : 'Still active'}
+                      />
+                      <OverviewMetric
+                        icon={<FlaskConical className="h-4 w-4" />}
+                        label="Progress"
+                        value={
+                          progress && (getProgressPercent(progress) ?? progress.percent) != null
+                            ? `${(getProgressPercent(progress) ?? progress.percent ?? 0).toFixed(0)}%`
+                            : '—'
+                        }
+                        hint={progress?.desc || progress?.phase || selectedSession.stop_reason || null}
+                      />
+                      <OverviewMetric
+                        icon={<FileCode2 className="h-4 w-4" />}
+                        label="Log path"
+                        value={selectedSession.log_path.split('/').slice(-3).join('/')}
+                        hint={selectedSession.log_path}
+                      />
+                    </div>
+
+                    <div className="mt-6 overflow-hidden rounded-[24px] border border-black/[0.10] bg-[#0f1115] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] dark:border-white/[0.10]">
+                      <div className="flex items-center justify-between gap-3 border-b border-white/[0.08] px-4 py-3 text-xs text-white/70">
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5" aria-hidden="true">
+                            <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
+                            <span className="h-2.5 w-2.5 rounded-full bg-[#ffbd2e]" />
+                            <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
+                          </div>
+                          <span>bash_exec</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {logsLoading ? <span>loading…</span> : null}
+                          {logsError ? <span className="text-[#ffb4b4]">{logsError}</span> : null}
+                        </div>
+                      </div>
+                      <pre className="feed-scrollbar min-h-[360px] overflow-auto px-4 py-4 text-[12px] leading-6 text-[#d8dee9]">
+                        {logText || 'No terminal output yet.'}
+                      </pre>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            </div>
+          )}
+        </DetailSection>
+      </div>
+    </div>
+  )
+}
+
+function QuestTerminalSurface({
+  questId,
+  onRefresh,
+}: {
+  questId: string
+  onRefresh: () => Promise<void>
+}) {
+  const { addToast } = useToast()
+  const {
+    sessions,
+    connection,
+    reload: reloadSessions,
+  } = useBashSessionStream({
+    projectId: questId,
+    enabled: Boolean(questId),
+    limit: 120,
+  })
+
+  const terminalSessions = React.useMemo(
+    () => sessions.filter((session) => String(session.kind || '').toLowerCase() === 'terminal'),
+    [sessions]
+  )
+  const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(null)
+  const [logsLoading, setLogsLoading] = React.useState(false)
+  const [logsError, setLogsError] = React.useState<string | null>(null)
+  const [stopPending, setStopPending] = React.useState(false)
+  const [lastSeq, setLastSeq] = React.useState<number | null>(null)
+  const lastSeqRef = React.useRef<number | null>(null)
+  const [sessionStatus, setSessionStatus] = React.useState<string | null>(null)
+  const [exitCode, setExitCode] = React.useState<number | null>(null)
+  const [stopReason, setStopReason] = React.useState<string | null>(null)
+  const [progress, setProgress] = React.useState<BashProgress | null>(null)
+
+  React.useEffect(() => {
+    lastSeqRef.current = lastSeq
+  }, [lastSeq])
+
+  const selectedSession = React.useMemo<BashSession | null>(() => {
+    if (!terminalSessions.length) return null
+    return (
+      terminalSessions.find((session) => session.bash_id === selectedSessionId) ??
+      terminalSessions[0]
+    )
+  }, [selectedSessionId, terminalSessions])
+
+  React.useEffect(() => {
+    if (!terminalSessions.length) {
+      setSelectedSessionId(null)
+      return
+    }
+    if (
+      !selectedSessionId ||
+      !terminalSessions.some((session) => session.bash_id === selectedSessionId)
+    ) {
+      setSelectedSessionId(terminalSessions[0].bash_id)
+    }
+  }, [selectedSessionId, terminalSessions])
+
+  const ensuredRef = React.useRef(false)
+  React.useEffect(() => {
+    if (!questId || ensuredRef.current) return
+    ensuredRef.current = true
+    let cancelled = false
+    void ensureTerminalSession(questId, { source: 'web-react' })
+      .then(({ session }) => {
+        if (cancelled) return
+        setSelectedSessionId((prev) => prev ?? session.bash_id)
+        void reloadSessions()
+      })
+      .catch((error) => {
+        ensuredRef.current = false
+        addToast({
+          type: 'error',
+          title: 'Terminal unavailable',
+          description: error instanceof Error ? error.message : 'Unable to start terminal session.',
+        })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [addToast, questId, reloadSessions])
+
+  React.useEffect(() => {
+    setSessionStatus(selectedSession?.status ?? null)
+    setExitCode(selectedSession?.exit_code ?? null)
+    setStopReason(selectedSession?.stop_reason ?? null)
+    setProgress(selectedSession?.last_progress ?? null)
+  }, [
+    selectedSession?.bash_id,
+    selectedSession?.exit_code,
+    selectedSession?.last_progress,
+    selectedSession?.status,
+    selectedSession?.stop_reason,
+  ])
+
+  type TerminalHandlers = {
+    write: (data: string, onComplete?: () => void) => void
+    clear: () => void
+    scrollToBottom: () => void
+    focus: () => void
+    isScrolledToBottom?: (thresholdPx?: number) => boolean
+  }
+
+  const terminalHandlersRef = React.useRef<TerminalHandlers | null>(null)
+  const pendingOutputRef = React.useRef<string>('')
+
+  const appendToTerminal = React.useCallback((text: string) => {
+    const handlers = terminalHandlersRef.current
+    if (!handlers) {
+      pendingOutputRef.current += text
+      return
+    }
+    const shouldAutoScroll = handlers.isScrolledToBottom?.() ?? true
+    handlers.write(text, () => {
+      if (shouldAutoScroll) {
+        handlers.scrollToBottom()
+      }
+    })
+  }, [])
+
+  const resetTerminal = React.useCallback(() => {
+    pendingOutputRef.current = ''
+    terminalHandlersRef.current?.clear()
+  }, [])
+
+  const handleLogLine = React.useCallback(
+    (entry: { line: string; stream?: string | null }) => {
+      if (entry.stream === 'prompt') {
+        // The terminal process already prints its own prompt (and readline escape sequences).
+        // Keep the quest-local cwd in session metadata, but don't duplicate a second prompt line.
+        return
+      }
+      const line = entry.line ?? ''
+      if (!line) {
+        appendToTerminal('\n')
+        return
+      }
+      if (isBashProgressMarker(line)) {
+        return
+      }
+      const marker = parseBashStatusMarker(line)
+      if (marker) {
+        setSessionStatus(marker.status)
+        setExitCode(marker.exitCode)
+        setStopReason(marker.reason)
+        return
+      }
+      const parsed = splitBashLogLine(line)
+      if (parsed.kind === 'carriage') {
+        appendToTerminal(`\r\x1b[K${parsed.text}`)
+        return
+      }
+      appendToTerminal(`${parsed.text}\n`)
+    },
+    [appendToTerminal]
+  )
+
+  const reloadSelectedLogs = React.useCallback(
+    async (bashId: string) => {
+      setLogsLoading(true)
+      setLogsError(null)
+      try {
+        const payload = await getBashLogs(questId, bashId, {
+          limit: 1000,
+          order: 'asc',
+        })
+        resetTerminal()
+        payload.entries.forEach((entry) => handleLogLine(entry))
+        const latestSeq =
+          payload.meta.latestSeq ?? payload.entries[payload.entries.length - 1]?.seq ?? null
+        setLastSeq(typeof latestSeq === 'number' ? latestSeq : null)
+      } catch (error) {
+        setLogsError(error instanceof Error ? error.message : 'Failed to load terminal logs.')
+        setLastSeq(null)
+        resetTerminal()
+      } finally {
+        setLogsLoading(false)
+      }
+    },
+    [handleLogLine, questId, resetTerminal]
+  )
+
+  React.useEffect(() => {
+    if (!selectedSession) {
+      setLogsError(null)
+      setLastSeq(null)
+      lastSeqRef.current = null
+      resetTerminal()
+      return
+    }
+    setLastSeq(null)
+    lastSeqRef.current = null
+    void reloadSelectedLogs(selectedSession.bash_id)
+  }, [reloadSelectedLogs, resetTerminal, selectedSession])
+
+  useBashLogStream({
+    projectId: questId,
+    bashId: selectedSession?.bash_id ?? null,
+    enabled: Boolean(
+      selectedSession &&
+        (selectedSession.status === 'running' || selectedSession.status === 'terminating')
+    ),
+    lastEventId: lastSeq ?? undefined,
+    onSnapshot: (event) => {
+      if (!selectedSession || event.bash_id !== selectedSession.bash_id) return
+      resetTerminal()
+      let maxSeq: number | null = typeof event.latest_seq === 'number' ? event.latest_seq : null
+      event.lines?.forEach((line) => {
+        if (typeof line.seq === 'number') {
+          maxSeq = maxSeq == null || line.seq > maxSeq ? line.seq : maxSeq
+        }
+        handleLogLine({ line: line.line ?? '', stream: line.stream })
+      })
+      if (event.progress) {
+        setProgress(event.progress)
+      }
+      if (maxSeq != null) {
+        setLastSeq(maxSeq)
+      }
+    },
+    onLogBatch: (event) => {
+      if (!selectedSession || event.bash_id !== selectedSession.bash_id) return
+      let maxSeq: number | null = null
+      event.lines?.forEach((line) => {
+        if (typeof line.seq === 'number') {
+          if (lastSeqRef.current != null && line.seq <= lastSeqRef.current) {
+            return
+          }
+          maxSeq = maxSeq == null || line.seq > maxSeq ? line.seq : maxSeq
+        }
+        handleLogLine({ line: line.line ?? '', stream: line.stream })
+      })
+      if (maxSeq != null) {
+        setLastSeq((prev) => (prev == null || maxSeq > prev ? maxSeq : prev))
+      }
+    },
+    onProgress: (event) => {
+      if (!selectedSession || event.bash_id !== selectedSession.bash_id) return
+      setProgress(event)
+    },
+    onGap: (event) => {
+      if (!selectedSession || event.bash_id !== selectedSession.bash_id) return
+      void reloadSelectedLogs(event.bash_id)
+    },
+    onDone: async (event) => {
+      if (!selectedSession || event.bash_id !== selectedSession.bash_id) return
+      setSessionStatus(event.status)
+      if (typeof event.exit_code === 'number') {
+        setExitCode(event.exit_code)
+      }
+      await Promise.allSettled([reloadSessions(), onRefresh()])
+    },
+    onError: (error) => {
+      setLogsError(error.message)
+    },
+  })
+
+  const handleRefresh = React.useCallback(async () => {
+    await Promise.allSettled([
+      reloadSessions(),
+      selectedSession ? reloadSelectedLogs(selectedSession.bash_id) : Promise.resolve(),
+      onRefresh(),
+    ])
+  }, [onRefresh, reloadSelectedLogs, reloadSessions, selectedSession])
+
+  const handleStop = React.useCallback(async () => {
+    if (!selectedSession) return
+    setStopPending(true)
+    try {
+      await stopBashSession(questId, selectedSession.bash_id, 'Stopped from terminal panel')
+      await Promise.allSettled([
+        reloadSessions(),
+        reloadSelectedLogs(selectedSession.bash_id),
+        onRefresh(),
+      ])
+    } finally {
+      setStopPending(false)
+    }
+  }, [onRefresh, questId, reloadSelectedLogs, reloadSessions, selectedSession])
+
+  const handleNewTerminal = React.useCallback(async () => {
+    try {
+      const response = await ensureTerminalSession(questId, {
+        createNew: true,
+        label: `terminal-${terminalSessions.length + 1}`,
+        source: 'web-react',
+      })
+      await reloadSessions()
+      setSelectedSessionId(response.session.bash_id)
+      window.setTimeout(() => {
+        terminalHandlersRef.current?.focus()
+      }, 80)
+    } catch (error) {
+      addToast({
+        type: 'error',
+        title: 'Failed to create terminal',
+        description: error instanceof Error ? error.message : 'Unable to create terminal session.',
+      })
+    }
+  }, [addToast, questId, reloadSessions, terminalSessions.length])
+
+  const inputBufferRef = React.useRef<string>('')
+  const inputFlushTimerRef = React.useRef<number | null>(null)
+  const flushInputRef = React.useRef<(() => void) | null>(null)
+
+  const flushInput = React.useCallback(async () => {
+    if (!selectedSession) return
+    const pending = inputBufferRef.current
+    if (!pending) return
+    inputBufferRef.current = ''
+    try {
+      await sendTerminalInput(questId, selectedSession.bash_id, {
+        data: pending,
+        source: 'web-react',
+      })
+    } catch (error) {
+      addToast({
+        type: 'error',
+        title: 'Terminal input failed',
+        description: error instanceof Error ? error.message : 'Unable to send input to terminal.',
+      })
+    }
+  }, [addToast, questId, selectedSession])
+
+  React.useEffect(() => {
+    flushInputRef.current = () => {
+      void flushInput()
+    }
+  }, [flushInput])
+
+  React.useEffect(() => {
+    inputBufferRef.current = ''
+    if (inputFlushTimerRef.current != null) {
+      window.clearTimeout(inputFlushTimerRef.current)
+      inputFlushTimerRef.current = null
+    }
+  }, [selectedSession?.bash_id])
+
+  React.useEffect(() => {
+    return () => {
+      if (inputFlushTimerRef.current != null) {
+        window.clearTimeout(inputFlushTimerRef.current)
+        inputFlushTimerRef.current = null
+      }
+    }
+  }, [])
+
+  const scheduleInputFlush = React.useCallback(
+    (data: string) => {
+      if (!selectedSession) return
+      inputBufferRef.current += data
+      const shouldFlushNow = /[\r\n]/.test(data) || inputBufferRef.current.length > 2048
+      if (shouldFlushNow) {
+        if (inputFlushTimerRef.current != null) {
+          window.clearTimeout(inputFlushTimerRef.current)
+          inputFlushTimerRef.current = null
+        }
+        flushInputRef.current?.()
+        return
+      }
+      if (inputFlushTimerRef.current != null) return
+      inputFlushTimerRef.current = window.setTimeout(() => {
+        inputFlushTimerRef.current = null
+        flushInputRef.current?.()
+      }, 60)
+    },
+    [selectedSession]
+  )
+
+  return (
+    <div className="h-full min-h-0 overflow-hidden bg-[var(--lab-surface-muted)]">
+      <div className="flex h-full min-h-0 overflow-hidden">
+        <div className="w-[320px] shrink-0 border-r border-black/[0.08] bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(244,239,233,0.94))] p-3 shadow-card dark:border-white/[0.10] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))]">
+          <div className="flex items-center justify-between gap-3 px-1 pb-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Terminals
+            </div>
+            <div className="flex items-center gap-2">
+              <StatusPill>{formatBashSessionStatus(connection.status)}</StatusPill>
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                onClick={() => {
+                  void handleNewTerminal()
+                }}
+                className="h-9 w-9 rounded-full border-black/[0.08] bg-white/[0.84] shadow-sm backdrop-blur hover:bg-white dark:border-white/[0.10] dark:bg-[rgba(18,18,18,0.72)]"
+                title="New terminal"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="feed-scrollbar h-[calc(100%-3.25rem)] space-y-2 overflow-auto pr-1">
+            {!terminalSessions.length ? (
+              <div className="rounded-[20px] border border-dashed border-black/[0.10] px-3 py-4 text-sm text-muted-foreground dark:border-white/[0.12]">
+                No terminal sessions yet.
+              </div>
+            ) : (
+              terminalSessions.map((session) => {
+                const isActive = session.bash_id === selectedSession?.bash_id
+                return (
+                  <button
+                    key={session.bash_id}
+                    type="button"
+                    onClick={() => setSelectedSessionId(session.bash_id)}
+                    className={cn(
+                      'w-full rounded-[20px] border px-3 py-3 text-left transition',
+                      isActive
+                        ? 'border-[#9b8352]/50 bg-[#9b8352]/[0.08] shadow-sm'
+                        : 'border-black/[0.06] bg-white/[0.56] hover:border-black/[0.10] hover:bg-white/[0.78] dark:border-white/[0.08] dark:bg-white/[0.03] dark:hover:bg-white/[0.05]'
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-foreground">
+                          {session.label || session.bash_id}
+                        </div>
+                        <div className="mt-1 truncate text-xs text-muted-foreground">
+                          {session.workdir || 'quest root'}
+                        </div>
+                      </div>
+                      <StatusPill>{formatBashSessionStatus(session.status)}</StatusPill>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                      <span>{formatRelativeTime(session.started_at)}</span>
+                      <span>·</span>
+                      <span>{session.mode}</span>
+                    </div>
+                  </button>
+                )
+              })
+            )}
+          </div>
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <WorkspaceRefreshButton onRefresh={handleRefresh} label="Refresh terminal" />
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                {logsLoading ? <span>loading…</span> : null}
+                {logsError ? (
+                  <span className="text-[#b42318] dark:text-[#ffb4b4]">{logsError}</span>
+                ) : null}
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden rounded-[24px] border border-black/[0.10] bg-[#0f1115] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] dark:border-white/[0.10]">
+              <div className="h-full min-h-0 px-4 py-4">
+                <EnhancedTerminal
+                  onInput={(data) => {
+                    scheduleInputFlush(data)
+                  }}
+                  onResize={() => {}}
+                  onReady={(handlers) => {
+                    terminalHandlersRef.current = handlers
+                    if (pendingOutputRef.current) {
+                      const payload = pendingOutputRef.current
+                      pendingOutputRef.current = ''
+                      handlers.write(payload, () => {
+                        handlers.scrollToBottom()
+                      })
+                    }
+                    window.setTimeout(() => handlers.focus(), 60)
+                  }}
+                  searchOpen={false}
+                  onSearchOpenChange={() => {}}
+                  appearance="terminal"
+                  autoFocus={false}
+                  showHeader={false}
+                  scrollback={1000}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 border-t border-black/[0.08] px-4 py-3 text-xs text-muted-foreground dark:border-white/[0.10]">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <StatusPill>
+                {formatBashSessionStatus(sessionStatus ?? selectedSession?.status ?? 'idle')}
+              </StatusPill>
+              {selectedSession?.bash_id ? <StatusPill mono>{selectedSession.bash_id}</StatusPill> : null}
+              {selectedSession?.workdir ? <StatusPill mono>{selectedSession.workdir}</StatusPill> : null}
+              {progress && (getProgressPercent(progress) ?? progress.percent) != null ? (
+                <StatusPill>{`${(getProgressPercent(progress) ?? progress.percent ?? 0).toFixed(0)}%`}</StatusPill>
+              ) : null}
+              {exitCode != null ? <StatusPill>exit {exitCode}</StatusPill> : null}
+              {stopReason ? <span className="truncate">{stopReason}</span> : null}
+            </div>
+            {selectedSession &&
+            (selectedSession.status === 'running' || selectedSession.status === 'terminating') ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  void handleStop()
+                }}
+                disabled={stopPending}
+                className="h-8 rounded-full border-black/[0.08] bg-white/[0.84] px-3 text-[11px] shadow-sm backdrop-blur hover:bg-white dark:border-white/[0.10] dark:bg-[rgba(18,18,18,0.72)] dark:hover:bg-[rgba(24,24,24,0.9)]"
+              >
+                <Square className="mr-1.5 h-3.5 w-3.5" />
+                {stopPending ? 'Stopping…' : 'Stop'}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function QuestDetails({
   questId,
   snapshot,
@@ -652,7 +1522,7 @@ function QuestDetails({
   loading: boolean
   restoring: boolean
   connectionState: ReturnType<typeof useQuestWorkspace>['connectionState']
-  onOpenDocument: (documentId: string) => void
+  onOpenDocument: (item: LinkItem) => void
   onRefresh: () => Promise<void>
   error?: string | null
 }) {
@@ -1149,17 +2019,14 @@ export function QuestWorkspaceSurfaceInner({
     loading,
     restoring,
     error,
-    activeDocument,
-    setActiveDocument,
     refresh,
     connectionState,
   } = workspace
-  const [activeConfigName, setActiveConfigName] =
-    React.useState<ConfigDocumentName | null>(null)
   const [uncontrolledView, setUncontrolledView] =
     React.useState<QuestWorkspaceView>(controlledView ?? 'canvas')
   const [branches, setBranches] = React.useState<GitBranchesPayload | null>(null)
   const setActiveQuest = useLabCopilotStore((state) => state.setActiveQuest)
+  const { openFileInTab } = useOpenFile()
   const view = controlledView ?? uncontrolledView
 
   React.useEffect(() => {
@@ -1177,124 +2044,21 @@ export function QuestWorkspaceSurfaceInner({
     [onViewChange]
   )
 
-  const openDocument = React.useCallback(
+  const openDocumentInTab = React.useCallback(
     async (documentId: string) => {
-      const next = await client.openDocument(questId, documentId)
-      setActiveConfigName(null)
-      setActiveDocument(next)
+      const node = await openQuestDocumentAsFileNode(questId, documentId)
+      await openFileInTab(node, {
+        customData: {
+          projectId: questId,
+        },
+      })
     },
-    [questId, setActiveDocument]
-  )
-
-  const closeDocument = React.useCallback(() => {
-    setActiveConfigName(null)
-    setActiveDocument(null)
-  }, [setActiveDocument])
-
-  const refreshActiveConfig = React.useCallback(
-    async (name: ConfigDocumentName) => {
-      const next = await client.configDocument(name)
-      setActiveDocument(next)
-      return next
-    },
-    [setActiveDocument]
-  )
-
-  const refreshQuestDocument = React.useCallback(
-    async (document: OpenDocumentPayload) => {
-      const next = await client.openDocument(questId, document.document_id)
-      setActiveDocument(next)
-      return next
-    },
-    [questId, setActiveDocument]
+    [openFileInTab, questId]
   )
 
   const refreshWorkspace = React.useCallback(async () => {
     await refresh(false)
   }, [refresh])
-
-  const saveDocument = React.useCallback(
-    async (content: string) => {
-      if (!activeDocument) return
-      if (activeDocument.source_scope === 'config') {
-        const configName =
-          activeConfigName ||
-          (isConfigDocumentName(activeDocument.document_id)
-            ? activeDocument.document_id
-            : null)
-        if (!configName) {
-          return
-        }
-        const result = await client.saveConfig(configName, {
-          content,
-          revision: activeDocument.revision,
-        })
-        if (result.updated_payload) {
-          setActiveDocument(result.updated_payload)
-        } else {
-          await refreshActiveConfig(configName)
-        }
-      } else {
-        const result = await client.saveDocument(
-          questId,
-          activeDocument.document_id,
-          content,
-          activeDocument.revision
-        )
-        if (result.updated_payload) {
-          setActiveDocument(result.updated_payload)
-        } else {
-          await refreshQuestDocument(activeDocument)
-        }
-      }
-      await refresh(false)
-    },
-    [
-      activeConfigName,
-      activeDocument,
-      questId,
-      refresh,
-      refreshActiveConfig,
-      refreshQuestDocument,
-      setActiveDocument,
-    ]
-  )
-
-  const validateConfig = React.useCallback(
-    async (content: string) => {
-      if (!activeDocument || activeDocument.source_scope !== 'config') {
-        return null
-      }
-      const configName =
-        activeConfigName ||
-        (isConfigDocumentName(activeDocument.document_id)
-          ? activeDocument.document_id
-          : null)
-      if (!configName) {
-        return null
-      }
-      return client.validateConfig(configName, { content })
-    },
-    [activeConfigName, activeDocument]
-  )
-
-  const testConfig = React.useCallback(
-    async (content: string) => {
-      if (!activeDocument || activeDocument.source_scope !== 'config') {
-        return null
-      }
-      const configName =
-        activeConfigName ||
-        (isConfigDocumentName(activeDocument.document_id)
-          ? activeDocument.document_id
-          : null)
-      if (!configName) {
-        return null
-      }
-      return client.testConfig(configName, { content, live: true })
-    },
-    [activeConfigName, activeDocument]
-  )
 
   React.useEffect(() => {
     let cancelled = false
@@ -1317,34 +2081,6 @@ export function QuestWorkspaceSurfaceInner({
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return
-    const handleQuestFileOpen = (event: Event) => {
-      const detail = (event as CustomEvent<QuestFileOpenDetail>).detail
-      if (!detail || detail.projectId !== questId || !detail.fileId) {
-        return
-      }
-      void openQuestNodeDocument(detail.fileId)
-        .then((document) => {
-          setActiveConfigName(null)
-          setActiveDocument({
-            ...document,
-            meta: {
-              ...(document.meta ?? {}),
-              ...(typeof detail.lineNumber === 'number'
-                ? { highlight_line: detail.lineNumber }
-                : {}),
-              ...(typeof detail.query === 'string' && detail.query.trim()
-                ? { highlight_query: detail.query }
-                : {}),
-            },
-          })
-        })
-        .catch((caught) => {
-          console.error(
-            '[QuestWorkspaceSurface] Failed to open quest file from explorer:',
-            caught
-          )
-        })
-    }
     const handleViewChange = (event: Event) => {
       const detail = (event as CustomEvent<QuestWorkspaceViewDetail>).detail
       if (!detail || detail.projectId !== questId) {
@@ -1352,19 +2088,14 @@ export function QuestWorkspaceSurfaceInner({
       }
       updateView(detail.view)
     }
-    window.addEventListener(QUEST_FILE_OPEN_EVENT, handleQuestFileOpen as EventListener)
     window.addEventListener(QUEST_WORKSPACE_VIEW_EVENT, handleViewChange as EventListener)
     return () => {
-      window.removeEventListener(
-        QUEST_FILE_OPEN_EVENT,
-        handleQuestFileOpen as EventListener
-      )
       window.removeEventListener(
         QUEST_WORKSPACE_VIEW_EVENT,
         handleViewChange as EventListener
       )
     }
-  }, [questId, setActiveDocument, updateView])
+  }, [questId, updateView])
 
   if (
     loading &&
@@ -1405,6 +2136,8 @@ export function QuestWorkspaceSurfaceInner({
             error={error}
             onRefresh={refreshWorkspace}
           />
+        ) : view === 'terminal' ? (
+          <QuestTerminalSurface questId={questId} onRefresh={refreshWorkspace} />
         ) : (
           <QuestDetails
             questId={questId}
@@ -1417,8 +2150,9 @@ export function QuestWorkspaceSurfaceInner({
             loading={loading}
             restoring={restoring}
             connectionState={connectionState}
-            onOpenDocument={(documentId) => {
-              void openDocument(documentId)
+            onOpenDocument={(item) => {
+              if (!item.documentId) return
+              void openDocumentInTab(item.documentId)
             }}
             onRefresh={refreshWorkspace}
             error={error}
@@ -1426,13 +2160,6 @@ export function QuestWorkspaceSurfaceInner({
         )}
       </div>
       {overlay}
-      <DocumentSheet
-        document={activeDocument}
-        onClose={closeDocument}
-        onSave={saveDocument}
-        onValidate={validateConfig}
-        onTest={testConfig}
-      />
     </div>
   )
 }

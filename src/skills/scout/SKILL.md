@@ -11,8 +11,9 @@ Use this skill when the quest does not yet have a stable research frame.
 
 - Treat `artifact.interact(...)` as the main long-lived communication thread across TUI, web, and bound connectors.
 - If `artifact.interact(...)` returns queued user requirements, treat them as the latest user instruction bundle before continuing scouting.
-- Emit `artifact.interact(kind='progress', reply_mode='threaded', ...)` every 3 to 10 tool calls or at each real checkpoint.
+- Emit `artifact.interact(kind='progress', reply_mode='threaded', ...)` only at real checkpoints, and normally no more frequently than every 5 to 15 tool calls.
 - Each progress update must state completed scouting work, the durable output touched, and the immediate next framing step.
+- Message templates are references only. Adapt to the actual context and vary wording so updates feel respectful, human, and non-robotic.
 - Use `reply_mode='blocking'` only for real user decisions that cannot be resolved from local evidence.
 - For any blocking decision request, provide 1 to 3 concrete options, put the recommended option first, explain each option's actual content plus pros and cons, wait up to 1 day when feasible, then choose the best option yourself and notify the user of the chosen option if the timeout expires.
 - If a threaded user reply arrives, interpret it relative to the latest scout progress update before assuming the task changed completely.

@@ -24,6 +24,7 @@ ROUTES: list[tuple[str, re.Pattern[str], str]] = [
     ("PATCH", re.compile(r"^/api/quests/(?P<quest_id>[^/]+)/settings$"), "quest_settings"),
     ("GET", re.compile(r"^/api/quests/(?P<quest_id>[^/]+)/session$"), "quest_session"),
     ("GET", re.compile(r"^/api/quests/(?P<quest_id>[^/]+)/events$"), "quest_events"),
+    ("GET", re.compile(r"^/api/quests/(?P<quest_id>[^/]+)/artifacts$"), "quest_artifacts"),
     ("GET", re.compile(r"^/api/quests/(?P<quest_id>[^/]+)/workflow$"), "workflow"),
     ("GET", re.compile(r"^/api/quests/(?P<quest_id>[^/]+)/node-traces$"), "node_traces"),
     ("GET", re.compile(r"^/api/quests/(?P<quest_id>[^/]+)/node-traces/(?P<node_ref>.+)$"), "node_trace"),

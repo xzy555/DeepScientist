@@ -511,6 +511,7 @@ class BashExecService:
         quest_root: Path,
         quest_id: str,
         bash_id: str,
+        label: str | None,
         cwd: Path,
         workdir_display: str,
         command: str,
@@ -535,6 +536,7 @@ class BashExecService:
             "agent_instance_id": None,
             "started_by_user_id": started_by_user_id,
             "stopped_by_user_id": None,
+            "label": label,
             "command": command,
             "workdir": workdir_display,
             "cwd": str(cwd),
@@ -568,6 +570,7 @@ class BashExecService:
         *,
         quest_id: str | None = None,
         bash_id: str = DEFAULT_TERMINAL_SESSION_ID,
+        label: str | None = None,
         cwd: Path | None = None,
         source: str = "web",
         conversation_id: str | None = None,
@@ -584,6 +587,7 @@ class BashExecService:
 
         previous_meta = read_json(self.meta_path(resolved_quest_root, bash_id), {}) if self.meta_path(resolved_quest_root, bash_id).exists() else {}
         previous_cwd = Path(str(previous_meta.get("cwd") or "")).expanduser().resolve() if previous_meta.get("cwd") else None
+        previous_label = _normalize_string(previous_meta.get("label") or "") or None
         target_cwd = (cwd or previous_cwd or resolved_quest_root).resolve()
         if not target_cwd.exists() or not target_cwd.is_dir() or not (target_cwd == resolved_quest_root or resolved_quest_root in target_cwd.parents):
             target_cwd = resolved_quest_root
@@ -614,17 +618,20 @@ class BashExecService:
         env_payload = {
             "TERM": "xterm-256color",
             "COLORTERM": "truecolor",
-            "PS1": "",
-            "PS2": "",
+            # Keep prompt effectively blank but non-empty so bash does not fall back to `bash-x.y$`.
+            "PS1": " ",
+            "PS2": " ",
             "PROMPT_COMMAND": (
                 'printf "__DS_TERMINAL_PROMPT__ cwd=%q ts=%s\\n" "$PWD" "$(date -u +%FT%TZ)"'
             ),
         }
         command = "exec bash --noprofile --norc -i"
+        resolved_label = _normalize_string(label) or previous_label
         meta = self._build_terminal_meta(
             quest_root=resolved_quest_root,
             quest_id=resolved_quest_id,
             bash_id=bash_id,
+            label=resolved_label,
             cwd=target_cwd,
             workdir_display=workdir_display,
             command=command,

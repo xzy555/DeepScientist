@@ -63,7 +63,7 @@ export function WorkspaceCreateCard({
         'hover:border-black/20 hover:shadow-[0_16px_36px_-28px_rgba(0,0,0,0.35)]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20 focus-visible:ring-offset-2',
         'disabled:cursor-not-allowed disabled:opacity-70',
-        'dark:border-white/15 dark:focus-visible:ring-white/25 dark:focus-visible:ring-offset-black',
+        'dark:border-black/12 dark:focus-visible:ring-black/20 dark:focus-visible:ring-offset-white',
         gradientClass,
         className
       )}
@@ -75,11 +75,11 @@ export function WorkspaceCreateCard({
       <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-black text-white shadow-sm">
         <Plus className="h-7 w-7" />
       </div>
-      <div className="relative mt-3 text-sm font-semibold tracking-wide text-black/85 dark:text-white">
+      <div className="relative mt-3 text-sm font-semibold tracking-wide text-black/85 dark:text-black/85">
         {title}
       </div>
-      <div className="relative mt-1 text-[11px] text-black/65 dark:text-white/70">{subtitle}</div>
-      {loading ? <div className="relative mt-2 text-[10px] text-black/55 dark:text-white/60">{loadingText}</div> : null}
+      <div className="relative mt-1 text-[11px] text-black/65 dark:text-black/65">{subtitle}</div>
+      {loading ? <div className="relative mt-2 text-[10px] text-black/55 dark:text-black/55">{loadingText}</div> : null}
     </button>
   )
 }

@@ -11,7 +11,7 @@ from deepscientist.config import ConfigManager
 from deepscientist.home import ensure_home_layout, repo_root
 from deepscientist.memory import MemoryService
 from deepscientist.quest import QuestService
-from deepscientist.shared import read_json, read_jsonl, write_yaml
+from deepscientist.shared import read_json, read_jsonl, write_json, write_yaml
 from deepscientist.skills import SkillInstaller
 
 
@@ -703,6 +703,68 @@ def test_artifact_interact_tracks_pending_request_and_user_reply(temp_home: Path
     assert latest["message_id"] == reply["id"]
     assert latest["conversation_id"] == "qq:group:demo"
     assert latest["text"].startswith("Launch it now")
+
+
+def test_bind_source_repairs_lowercased_connector_binding_and_preserves_chat_id_case(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    quest_service = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home))
+    quest = quest_service.create("binding repair quest")
+
+    quest_service.bind_source(quest["quest_id"], "qq:direct:cf8d2d559aa956b48751539adfb98865")
+    repaired = quest_service.bind_source(quest["quest_id"], "qq:direct:CF8D2D559AA956B48751539ADFB98865")
+
+    assert repaired["sources"] == ["qq:direct:CF8D2D559AA956B48751539ADFB98865"]
+
+
+def test_artifact_delivery_prefers_connector_binding_case_for_qq(temp_home: Path, monkeypatch) -> None:
+    ensure_home_layout(temp_home)
+    manager = ConfigManager(temp_home)
+    manager.ensure_files()
+    connectors = manager.load_named("connectors")
+    connectors["qq"]["enabled"] = True
+    write_yaml(manager.path_for("connectors"), connectors)
+
+    quest_service = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home))
+    quest = quest_service.create("qq artifact delivery quest")
+    quest_root = Path(quest["quest_root"])
+    artifact = ArtifactService(temp_home)
+
+    write_json(
+        quest_root / ".ds" / "bindings.json",
+        {"sources": ["local:default", "qq:direct:cf8d2d559aa956b48751539adfb98865"]},
+    )
+    write_json(
+        temp_home / "logs" / "connectors" / "qq" / "bindings.json",
+        {
+            "bindings": {
+                "qq:direct:CF8D2D559AA956B48751539ADFB98865": {
+                    "quest_id": quest["quest_id"],
+                    "updated_at": "2026-03-11T17:47:49+00:00",
+                }
+            }
+        },
+    )
+
+    deliveries: list[str] = []
+
+    class FakeBridge:
+        def deliver(self, outbound: dict, config: dict) -> dict:  # noqa: ANN001
+            deliveries.append(str(outbound.get("conversation_id") or ""))
+            return {"ok": True, "transport": "qq-http"}
+
+    monkeypatch.setattr("deepscientist.channels.qq.get_connector_bridge", lambda name: FakeBridge())
+
+    result = artifact.interact(
+        quest_root,
+        kind="progress",
+        message="QQ delivery should preserve the original openid casing.",
+        deliver_to_bound_conversations=True,
+        include_recent_inbound_messages=False,
+    )
+
+    assert result["delivered"] is True
+    assert deliveries == ["qq:direct:CF8D2D559AA956B48751539ADFB98865"]
 
 
 def test_artifact_record_and_snapshot_include_guidance_vm(temp_home: Path) -> None:

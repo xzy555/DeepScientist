@@ -11,8 +11,9 @@ Use this skill for the main evidence-producing runs of the quest.
 
 - Treat `artifact.interact(...)` as the main long-lived communication thread across TUI, web, and bound connectors.
 - If `artifact.interact(...)` returns queued user requirements, treat them as the latest user instruction bundle before continuing the run plan.
-- Emit `artifact.interact(kind='progress', reply_mode='threaded', ...)` every 3 to 10 tool calls or at each real checkpoint.
+- Emit `artifact.interact(kind='progress', reply_mode='threaded', ...)` only at real checkpoints, and normally no more frequently than every 5 to 15 tool calls.
 - Each progress update must state completed work, the durable output touched, and the immediate next run step.
+- Progress message templates are references only. Adapt to the actual context and vary wording so messages feel human, respectful, and non-robotic.
 - Use `reply_mode='blocking'` only for real user decisions that cannot be resolved from local evidence.
 - For any blocking decision request, provide 1 to 3 concrete options, put the recommended option first, explain each option's actual content plus pros and cons, wait up to 1 day when feasible, then choose the best option yourself and notify the user of the chosen option if the timeout expires.
 - If a threaded user reply arrives, interpret it relative to the latest experiment progress update before assuming the task changed completely.
@@ -252,7 +253,7 @@ For commands that may run longer than a few minutes:
   - wait about `1800s`, then inspect logs
   - then keep checking about every `1800s` while the run is still active
 - if needed, use shell `sleep` between checks or an equivalent bounded `bash_exec(mode='await', id=..., timeout_seconds=...)`
-- after each meaningful check, send `artifact.interact(kind='progress', ...)` with the latest real status and next check point
+- after the first meaningful signal and then at real checkpoints (e.g., completion, or roughly every ~30 minutes if still running), send `artifact.interact(kind='progress', ...)` with the latest real status and next check point
 - do not report completion until logs and output files both confirm completion
 
 Always preserve the managed `bash_exec` log and export it into the experiment artifact directory when the run artifact is written.

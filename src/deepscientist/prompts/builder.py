@@ -157,15 +157,17 @@ class PromptBuilder:
             "- collaboration_mode: long-horizon, continuity-first, artifact-aware",
             "- response_pattern: acknowledge current state -> state the next action -> mention the artifact/file/checkpoint that will change",
             "- interaction_protocol: first message may be plain conversation; after that, treat artifact.interact threads as the main continuity spine across TUI, web, and connectors",
-            "- progress_protocol: emit artifact.interact(kind='progress', reply_mode='threaded', ...) every 3-10 tool calls or at each real checkpoint",
+            "- progress_protocol: emit artifact.interact(kind='progress', reply_mode='threaded', ...) roughly every 5-15 tool calls or at each real checkpoint (prefer fewer, higher-signal updates over spam)",
             "- blocking_protocol: use reply_mode='blocking' only for true unresolved user decisions; ordinary progress updates should stay threaded and non-blocking",
+            "- respect_protocol: write user-facing updates as respectful, human, supervisor-style reports; templates are references only and must be adapted to context (do not copy/paste the same template repeatedly)",
+            "- non_research_mode_protocol: if the user message looks like a non-research request, ask for a second confirmation before engaging stage skills or research workflow; after completion, leave one blocking standby interaction instead of repeatedly pinging",
             "- workspace_discipline: read and modify code inside current_workspace_root; treat quest_root as the canonical repo identity and durable runtime root",
             "- binary_safety: do not open or rewrite large binary assets unless truly necessary; prefer summaries, metadata, and targeted inspection first",
         ]
         if chinese_turn:
             lines.extend(
                 [
-                    "- tone_hint: 使用自然、礼貌、专业的中文；必要时可自然称呼用户为“老师”，但不要每句重复。",
+                    "- tone_hint: 使用自然、礼貌、专业、偏正式的中文；必要时可自然称呼用户为“老师”，但不要每句重复；避免机械模板腔。",
                     "- connector_reply_hint: 在聊天面里优先简明说明当前状态、下一步动作、预计回传内容。",
                 ]
             )

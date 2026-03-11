@@ -20,6 +20,7 @@ def test_backend_routes_cover_shared_web_and_tui_surface() -> None:
         ("PATCH", "/api/quests/q-001/settings", "quest_settings"),
         ("GET", "/api/quests/q-001/session", "quest_session"),
         ("GET", "/api/quests/q-001/events", "quest_events"),
+        ("GET", "/api/quests/q-001/artifacts", "quest_artifacts"),
         ("GET", "/api/quests/q-001/workflow", "workflow"),
         ("GET", "/api/quests/q-001/bash/sessions", "bash_sessions"),
         ("GET", "/api/quests/q-001/bash/sessions/stream", "bash_sessions_stream"),
@@ -70,6 +71,7 @@ def test_web_client_uses_acp_and_git_surface_expected_by_backend() -> None:
         "session_id=quest:${questId}",
         "stream=1",
         "/api/quests/${questId}/workflow",
+        "/api/quests/${questId}/artifacts",
         "/api/quests/${questId}/node-traces",
         "/api/quests/${questId}/explorer",
         "/api/quests/${questId}/memory",
@@ -182,7 +184,8 @@ def test_local_quest_workspace_uses_real_canvas_and_details_tabs() -> None:
         "buildQuestWorkspaceTabContext(projectId, view)",
         "openQuestWorkspaceTab('canvas')",
         "openQuestWorkspaceTab('details')",
-        "title: view === 'details' ? 'Details' : 'Canvas'",
+        "openQuestWorkspaceTab('terminal')",
+        "title: getQuestWorkspaceTitle(view)",
         "return getQuestWorkspaceTabView(resolvedTab)",
         "view={resolvedQuestWorkspaceView}",
     ]
@@ -194,7 +197,9 @@ def test_local_quest_workspace_uses_real_canvas_and_details_tabs() -> None:
         "onViewChange",
         "const view = controlledView ?? uncontrolledView",
         "view === 'canvas' ? (",
+        "view === 'terminal' ? (",
         "<QuestCanvasSurface",
+        "<QuestTerminalSurface",
         "<QuestDetails",
     ]
     for fragment in expected_surface_fragments:

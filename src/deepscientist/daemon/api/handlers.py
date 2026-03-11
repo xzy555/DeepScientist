@@ -9,6 +9,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote
 
 from ...acp import OptionalACPBridge, build_session_descriptor, build_session_update, get_acp_bridge_status
+from ...bash_exec.service import DEFAULT_TERMINAL_SESSION_ID
 from ...gitops import commit_detail, compare_refs, diff_file_between_refs, diff_file_for_commit, export_git_graph, list_branch_canvas, log_ref_history
 from ...shared import generate_id, read_text, resolve_within, sha256_text, utc_now
 from ...runners import RunRequest
@@ -294,6 +295,9 @@ npm --prefix src/ui run build</pre>
         payload["session_id"] = session_id
         return payload
 
+    def quest_artifacts(self, quest_id: str) -> dict:
+        return self.app.quest_service.artifacts(quest_id)
+
     def history(self, quest_id: str) -> list[dict]:
         return self.app.quest_service.history(quest_id)
 
@@ -385,10 +389,38 @@ npm --prefix src/ui run build</pre>
         payload = body or {}
         quest_root = self.app.quest_service._quest_root(quest_id)
         workspace_root = self.app.quest_service.active_workspace_root(quest_root)
+        requested_bash_id = str(payload.get("bash_id") or "").strip() or None
+        requested_label = str(payload.get("label") or "").strip() or None
+        requested_cwd = str(payload.get("cwd") or "").strip() or None
+        create_new_raw = payload.get("create_new")
+        create_new = bool(create_new_raw) and str(create_new_raw).strip().lower() not in {"0", "false", "no", "off"}
+
+        bash_id = requested_bash_id
+        if create_new:
+            # `terminal-main` is reserved for the default terminal session.
+            if not bash_id or bash_id == DEFAULT_TERMINAL_SESSION_ID:
+                bash_id = generate_id("terminal")
+            # Guard against collisions (e.g., fast repeated clicks).
+            for _ in range(8):
+                if not self.app.bash_exec_service.meta_path(quest_root, bash_id).exists():
+                    break
+                bash_id = generate_id("terminal")
+        bash_id = bash_id or DEFAULT_TERMINAL_SESSION_ID
+
+        cwd_path = workspace_root
+        if requested_cwd:
+            candidate = Path(requested_cwd).expanduser()
+            if candidate.is_absolute():
+                cwd_path = candidate
+            else:
+                cwd_path = (workspace_root / candidate)
+
         session = self.app.bash_exec_service.ensure_terminal_session(
             quest_root,
             quest_id=quest_id,
-            cwd=workspace_root,
+            bash_id=bash_id,
+            label=requested_label,
+            cwd=cwd_path,
             source=str(payload.get("source") or "web-react").strip() or "web-react",
             conversation_id=str(payload.get("conversation_id") or "").strip() or None,
             user_id=str(payload.get("user_id") or "").strip() or None,

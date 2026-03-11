@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import shutil
 import subprocess
 import sys
@@ -559,15 +560,19 @@ class CodexRunner:
         env["DS_CONVERSATION_ID"] = f"quest:{request.quest_id}"
         env["DS_AGENT_ROLE"] = request.skill_id
         env["DS_TEAM_MODE"] = "single"
-        process = subprocess.Popen(
-            command,
-            cwd=str(workspace_root),
-            env=env,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        popen_kwargs: dict[str, Any] = {
+            "cwd": str(workspace_root),
+            "env": env,
+            "stdin": subprocess.PIPE,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "text": True,
+        }
+        if os.name == "nt" and hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
+            popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP")
+        else:
+            popen_kwargs["start_new_session"] = True
+        process = subprocess.Popen(command, **popen_kwargs)
         with self._process_lock:
             self._active_processes[request.quest_id] = process
         assert process.stdin is not None
@@ -724,13 +729,46 @@ class CodexRunner:
             process = self._active_processes.get(quest_id)
         if process is None or process.poll() is not None:
             return False
-        process.terminate()
+
+        interrupted = False
+        if os.name == "nt":
+            try:
+                process.send_signal(signal.CTRL_BREAK_EVENT)  # type: ignore[attr-defined]
+                interrupted = True
+            except (AttributeError, OSError, ValueError):
+                interrupted = False
+        else:
+            try:
+                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                interrupted = True
+            except (OSError, ProcessLookupError):
+                interrupted = False
+
+        if not interrupted:
+            try:
+                process.terminate()
+                interrupted = True
+            except OSError:
+                return False
+
         try:
             process.wait(timeout=3)
         except subprocess.TimeoutExpired:
-            process.kill()
+            if os.name == "nt":
+                try:
+                    process.kill()
+                except OSError:
+                    return interrupted
+            else:
+                try:
+                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                except (OSError, ProcessLookupError):
+                    try:
+                        process.kill()
+                    except OSError:
+                        return interrupted
             process.wait(timeout=3)
-        return True
+        return interrupted
 
     def _build_command(self, request: RunRequest, prompt: str) -> list[str]:
         workspace_root = request.worktree_root or request.quest_root

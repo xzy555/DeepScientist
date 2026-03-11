@@ -18,6 +18,8 @@ import type {
   QuestDocumentAssetUploadPayload,
   QuestNodeTraceDetailPayload,
   QuestNodeTraceListPayload,
+  QuestArtifactListPayload,
+  QuestRawEventListPayload,
   QuestDocument,
   QuestSummary,
   SessionPayload,
@@ -86,6 +88,29 @@ export const client = {
   eventsStreamUrl: (questId: string, after = 0) =>
     `/api/quests/${questId}/events?after=${after}&format=acp&session_id=quest:${questId}&stream=1`,
   workflow: (questId: string) => api<WorkflowPayload>(`/api/quests/${questId}/workflow`),
+  rawEvents: (
+    questId: string,
+    options?: {
+      after?: number
+      limit?: number
+      tail?: boolean
+    }
+  ) => {
+    const params = new URLSearchParams()
+    params.set('format', 'raw')
+    if (typeof options?.after === 'number' && Number.isFinite(options.after) && options.after >= 0) {
+      params.set('after', String(Math.floor(options.after)))
+    }
+    if (typeof options?.limit === 'number' && Number.isFinite(options.limit) && options.limit > 0) {
+      params.set('limit', String(Math.floor(options.limit)))
+    }
+    if (options?.tail) {
+      params.set('tail', '1')
+    }
+    const suffix = params.toString()
+    return api<QuestRawEventListPayload>(`/api/quests/${questId}/events${suffix ? `?${suffix}` : ''}`)
+  },
+  artifacts: (questId: string) => api<QuestArtifactListPayload>(`/api/quests/${questId}/artifacts`),
   nodeTraces: (questId: string, selectionType?: string | null) =>
     api<QuestNodeTraceListPayload>(
       `/api/quests/${questId}/node-traces${
@@ -170,7 +195,18 @@ export const client = {
     replyToInteractionId?: string | null,
     clientMessageId?: string | null
   ) =>
-    api<{ ok: boolean }>(`/api/quests/${questId}/chat`, {
+    api<{
+      ok: boolean
+      message?: {
+        id?: string
+        role?: string
+        content?: string
+        source?: string
+        created_at?: string
+        delivery_state?: string
+        client_message_id?: string
+      }
+    }>(`/api/quests/${questId}/chat`, {
       method: 'POST',
       body: JSON.stringify({
         text,

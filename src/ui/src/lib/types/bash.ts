@@ -26,8 +26,11 @@ export type BashSession = {
   agent_instance_id?: string | null
   started_by_user_id: string
   stopped_by_user_id?: string | null
+  kind?: string
+  label?: string | null
   command: string
   workdir: string
+  cwd?: string
   log_path: string
   mode: BashSessionMode
   status: BashSessionStatus
@@ -36,6 +39,7 @@ export type BashSession = {
   last_progress?: BashProgress | null
   started_at: string
   finished_at?: string | null
+  updated_at?: string
 }
 
 export type BashLogEntry = {

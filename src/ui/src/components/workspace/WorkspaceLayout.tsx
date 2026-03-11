@@ -13,8 +13,7 @@
 import * as React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
-import { usePathname, useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   Search,
   Plus,
@@ -29,7 +28,6 @@ import {
   RefreshCw,
   BookOpen,
   Sparkles,
-  Home,
   MoreHorizontal,
   ArrowLeft,
   ChevronLeft,
@@ -50,22 +48,14 @@ import { useFileTreeStore } from '@/lib/stores/file-tree'
 import { useTabsStore, useActiveTab } from '@/lib/stores/tabs'
 import { useChatSessionStore } from '@/lib/stores/session'
 import { useLabCopilotStore } from '@/lib/stores/lab-copilot'
-import { useLabBranchExplorerStore } from '@/lib/stores/lab-branch-explorer'
 import { useOpenFile } from '@/hooks/useOpenFile'
-import { useProjectNotifications } from '@/lib/hooks/useProjectNotifications'
 import { useProject, useUpdateProject } from '@/lib/hooks/useProjects'
 import { createNotebook, getNotebook, listNotebooks } from '@/lib/api/notebooks'
 import { getMyToken, rotateMyToken } from '@/lib/api/auth'
 import { checkProjectAccess } from '@/lib/api/projects'
-import { listCliServers } from '@/lib/api/cli'
 import { listLabAgents, listLabQuests, listLabTemplates } from '@/lib/api/lab'
-import { getSession } from '@/lib/api/sessions'
 import { useCliStore } from '@/lib/plugins/cli/stores/cli-store'
-import { joinPath, splitPath } from '@/lib/plugins/cli/lib/file-utils'
-import type { CliServer } from '@/lib/plugins/cli/types/cli'
-import type { ExecutionTarget } from '@/lib/types/chat-events'
 import { CreateFileDialog, CreateLatexProjectDialog, FileIcon, FileTree } from '@/components/file-tree'
-import { ArxivPanel } from '@/components/arxiv'
 import { PluginRenderer } from '@/components/plugin'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Icon3D } from '@/components/ui/icon-3d'
@@ -74,16 +64,12 @@ import { DotfilesToggleIcon } from '@/components/ui/dotfiles-toggle-icon'
 import { type AiManusChatActions, type CopilotPrefill } from '@/lib/plugins/ai-manus/view-types'
 import { TokenDialog } from '@/components/auth/TokenDialog'
 import { ProjectShareDialog } from '@/components/features/Share/ProjectShareDialog'
-import { FeedbackDialog } from '@/components/feedback/FeedbackDialog'
-import { PremiumMessageHost } from '@/components/messages/PremiumMessageHost'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/components/ui/toast'
-import { NotificationBell } from '@/components/ui/notification-bell'
-import { PointsPill } from '@/components/points/PointsPill'
 import { ConfirmModal } from '@/components/ui/modal'
 import { FadeContent, Noise, SpotlightCard } from '@/components/react-bits'
 import {
@@ -93,14 +79,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import { BUILTIN_PLUGINS } from '@/lib/types/plugin'
 import type { FileNode } from '@/lib/types/file'
 import type { Tab } from '@/lib/types/tab'
 import { searchFileNodes } from '@/lib/search/file-search'
-import { DEFAULT_USER_AVATAR_SRC, DEFAULT_USER_AVATAR_SRC_INVERTED } from '@/lib/constants/assets'
-import { useUserAvatarSrc } from '@/lib/user-avatar'
 import { SearchIcon, SettingsIcon, SparklesIcon, LayoutIcon } from '@/components/ui/workspace-icons'
 import { CopilotDockOverlay } from '@/components/workspace/CopilotDockOverlay'
 import { COPILOT_DOCK_DEFAULTS, useCopilotDockState } from '@/hooks/useCopilotDockState'
@@ -111,7 +94,7 @@ import { WorkspaceTooltipLayer } from '@/components/workspace/WorkspaceTooltipLa
 import { WelcomeStage } from '@/components/workspace/WelcomeStage'
 import { QuestCopilotDockPanel } from '@/components/workspace/QuestCopilotDockPanel'
 import { QuestWorkspaceSurface } from '@/components/workspace/QuestWorkspaceSurface'
-import { CliExplorerTree, type CliExplorerTreeHandle } from './CliExplorerTree'
+import { NotificationBell } from '@/components/ui/notification-bell'
 import {
   EXPLORER_REFRESH_EVENT,
   type ExplorerRefreshDetail,
@@ -130,13 +113,6 @@ const LabCopilotHeader = dynamic(
   () => import('@/lib/plugins/lab/components/LabCopilotPanel').then((mod) => mod.LabCopilotHeader),
   { ssr: false, loading: () => null }
 )
-
-const normalizeExecutionTarget = (value?: string | null): ExecutionTarget | null => {
-  const raw = typeof value === 'string' ? value.trim().toLowerCase() : ''
-  if (raw === 'cli' || raw === 'cli_server') return 'cli'
-  if (raw === 'sandbox') return 'sandbox'
-  return null
-}
 
 const getLabContextSessionId = (tab: Tab | null | undefined, projectId?: string | null) => {
   if (!tab) return null
@@ -266,7 +242,15 @@ function getQuestWorkspaceTabView(
     'context' in (tabOrContext || {})
       ? tabOrContext?.context?.customData
       : tabOrContext?.customData
-  return customData?.quest_workspace_view === 'details' ? 'details' : 'canvas'
+  if (customData?.quest_workspace_view === 'details') return 'details'
+  if (customData?.quest_workspace_view === 'terminal') return 'terminal'
+  return 'canvas'
+}
+
+function getQuestWorkspaceTitle(view: QuestWorkspaceView) {
+  if (view === 'details') return 'Details'
+  if (view === 'terminal') return 'Terminal'
+  return 'Canvas'
 }
 
 function isQuestFriendlyTab(
@@ -808,7 +792,6 @@ function Navbar({
   onNewLatexProject,
   onNewFolder,
   onUploadFiles,
-  onGetToken,
   leftVisible,
   rightVisible,
   rightLocked,
@@ -817,7 +800,6 @@ function Navbar({
   onToggleCollapse,
   onExitHome,
   onTabSelect,
-  notificationsEnabled = true,
   localQuestMode = false,
 }: {
   projectId: string
@@ -834,7 +816,6 @@ function Navbar({
   onNewLatexProject: () => void
   onNewFolder: () => void
   onUploadFiles: () => void
-  onGetToken: () => void
   leftVisible: boolean
   rightVisible: boolean
   rightLocked?: boolean
@@ -843,15 +824,10 @@ function Navbar({
   onToggleCollapse: () => void
   onExitHome?: () => void
   onTabSelect?: (tabId: string) => void
-  notificationsEnabled?: boolean
   localQuestMode?: boolean
 }) {
   const { t } = useI18n('workspace')
-  const { t: tCommon } = useI18n('common')
   const router = useRouter()
-  const pathname = usePathname() || (projectId ? `/projects/${projectId}` : '/projects')
-  const { user, logout } = useAuthStore()
-  const avatarSrc = useUserAvatarSrc(user)
   const openTab = useTabsStore((state) => state.openTab)
   const readOnlyMode = Boolean(readOnly)
   const { addToast } = useToast()
@@ -866,11 +842,6 @@ function Navbar({
   const [isSavingName, setIsSavingName] = React.useState(false)
   const nameInputRef = React.useRef<HTMLInputElement>(null)
   const cancelRenameRef = React.useRef(false)
-
-  const handleLogout = () => {
-    logout()
-    router.push('/')
-  }
 
   React.useEffect(() => {
     if (!isRenaming) {
@@ -945,125 +916,27 @@ function Navbar({
 
   const handleOpenCli = React.useCallback(() => {
     onExitHome?.()
+    if (localQuestMode) {
+      openTab({
+        pluginId: QUEST_WORKSPACE_PLUGIN_ID,
+        context: buildQuestWorkspaceTabContext(projectId, 'terminal'),
+        title: getQuestWorkspaceTitle('terminal'),
+      })
+      return
+    }
     openTab({
       pluginId: BUILTIN_PLUGINS.CLI,
       context: { type: 'custom', customData: { projectId, readOnly: readOnlyMode } },
       title: t('plugin_cli_title'),
     })
-  }, [onExitHome, openTab, projectId, readOnlyMode, t])
-  const [feedbackOpen, setFeedbackOpen] = React.useState(false)
+  }, [localQuestMode, onExitHome, openTab, projectId, readOnlyMode, t])
 
   const showCompactNavbar = collapsed
   const shareLabel = readOnlyMode ? t('navbar_copy_share') : t('navbar_share')
-
-  const userDisplayName = React.useMemo(() => {
-    if (!user) return ''
-    const username = user.username?.trim()
-    if (username) return username
-    const email = user.email?.trim()
-    if (email) {
-      const [local] = email.split('@')
-      return local || email
-    }
-    return t('titlebar_user_alt')
-  }, [t, user])
-
-  const renderUserMenu = (
-    variant: 'full' | 'compact',
-    options?: { showName?: boolean; align?: 'start' | 'end' }
-  ) => {
-    if (!user) {
-      return (
-        <div
-          className={variant === 'compact' ? 'navbar-roll-link opacity-0 pointer-events-none' : 'w-0'}
-          aria-hidden
-        />
-      )
-    }
-
-    const showName = variant === 'full' && options?.showName
-    const avatarSize = variant === 'compact' ? 'h-7 w-7' : 'h-8 w-8'
-    const avatarFallbackSize = variant === 'compact' ? 'h-4 w-4' : 'h-5 w-5'
-    const triggerClass = cn(
-      'focus:outline-none overflow-hidden ds-glare-sheen',
-      variant === 'compact' ? 'navbar-roll-avatar' : 'user-menu-trigger'
-    )
-
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className={triggerClass} aria-label={t('titlebar_open_user_menu')}>
-            <Avatar className={cn(avatarSize, 'border border-[var(--border-light)]')}>
-              <AvatarImage src={avatarSrc} alt={user?.email || t('titlebar_user_alt')} />
-              <AvatarFallback className="bg-white">
-                <img
-                  src={DEFAULT_USER_AVATAR_SRC}
-                  alt={t('titlebar_user_alt')}
-                  width={32}
-                  height={32}
-                  className={cn(avatarFallbackSize, 'object-contain dark:hidden')}
-                  loading="lazy"
-                  decoding="async"
-                  draggable={false}
-                />
-                <img
-                  src={DEFAULT_USER_AVATAR_SRC_INVERTED}
-                  alt={t('titlebar_user_alt')}
-                  width={32}
-                  height={32}
-                  className={cn(avatarFallbackSize, 'hidden object-contain dark:block')}
-                  loading="lazy"
-                  decoding="async"
-                  draggable={false}
-                />
-              </AvatarFallback>
-            </Avatar>
-            {showName && (
-              <span className="user-menu-name" title={userDisplayName}>
-                {userDisplayName}
-              </span>
-            )}
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align={options?.align ?? 'end'} className="w-48">
-          <div className="px-2 py-1.5">
-            <p className="text-sm font-medium">{userDisplayName || user?.email}</p>
-            <p className="text-xs text-muted-foreground">{user?.email}</p>
-          </div>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => router.push('/projects')}>
-            <Home className="mr-2 h-4 w-4" />
-            {t('user_menu_projects')}
-          </DropdownMenuItem>
-          {!readOnlyMode && (
-            <DropdownMenuItem onClick={onGetToken}>
-              <PngIcon
-                name="KeyRound"
-                size={16}
-                className="mr-2 h-4 w-4"
-                fallback={<KeyRound className="mr-2 h-4 w-4" />}
-              />
-              {tCommon('token_get')}
-            </DropdownMenuItem>
-          )}
-          {!readOnlyMode && (
-            <DropdownMenuItem onClick={onOpenSettings}>
-              {t('navbar_settings')}
-            </DropdownMenuItem>
-          )}
-          {!readOnlyMode && (
-            <DropdownMenuItem onClick={() => setFeedbackOpen(true)}>
-              {t('user_menu_feedback')}
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-            {t('user_menu_sign_out')}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    )
-  }
+  const handleGoProjects = React.useCallback(() => {
+    onExitHome?.()
+    router.push('/projects')
+  }, [onExitHome, router])
 
   return (
     <>
@@ -1128,7 +1001,15 @@ function Navbar({
                   <Share2 className="h-4 w-4" />
                 </button>
               )}
-              {renderUserMenu('compact')}
+              <button
+                type="button"
+                className="navbar-roll-link bg-transparent border-0"
+                onClick={handleGoProjects}
+                aria-label="DeepScientist"
+                data-tooltip="DeepScientist"
+              >
+                DeepScientist
+              </button>
             </div>
           </div>
         ) : (
@@ -1155,7 +1036,15 @@ function Navbar({
                 </button>
               </div>
               <div className="user-identity">
-                {renderUserMenu('full', { showName: true, align: 'start' })}
+                <button
+                  type="button"
+                  className="user-menu-trigger"
+                  onClick={handleGoProjects}
+                  aria-label="DeepScientist"
+                  data-tooltip="DeepScientist"
+                >
+                  <span className="user-menu-name">DeepScientist</span>
+                </button>
               </div>
               {projectDisplayName && (
                 <>
@@ -1239,8 +1128,11 @@ function Navbar({
 
             {/* Right: Actions + User */}
             <div className="nav-actions">
-              <PointsPill source="workspace_topbar" className="hidden sm:inline-flex" />
-              <NotificationBell variant="workspace" size="sm" enabled={notificationsEnabled} />
+              <NotificationBell
+                variant="workspace"
+                size="sm"
+                enabled={!readOnlyMode}
+              />
               <button
                 className="ghost-btn"
                 onClick={handleOpenCli}
@@ -1366,18 +1258,6 @@ function Navbar({
           </>
         )}
       </nav>
-
-      <FeedbackDialog
-        open={feedbackOpen}
-        onClose={() => setFeedbackOpen(false)}
-        projectId={projectId}
-        pagePath={pathname}
-      />
-      <PremiumMessageHost
-        scope="project_workspace"
-        projectId={projectId}
-        enabled={notificationsEnabled && !readOnlyMode && Boolean(user)}
-      />
     </>
   )
 }
@@ -1639,165 +1519,24 @@ function LeftPanel({
   const { openFileInTab, downloadFile, openNotebook } = useOpenFile()
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const explorerBodyRef = React.useRef<HTMLDivElement | null>(null)
-  const cliExplorerRef = React.useRef<CliExplorerTreeHandle | null>(null)
-  const planningExplorerRef = React.useRef<CliExplorerTreeHandle | null>(null)
-  const [activeExplorer, setActiveExplorer] = React.useState<
-    'files' | 'cli' | 'planning' | 'arxiv'
-  >('files')
+  const [activeExplorer, setActiveExplorer] = React.useState<'files'>('files')
   const [hideDotfiles, setHideDotfiles] = React.useState(true)
   const [createFileOpen, setCreateFileOpen] = React.useState(false)
-  const [hasCliServers, setHasCliServers] = React.useState(false)
-  const [cliServers, setCliServers] = React.useState<CliServer[]>([])
   const [isMenuOpen, setIsMenuOpen] = React.useState(true)
-  const [planningSessionMeta, setPlanningSessionMeta] = React.useState<{
-    executionTarget: ExecutionTarget | null
-    cliServerId: string | null
-    planningTaskId: string | null
-  } | null>(null)
-  const lastPlanningSessionIdRef = React.useRef<string | null>(null)
   const menuSectionId = React.useId()
   const activeTab = useActiveTab()
-  const labMode = useLabCopilotStore((state) => state.mode)
-  const copilotSessionId = useChatSessionStore((state) =>
-    projectId ? state.sessionIdsByProjectSurface[projectId]?.copilot ?? null : null
-  )
-  const legacySessionId = useChatSessionStore((state) =>
-    projectId ? state.sessionIdsByProject[projectId] ?? null : null
-  )
-  const labDirectSessionId = useChatSessionStore((state) =>
-    projectId ? state.sessionIdsByProjectSurface[projectId]?.['lab-direct'] ?? null : null
-  )
-  const executionTarget = useChatSessionStore((state) =>
-    projectId ? state.executionTargetsByProject[projectId] ?? 'sandbox' : 'sandbox'
-  )
-  const cliServerId = useChatSessionStore((state) =>
-    projectId ? state.cliServerIdsByProject[projectId] ?? null : null
-  )
-  const activeLabContextSessionId = React.useMemo(
-    () => getLabContextSessionId(activeTab, projectId),
-    [activeTab, projectId]
-  )
-  const isLabContextActive = Boolean(activeLabContextSessionId)
-  const isLabTabActive =
-    (activeTab?.pluginId === BUILTIN_PLUGINS.LAB && tabMatchesProject(activeTab, projectId)) ||
-    isLabContextActive
-  const useLabDirectSession = isLabTabActive && labMode === 'direct'
-  const useLabPlanningSession = useLabDirectSession || isLabContextActive
-  const planningSessionId = isLabContextActive
-    ? activeLabContextSessionId
-    : useLabDirectSession
-      ? labDirectSessionId
-      : isLabTabActive
-        ? null
-        : copilotSessionId ?? legacySessionId
-  const hasPlanningSession =
-    Boolean(planningSessionId) && !(planningSessionId ?? '').startsWith('draft-')
-  const planningTarget = useLabPlanningSession
-    ? planningSessionMeta?.executionTarget ?? null
-    : executionTarget
-  const planningCliServerId = useLabPlanningSession
-    ? planningSessionMeta?.cliServerId ?? null
-    : cliServerId
-  const planningVisible = hasPlanningSession && planningTarget === 'cli' && Boolean(planningCliServerId)
-  const planningServer = React.useMemo(() => {
-    if (!planningCliServerId) return null
-    return cliServers.find((server) => server.id === planningCliServerId) ?? null
-  }, [cliServers, planningCliServerId])
-  const planningRootPath = React.useMemo(() => {
-    if (!planningSessionId || !hasPlanningSession) return null
-    const baseSegments = splitPath(planningServer?.server_root ?? '/')
-    const taskId = planningSessionMeta?.planningTaskId ?? planningSessionId
-    return joinPath([...baseSegments, '.core', 'planning', taskId])
-  }, [hasPlanningSession, planningServer?.server_root, planningSessionId, planningSessionMeta?.planningTaskId])
-  const planningTabCustomData =
-    isLabTabActive && planningSessionId
-      ? { lab_context: true, lab_session_id: planningSessionId, projectId }
-      : null
-  const branchExplorerTarget = useLabBranchExplorerStore((state) => state.target)
   const activeQuestWorkspaceView = React.useMemo(() => {
     if (!isQuestWorkspaceTab(activeTab, projectId)) {
       return null
     }
     return getQuestWorkspaceTabView(activeTab)
   }, [activeTab, projectId])
-  const planningExtraRoot = React.useMemo(() => {
-    if (!branchExplorerTarget) return null
-    if (branchExplorerTarget.projectId !== projectId) return null
-    if (!planningCliServerId || branchExplorerTarget.serverId !== planningCliServerId) return null
-    return {
-      label: branchExplorerTarget.label,
-      subtitle: branchExplorerTarget.subtitle ?? null,
-      serverId: branchExplorerTarget.serverId,
-      rootPath: branchExplorerTarget.rootPath,
-    }
-  }, [branchExplorerTarget, planningCliServerId, projectId])
-
-  const checkCliServers = React.useCallback(async () => {
-    if (localQuestMode) {
-      setCliServers([])
-      setHasCliServers(false)
-      return []
-    }
-    try {
-      const servers = await listCliServers(projectId)
-      setCliServers(servers)
-      setHasCliServers(servers.length > 0)
-      return servers
-    } catch {
-      setCliServers([])
-      setHasCliServers(false)
-      return null
-    }
-  }, [localQuestMode, projectId])
 
   React.useEffect(() => {
-    void checkCliServers()
-  }, [checkCliServers])
-
-  React.useEffect(() => {
-    if (!hasCliServers && activeExplorer === 'cli') {
-      setActiveExplorer('files')
-    }
-  }, [activeExplorer, hasCliServers])
-
-  React.useEffect(() => {
-    if (!planningVisible && activeExplorer === 'planning') {
-      setActiveExplorer('files')
-    }
-  }, [activeExplorer, planningVisible])
-
-  React.useEffect(() => {
-    if (!localQuestMode) return
     if (activeExplorer !== 'files') {
       setActiveExplorer('files')
     }
-  }, [activeExplorer, localQuestMode])
-
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return
-    const handleFocus = (event: Event) => {
-      const detail = (event as CustomEvent).detail as
-        | { target?: 'planning' | 'cli'; projectId?: string }
-        | undefined
-      if (!detail?.target) return
-      if (detail.projectId && detail.projectId !== projectId) return
-      if (detail.target === 'planning') {
-        if (planningVisible) {
-          setActiveExplorer('planning')
-        } else if (hasCliServers) {
-          setActiveExplorer('cli')
-        }
-        return
-      }
-      if (detail.target === 'cli' && hasCliServers) {
-        setActiveExplorer('cli')
-      }
-    }
-    window.addEventListener('ds:explorer:focus', handleFocus)
-    return () => {
-      window.removeEventListener('ds:explorer:focus', handleFocus)
-    }
-  }, [hasCliServers, planningVisible, projectId])
+  }, [activeExplorer])
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1805,95 +1544,13 @@ function LeftPanel({
       const detail = (event as CustomEvent).detail as ExplorerRefreshDetail | undefined
       if (!detail?.target) return
       if (detail.projectId && detail.projectId !== projectId) return
-      let completed = false
-      const finish = () => {
-        if (completed) return
-        completed = true
-        detail.onComplete?.()
-      }
-      const refreshTarget =
-        detail.target === 'planning' && !planningVisible && hasCliServers ? 'cli' : detail.target
-      if (refreshTarget === 'planning') {
-        if (!planningVisible) {
-          finish()
-          return
-        }
-        Promise.resolve(planningExplorerRef.current?.refresh())
-          .then(finish)
-          .catch((error) => {
-            console.warn('[ExplorerRefresh] Planning refresh failed', error)
-            finish()
-          })
-        return
-      }
-      if (refreshTarget === 'cli') {
-        if (!hasCliServers) {
-          finish()
-          return
-        }
-        Promise.resolve(cliExplorerRef.current?.refresh())
-          .then(finish)
-          .catch((error) => {
-            console.warn('[ExplorerRefresh] CLI refresh failed', error)
-            finish()
-          })
-      }
+      detail.onComplete?.()
     }
     window.addEventListener(EXPLORER_REFRESH_EVENT, handleRefresh)
     return () => {
       window.removeEventListener(EXPLORER_REFRESH_EVENT, handleRefresh)
     }
-  }, [hasCliServers, planningVisible, projectId])
-
-  React.useEffect(() => {
-    if (!useLabPlanningSession || !hasPlanningSession || !planningSessionId) {
-      setPlanningSessionMeta(null)
-      return
-    }
-    let cancelled = false
-    getSession(planningSessionId)
-      .then((session) => {
-        if (cancelled) return
-        const metadata =
-          session && typeof session.session_metadata === 'object' && session.session_metadata
-            ? (session.session_metadata as Record<string, unknown>)
-            : null
-        const planningTaskId =
-          typeof metadata?.agent_kernel_task_id === 'string'
-            ? metadata.agent_kernel_task_id
-            : typeof metadata?.task_id === 'string'
-              ? metadata.task_id
-              : null
-        setPlanningSessionMeta({
-          executionTarget: normalizeExecutionTarget(session.execution_target),
-          cliServerId: typeof session.cli_server_id === 'string' ? session.cli_server_id : null,
-          planningTaskId: planningTaskId && planningTaskId.trim() ? planningTaskId.trim() : null,
-        })
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setPlanningSessionMeta(null)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [hasPlanningSession, planningSessionId, useLabPlanningSession])
-
-  React.useEffect(() => {
-    if (!useLabDirectSession) {
-      lastPlanningSessionIdRef.current = planningSessionId ?? null
-      return
-    }
-    if (!planningVisible || !planningSessionId) {
-      lastPlanningSessionIdRef.current = planningSessionId ?? null
-      return
-    }
-    if (lastPlanningSessionIdRef.current !== planningSessionId) {
-      setActiveExplorer('planning')
-    }
-    lastPlanningSessionIdRef.current = planningSessionId ?? null
-  }, [planningSessionId, planningVisible, useLabDirectSession])
+  }, [projectId])
 
   const openPluginTab = React.useCallback(
     (pluginId: string, title: string, customData?: Record<string, unknown>) => {
@@ -1914,7 +1571,7 @@ function LeftPanel({
       openTab({
         pluginId: QUEST_WORKSPACE_PLUGIN_ID,
         context: buildQuestWorkspaceTabContext(projectId, view),
-        title: view === 'details' ? 'Details' : 'Canvas',
+        title: getQuestWorkspaceTitle(view),
       })
     },
     [onExitHome, openTab, projectId]
@@ -2038,7 +1695,6 @@ function LeftPanel({
   const handleRefresh = React.useCallback(async () => {
     try {
       await refresh()
-      void checkCliServers()
       addToast({ type: 'success', title: t('toast_refreshed'), duration: 1200 })
     } catch (error) {
       console.error('Failed to refresh:', error)
@@ -2048,67 +1704,31 @@ function LeftPanel({
         description: tCommon('generic_try_again', undefined, 'Please try again.'),
       })
     }
-  }, [addToast, checkCliServers, refresh, t, tCommon])
+  }, [addToast, refresh, t, tCommon])
 
   const isFilesView = activeExplorer === 'files'
-  const isCliView = activeExplorer === 'cli'
-  const isPlanningView = activeExplorer === 'planning'
-  const isArxivView = activeExplorer === 'arxiv'
-  const disableExplorerActions = readOnlyMode || isArxivView
-  const disableExplorerMutations = readOnlyMode || isArxivView || localQuestMode
+  const disableExplorerActions = readOnlyMode
+  const disableExplorerMutations = readOnlyMode || localQuestMode
 
   const handleExplorerNewFile = React.useCallback(() => {
     if (disableExplorerMutations) return
-    if (isFilesView) {
-      setCreateFileOpen(true)
-      return
-    }
-    if (isPlanningView) {
-      planningExplorerRef.current?.createFile()
-      return
-    }
-    cliExplorerRef.current?.createFile()
-  }, [disableExplorerMutations, isFilesView, isPlanningView])
+    setCreateFileOpen(true)
+  }, [disableExplorerMutations])
 
   const handleExplorerNewFolder = React.useCallback(() => {
     if (disableExplorerMutations) return
-    if (isFilesView) {
-      void handleNewFolder()
-      return
-    }
-    if (isPlanningView) {
-      planningExplorerRef.current?.createFolder()
-      return
-    }
-    cliExplorerRef.current?.createFolder()
-  }, [disableExplorerMutations, handleNewFolder, isFilesView, isPlanningView])
+    void handleNewFolder()
+  }, [disableExplorerMutations, handleNewFolder])
 
   const handleExplorerUpload = React.useCallback(() => {
     if (disableExplorerMutations) return
-    if (isFilesView) {
-      handleUploadClick()
-      return
-    }
-    if (isPlanningView) {
-      planningExplorerRef.current?.upload()
-      return
-    }
-    cliExplorerRef.current?.upload()
-  }, [disableExplorerMutations, handleUploadClick, isFilesView, isPlanningView])
+    handleUploadClick()
+  }, [disableExplorerMutations, handleUploadClick])
 
   const handleExplorerRefresh = React.useCallback(() => {
     if (disableExplorerActions) return
-    if (isFilesView) {
-      void handleRefresh()
-      return
-    }
-    void checkCliServers()
-    if (isPlanningView) {
-      void planningExplorerRef.current?.refresh()
-      return
-    }
-    void cliExplorerRef.current?.refresh()
-  }, [checkCliServers, disableExplorerActions, handleRefresh, isFilesView, isPlanningView])
+    void handleRefresh()
+  }, [disableExplorerActions, handleRefresh])
 
   return (
     <div className="panel left-panel" style={{ width, minWidth: width }}>
@@ -2154,69 +1774,6 @@ function LeftPanel({
             >
               <FileText className="h-4 w-4" />
             </button>
-            {!localQuestMode && hasCliServers ? (
-              <button
-                type="button"
-                className={cn(
-                  'inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9b8352]/40',
-                  isCliView
-                    ? 'bg-[#9b8352] text-white shadow-sm'
-                    : 'text-[var(--text-muted-on-dark)] hover:bg-[#9b8352]/[0.18] hover:text-[var(--text-on-dark)]'
-                )}
-                onClick={() => setActiveExplorer('cli')}
-                role="tab"
-                aria-selected={isCliView}
-                aria-label={t('explorer_cli_files')}
-                title={t('explorer_cli_files')}
-              >
-                <Terminal className="h-4 w-4" />
-              </button>
-            ) : null}
-            {!localQuestMode && planningVisible ? (
-              <button
-                type="button"
-                className={cn(
-                  'inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9b8352]/40',
-                  isPlanningView
-                    ? 'bg-[#9b8352] text-white shadow-sm'
-                    : 'text-[var(--text-muted-on-dark)] hover:bg-[#9b8352]/[0.18] hover:text-[var(--text-on-dark)]'
-                )}
-                onClick={() => setActiveExplorer('planning')}
-                role="tab"
-                aria-selected={isPlanningView}
-                aria-label={t('explorer_planning')}
-                title={t('explorer_planning')}
-              >
-                <PngIcon
-                  name="inverted/SparklesIcon"
-                  alt={t('explorer_planning')}
-                  size={16}
-                  className="h-4 w-4"
-                  fallback={<SparklesIcon className="h-4 w-4" />}
-                />
-              </button>
-            ) : null}
-            {!localQuestMode ? (
-              <button
-                type="button"
-                className={cn(
-                  'inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9b8352]/40',
-                  isArxivView
-                    ? 'bg-[#9b8352] text-white shadow-sm'
-                    : 'text-[var(--text-muted-on-dark)] hover:bg-[#9b8352]/[0.18] hover:text-[var(--text-on-dark)]'
-                )}
-                onClick={() => setActiveExplorer('arxiv')}
-                role="tab"
-                aria-selected={isArxivView}
-                aria-label={t('explorer_arxiv')}
-                title={t('explorer_arxiv')}
-              >
-                <BookOpen className="h-4 w-4" />
-              </button>
-            ) : null}
           </div>
         </div>
       </div>
@@ -2238,7 +1795,7 @@ function LeftPanel({
                     ? t('leftpanel_view_only')
                     : localQuestMode
                       ? 'Create files from the document editor in local quest mode.'
-                    : t('explorer_unavailable_in_arxiv')
+                    : t('leftpanel_view_only')
                   : t('explorer_new_file')
               }
               aria-label={t('explorer_new_file')}
@@ -2258,7 +1815,7 @@ function LeftPanel({
                     ? t('leftpanel_view_only')
                     : localQuestMode
                       ? 'Folder creation is not exposed in local quest mode.'
-                    : t('explorer_unavailable_in_arxiv')
+                    : t('leftpanel_view_only')
                   : t('explorer_new_folder')
               }
               aria-label={t('explorer_new_folder')}
@@ -2278,7 +1835,7 @@ function LeftPanel({
                     ? t('leftpanel_view_only')
                     : localQuestMode
                       ? 'Upload is disabled in local quest mode.'
-                    : t('explorer_unavailable_in_arxiv')
+                    : t('leftpanel_view_only')
                   : t('explorer_upload_files')
               }
               aria-label={t('explorer_upload_files')}
@@ -2307,7 +1864,7 @@ function LeftPanel({
                 disableExplorerActions
                   ? readOnlyMode
                     ? t('leftpanel_view_only')
-                    : t('explorer_unavailable_in_arxiv')
+                    : t('leftpanel_view_only')
                   : t('explorer_refresh')
               }
               aria-label={t('explorer_refresh')}
@@ -2348,72 +1905,6 @@ function LeftPanel({
             </div>
           </div>
 
-          {!localQuestMode && hasCliServers ? (
-            <div
-              className={cn(
-                'flex-1 min-h-0 overflow-hidden',
-                isCliView ? 'flex flex-col' : 'hidden'
-              )}
-              role="tabpanel"
-              aria-hidden={!isCliView}
-            >
-              <div className="flex-1 min-h-0 file-tree-dark flex flex-col">
-                <div className="flex-1 min-h-0">
-                  <CliExplorerTree
-                    ref={cliExplorerRef}
-                    projectId={projectId}
-                    readOnly={readOnlyMode}
-                    hideDotfiles={hideDotfiles}
-                  />
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {!localQuestMode && planningVisible ? (
-            <div
-              className={cn(
-                'flex-1 min-h-0 overflow-hidden',
-                isPlanningView ? 'flex flex-col' : 'hidden'
-              )}
-              role="tabpanel"
-              aria-hidden={!isPlanningView}
-            >
-              <div className="flex-1 min-h-0 file-tree-dark flex flex-col">
-                <div className="flex-1 min-h-0">
-                  <CliExplorerTree
-                    ref={planningExplorerRef}
-                    projectId={projectId}
-                    readOnly={readOnlyMode}
-                    hideDotfiles={hideDotfiles}
-                    serverId={planningCliServerId ?? undefined}
-                    rootPath={planningRootPath ?? undefined}
-                    tabCustomData={planningTabCustomData ?? undefined}
-                    extraRoot={planningExtraRoot ?? undefined}
-                  />
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {!localQuestMode ? (
-            <div
-              className={cn(
-                'flex-1 min-h-0 overflow-hidden',
-                isArxivView ? 'flex flex-col' : 'hidden'
-              )}
-              role="tabpanel"
-              aria-hidden={!isArxivView}
-            >
-              <div className="flex-1 min-h-0 file-tree-dark flex flex-col">
-                <ArxivPanel
-                  projectId={projectId}
-                  readOnly={readOnlyMode}
-                  className="flex-1 min-h-0 border-t-0"
-                />
-              </div>
-            </div>
-          ) : null}
         </div>
       </div>
 
@@ -2438,7 +1929,7 @@ function LeftPanel({
               </div>
               <SidebarButton
                 icon={<FolderOpen className="h-4 w-4" />}
-                label="Canvas"
+                label={t('quest_workspace_canvas')}
                 active={activeQuestWorkspaceView === 'canvas'}
                 onClick={() => {
                   openQuestWorkspaceTab('canvas')
@@ -2446,22 +1937,18 @@ function LeftPanel({
               />
               <SidebarButton
                 icon={<FileText className="h-4 w-4" />}
-                label="Details"
+                label={t('quest_workspace_details')}
                 active={activeQuestWorkspaceView === 'details'}
                 onClick={() => {
                   openQuestWorkspaceTab('details')
                 }}
               />
-              <div className="mx-2 my-2 h-px bg-white/[0.08]" />
-              <div className="px-1 pb-2 text-[10px] uppercase tracking-[0.18em] text-[var(--text-muted-on-dark)]">
-                Copilot
-              </div>
               <SidebarButton
-                icon={<FlaskConical className="h-4 w-4" />}
-                label="Lab"
+                icon={<Terminal className="h-4 w-4" />}
+                label={t('quest_workspace_terminal')}
+                active={activeQuestWorkspaceView === 'terminal'}
                 onClick={() => {
-                  onEnterLab?.()
-                  openQuestWorkspaceTab('canvas')
+                  openQuestWorkspaceTab('terminal')
                 }}
               />
             </div>
@@ -2520,13 +2007,6 @@ function LeftPanel({
                     }
                     label={t('leftpanel_plugins')}
                     onClick={() => openPluginTab('@ds/plugin-marketplace', t('plugin_marketplace_title'))}
-                  />
-                  <SidebarButton
-                    icon={<Terminal className="h-4 w-4" />}
-                    label={t('leftpanel_cli')}
-                    onClick={() =>
-                      openPluginTab(BUILTIN_PLUGINS.CLI, t('plugin_cli_title'), { readOnly: readOnlyMode })
-                    }
                   />
                 </div>
 
@@ -2644,7 +2124,7 @@ function CenterPanel({
       openTab({
         pluginId: QUEST_WORKSPACE_PLUGIN_ID,
         context: buildQuestWorkspaceTabContext(projectId, view),
-        title: view === 'details' ? 'Details' : 'Canvas',
+        title: getQuestWorkspaceTitle(view),
       })
     },
     [onExitHome, openTab, projectId]
@@ -3170,8 +2650,6 @@ export function WorkspaceLayout({
   const labDataEnabled = Boolean(projectId && isLabTab && !isLocalQuestProject)
   const labStaleTime = 30000
   const cliServers = useCliStore((state) => state.servers)
-  const loadCliServers = useCliStore((state) => state.loadServers)
-  const cliProjectId = useCliStore((state) => state.projectId)
   const storedCliServerId = useChatSessionStore((state) =>
     projectId ? state.cliServerIdsByProject[projectId] ?? null : null
   )
@@ -3180,12 +2658,6 @@ export function WorkspaceLayout({
   React.useEffect(() => {
     clearLabSelections()
   }, [clearLabSelections, projectId])
-
-  React.useEffect(() => {
-    if (isLocalQuestProject || !labDataEnabled || !projectId) return
-    if (cliProjectId === projectId) return
-    void loadCliServers(projectId)
-  }, [cliProjectId, isLocalQuestProject, labDataEnabled, loadCliServers, projectId])
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return
@@ -3293,12 +2765,8 @@ export function WorkspaceLayout({
   const [canShare, setCanShare] = React.useState(false)
   const [canCopy, setCanCopy] = React.useState(false)
   const [shareCopyAllowed, setShareCopyAllowed] = React.useState(false)
-  const [notificationsReady, setNotificationsReady] = React.useState(false)
   const [sharePermissionReady, setSharePermissionReady] = React.useState(false)
   const copilotDock = useCopilotDockState(projectId, { defaultOpen: !readOnlyMode })
-  useProjectNotifications(
-    notificationsReady && !isSharedView && !isLocalQuestProject ? projectId : null
-  )
   const [scrollbarSide, setScrollbarSide] = React.useState<ScrollbarSide>(() => {
     if (readOnlyMode || !copilotDock.state.open) return 'right'
     return copilotDock.state.side === 'right' ? 'left' : 'right'
@@ -3326,12 +2794,6 @@ export function WorkspaceLayout({
       setCopilotSurface('agent')
     }
   }, [copilotSurface, homeMode])
-
-  React.useEffect(() => {
-    setNotificationsReady(false)
-    if (!projectId || isSharedView) return
-    return scheduleIdle(() => setNotificationsReady(true), 1400)
-  }, [isSharedView, projectId])
 
   React.useEffect(() => {
     setSharePermissionReady(false)
@@ -4365,12 +3827,10 @@ export function WorkspaceLayout({
           onNewLatexProject={handleNewLatexProject}
           onNewFolder={handleNewFolder}
           onUploadFiles={handleUploadFiles}
-          onGetToken={handleGetToken}
           leftVisible={showLeft}
           rightVisible={homeMode || copilotDock.state.open}
           rightLocked={homeMode}
           readOnly={readOnlyMode}
-          notificationsEnabled={notificationsReady && !isSharedView && !isLocalQuestProject}
           collapsed={navbarCollapsed}
           onToggleCollapse={toggleNavbarCollapsed}
           onExitHome={exitHome}
@@ -4552,6 +4012,8 @@ export function WorkspaceLayout({
                         <QuestCopilotDockPanel
                           questId={projectId}
                           title={workspaceProjectTitle}
+                          readOnly={readOnlyMode}
+                          prefill={copilotPrefill}
                         />
                       ) : isLabTab ? (
                           <LabCopilotPanel
@@ -4572,6 +4034,7 @@ export function WorkspaceLayout({
                     }
                     hideNewChat={isLabTab || isLocalQuestProject}
                     hideHistory={isLabTab || isLocalQuestProject}
+                    hideFixWithAi={isLocalQuestProject}
                     onActionsChange={(actions) => {
                       copilotActionsRef.current = actions
                     }}

@@ -156,10 +156,10 @@ const renderSegmentedLine = (line: string, segments: Segment[]) => {
     const text = line.slice(segment.start, segment.end)
     const className =
       segment.type === 'blue'
-        ? 'ds-terminal-blue'
+        ? 'text-[#2B5B7E]'
         : segment.type === 'red'
-          ? 'ds-terminal-red'
-          : 'ds-terminal-gradient'
+          ? 'text-[#7A2E2E]'
+          : 'text-[#2D2A26]'
     parts.push(
       <span key={`seg-${index}`} className={className}>
         {text}
@@ -199,7 +199,7 @@ export default function HeroTerminal({ className, activeIndex = 0 }: HeroTermina
         <span>DeepScientist CLI</span>
         <span>Session 01</span>
       </div>
-      <div className="rounded-b-2xl bg-[#1F1B19]/90 px-3 py-3 font-mono text-[11px] leading-relaxed text-[#E6E2DA]">
+      <div className="rounded-b-2xl bg-[#FBF8F2]/95 px-3 py-3 font-mono text-[11px] leading-relaxed text-[#2D2A26]">
         <div className="ds-terminal-ascii space-y-0.5 overflow-hidden text-[8px]">
           {ASCII_LOGO.lines.map((line, idx) => (
             <div key={`ascii-${idx}`} className="whitespace-pre leading-[0.9]">
@@ -207,7 +207,7 @@ export default function HeroTerminal({ className, activeIndex = 0 }: HeroTermina
             </div>
           ))}
         </div>
-        <div className="mt-2 space-y-0.5 text-[10px] text-[#A59E95]">
+        <div className="mt-2 space-y-0.5 text-[10px] text-[#6F6B66]">
           <div className="whitespace-pre">{statusLine}</div>
           <div className="whitespace-pre text-[#7E8B97]">{focusLine}</div>
         </div>
@@ -218,7 +218,7 @@ export default function HeroTerminal({ className, activeIndex = 0 }: HeroTermina
             const isComment = trimmed.startsWith('#') || trimmed.startsWith('//')
             const lineClass = cn(
               'ds-terminal-line',
-              isCommand && 'text-[#C8B27A]',
+              isCommand && 'text-[#7A5B22]',
               isComment && 'text-[#9FB1C2]'
             )
 
@@ -228,7 +228,7 @@ export default function HeroTerminal({ className, activeIndex = 0 }: HeroTermina
               </div>
             )
           })}
-          <div className="flex items-center gap-1 text-[#C8B27A]">
+          <div className="flex items-center gap-1 text-[#7A5B22]">
             <span>&gt;</span>
             <span className="ds-terminal-cursor">|</span>
           </div>

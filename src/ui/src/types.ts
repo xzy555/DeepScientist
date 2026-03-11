@@ -569,6 +569,61 @@ export interface WorkflowPayload {
   }>
 }
 
+export interface QuestArtifactRecord {
+  kind: string
+  path: string
+  workspace_root?: string
+  payload?: Record<string, unknown>
+}
+
+export interface QuestArtifactListPayload {
+  quest_id: string
+  items: QuestArtifactRecord[]
+}
+
+export interface QuestEventRecord {
+  cursor: number
+  event_id: string
+  type: string
+  quest_id?: string
+  run_id?: string | null
+  source?: string | null
+  skill_id?: string | null
+  tool_call_id?: string | null
+  tool_name?: string | null
+  mcp_server?: string | null
+  mcp_tool?: string | null
+  status?: string | null
+  args?: string | null
+  output?: string | null
+  raw_event_type?: string | null
+  created_at?: string | null
+  role?: string | null
+  content?: string | null
+  branch?: string | null
+  head_commit?: string | null
+  artifact_id?: string | null
+  kind?: string | null
+  summary?: string | null
+  reason?: string | null
+  guidance?: string | null
+  paths?: Record<string, string | null> | string[] | null
+  details?: Record<string, unknown> | null
+  checkpoint?: Record<string, unknown> | null
+  payload?: Record<string, unknown> | null
+  metadata?: Record<string, unknown> | null
+  [key: string]: unknown
+}
+
+export interface QuestRawEventListPayload {
+  quest_id: string
+  cursor: number
+  has_more?: boolean
+  format?: string
+  session_id?: string
+  events: QuestEventRecord[]
+}
+
 export interface QuestNodeTraceAction {
   action_id: string
   kind?: string
@@ -583,11 +638,22 @@ export interface QuestNodeTraceAction {
   worktree_rel_path?: string | null
   tool_name?: string | null
   tool_call_id?: string | null
+  mcp_server?: string | null
+  mcp_tool?: string | null
   args?: string | null
   output?: string | null
   reason?: string | null
   raw_event_type?: string | null
   paths?: string[]
+  paths_map?: Record<string, string | null> | null
+  artifact_id?: string | null
+  artifact_kind?: string | null
+  artifact_path?: string | null
+  head_commit?: string | null
+  payload_json?: Record<string, unknown> | null
+  details_json?: Record<string, unknown> | null
+  checkpoint_json?: Record<string, unknown> | null
+  changed_files?: string[] | null
   trace_confidence?: string | null
 }
 
@@ -605,6 +671,13 @@ export interface QuestNodeTrace {
   counts?: Record<string, number> | null
   run_ids?: string[] | null
   skill_ids?: string[] | null
+  artifact_id?: string | null
+  artifact_kind?: string | null
+  head_commit?: string | null
+  payload_json?: Record<string, unknown> | null
+  details_json?: Record<string, unknown> | null
+  paths_map?: Record<string, string | null> | null
+  changed_files?: string[] | null
   actions: QuestNodeTraceAction[]
 }
 

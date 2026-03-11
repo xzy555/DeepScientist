@@ -245,10 +245,10 @@ const copy = {
 } as const
 
 const selectClassName =
-  'h-9 rounded-[10px] border border-[rgba(45,42,38,0.1)] bg-white/75 px-3 text-xs outline-none transition focus:border-[rgba(45,42,38,0.18)] dark:border-white/[0.12] dark:bg-white/[0.05] dark:focus:border-white/[0.2]'
+  'h-9 rounded-[10px] border border-[rgba(45,42,38,0.1)] bg-white/78 px-3 text-xs text-[rgba(38,36,33,0.95)] outline-none transition focus:border-[rgba(45,42,38,0.18)] dark:border-[rgba(45,42,38,0.1)] dark:bg-white/82 dark:text-[rgba(38,36,33,0.95)] dark:focus:border-[rgba(45,42,38,0.18)]'
 
 const panelClass =
-  'rounded-xl border border-[rgba(45,42,38,0.09)] bg-[rgba(255,255,255,0.72)] shadow-[0_12px_30px_-24px_rgba(45,42,38,0.32)] backdrop-blur-xl dark:border-white/[0.10] dark:bg-white/[0.04]'
+  'rounded-xl border border-[rgba(45,42,38,0.09)] bg-[rgba(255,255,255,0.76)] shadow-[0_12px_30px_-24px_rgba(45,42,38,0.32)] backdrop-blur-xl dark:border-[rgba(45,42,38,0.09)] dark:bg-[rgba(255,255,255,0.82)]'
 
 function FieldHelp({
   text,
@@ -260,12 +260,12 @@ function FieldHelp({
       <button
         type="button"
         tabIndex={-1}
-        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[rgba(107,103,97,0.78)] transition hover:text-[rgba(45,42,38,0.95)] dark:text-white/50 dark:hover:text-white/90"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[rgba(107,103,97,0.78)] transition hover:text-[rgba(45,42,38,0.95)] dark:text-[rgba(107,103,97,0.78)] dark:hover:text-[rgba(45,42,38,0.95)]"
         aria-label={text}
       >
         <CircleHelp className="h-3.5 w-3.5" />
       </button>
-      <div className="pointer-events-none absolute left-1/2 top-[calc(100%+0.45rem)] z-20 hidden w-64 -translate-x-1/2 rounded-[14px] border border-[rgba(45,42,38,0.1)] bg-[rgba(255,255,255,0.97)] px-3 py-2 text-[11px] leading-5 text-[rgba(56,52,47,0.92)] shadow-[0_20px_40px_-28px_rgba(45,42,38,0.45)] group-hover:block dark:border-white/[0.12] dark:bg-[rgba(24,28,32,0.98)] dark:text-white/84">
+      <div className="pointer-events-none absolute left-1/2 top-[calc(100%+0.45rem)] z-20 hidden w-64 -translate-x-1/2 rounded-[14px] border border-[rgba(45,42,38,0.1)] bg-[rgba(255,255,255,0.97)] px-3 py-2 text-[11px] leading-5 text-[rgba(56,52,47,0.92)] shadow-[0_20px_40px_-28px_rgba(45,42,38,0.45)] group-hover:block dark:border-[rgba(45,42,38,0.1)] dark:bg-[rgba(255,255,255,0.97)] dark:text-[rgba(56,52,47,0.92)]">
         {text}
       </div>
     </div>
@@ -285,11 +285,11 @@ function InlineField({
 }) {
   return (
     <div className="space-y-1">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium text-[rgba(75,73,69,0.78)] dark:text-white/64">
+      <div className="flex items-center gap-1.5 text-[11px] font-medium text-[rgba(75,73,69,0.78)] dark:text-[rgba(75,73,69,0.78)]">
         <span>{label}</span>
         {help ? <FieldHelp text={help} /> : null}
       </div>
-      {hint ? <div className="text-[11px] leading-5 text-[rgba(107,103,97,0.72)] dark:text-white/46">{hint}</div> : null}
+      {hint ? <div className="text-[11px] leading-5 text-[rgba(107,103,97,0.72)] dark:text-[rgba(107,103,97,0.72)]">{hint}</div> : null}
       {children}
     </div>
   )
@@ -336,8 +336,8 @@ function ChoiceField<T extends string>({
                 'flex w-full items-start gap-3 rounded-[14px] border px-3 py-3 text-left transition',
                 'disabled:cursor-not-allowed disabled:opacity-60',
                 active
-                  ? 'border-[rgba(126,77,42,0.32)] bg-[rgba(126,77,42,0.08)] shadow-[0_14px_26px_-22px_rgba(90,56,35,0.55)] dark:border-[#d9b58b]/40 dark:bg-[#d9b58b]/10'
-                  : 'border-[rgba(45,42,38,0.08)] bg-white/60 hover:border-[rgba(45,42,38,0.14)] hover:bg-white/82 dark:border-white/[0.08] dark:bg-white/[0.03] dark:hover:border-white/[0.16] dark:hover:bg-white/[0.05]'
+                  ? 'border-[rgba(126,77,42,0.32)] bg-[rgba(126,77,42,0.08)] shadow-[0_14px_26px_-22px_rgba(90,56,35,0.55)] dark:border-[rgba(126,77,42,0.32)] dark:bg-[rgba(126,77,42,0.08)]'
+                  : 'border-[rgba(45,42,38,0.08)] bg-white/60 hover:border-[rgba(45,42,38,0.14)] hover:bg-white/82 dark:border-[rgba(45,42,38,0.08)] dark:bg-white/70 dark:hover:border-[rgba(45,42,38,0.14)] dark:hover:bg-white/86'
               )}
             >
               <span
@@ -345,29 +345,29 @@ function ChoiceField<T extends string>({
                 className={cn(
                   'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition',
                   active
-                    ? 'border-[rgba(126,77,42,0.78)] bg-[rgba(126,77,42,0.14)] dark:border-[#f0c697]/90 dark:bg-[#f0c697]/18'
-                    : 'border-[rgba(107,103,97,0.34)] bg-transparent dark:border-white/[0.24]'
+                    ? 'border-[rgba(126,77,42,0.78)] bg-[rgba(126,77,42,0.14)] dark:border-[rgba(126,77,42,0.78)] dark:bg-[rgba(126,77,42,0.14)]'
+                    : 'border-[rgba(107,103,97,0.34)] bg-transparent dark:border-[rgba(107,103,97,0.34)]'
                 )}
               >
                 <span
                   className={cn(
                     'h-1.5 w-1.5 rounded-full transition',
-                    active ? 'bg-[rgba(126,77,42,0.92)] dark:bg-[#f5d0a7]' : 'bg-transparent'
+                    active ? 'bg-[rgba(126,77,42,0.92)] dark:bg-[rgba(126,77,42,0.92)]' : 'bg-transparent'
                   )}
                 />
               </span>
               <span className="min-w-0">
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="text-xs font-semibold text-[rgba(38,36,33,0.95)] dark:text-white">
+                  <span className="text-xs font-semibold text-[rgba(38,36,33,0.95)] dark:text-[rgba(38,36,33,0.95)]">
                     {item.title}
                   </span>
                   {item.meta ? (
-                    <span className="text-[10px] uppercase tracking-[0.16em] text-[rgba(107,103,97,0.78)] dark:text-white/46">
+                    <span className="text-[10px] uppercase tracking-[0.16em] text-[rgba(107,103,97,0.78)] dark:text-[rgba(107,103,97,0.78)]">
                       {item.meta}
                     </span>
                   ) : null}
                 </span>
-                <span className="mt-1 block text-[11px] leading-5 text-[rgba(86,82,77,0.82)] dark:text-white/62">
+                <span className="mt-1 block text-[11px] leading-5 text-[rgba(86,82,77,0.82)] dark:text-[rgba(86,82,77,0.82)]">
                   {item.description}
                 </span>
               </span>
@@ -393,11 +393,11 @@ function SectionCard({
       className={cn(
         'rounded-xl border p-3',
         muted
-          ? 'border-[rgba(45,42,38,0.08)] bg-[rgba(244,239,233,0.62)] dark:border-white/[0.08] dark:bg-white/[0.03]'
+          ? 'border-[rgba(45,42,38,0.08)] bg-[rgba(244,239,233,0.62)] dark:border-[rgba(45,42,38,0.08)] dark:bg-[rgba(244,239,233,0.72)]'
           : panelClass
       )}
     >
-      <div className="text-sm font-semibold text-[rgba(38,36,33,0.95)] dark:text-white">{title}</div>
+      <div className="text-sm font-semibold text-[rgba(38,36,33,0.95)] dark:text-[rgba(38,36,33,0.95)]">{title}</div>
       <div className="mt-3 space-y-3">{children}</div>
     </div>
   )
@@ -642,9 +642,9 @@ export function CreateProjectDialog({
     >
       <div className="grid h-full min-h-0 gap-4 overflow-hidden p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:p-5">
         <div className={cn(panelClass, 'flex min-h-0 flex-col overflow-hidden')}>
-          <div className="shrink-0 border-b border-[rgba(45,42,38,0.08)] px-4 py-4 dark:border-white/[0.08]">
-            <div className="text-sm font-semibold text-[rgba(38,36,33,0.95)] dark:text-white">{t.formTitle}</div>
-            <div className="mt-1 text-xs text-[rgba(107,103,97,0.72)] dark:text-white/50">{t.formHint}</div>
+          <div className="shrink-0 border-b border-[rgba(45,42,38,0.08)] px-4 py-4 dark:border-[rgba(45,42,38,0.08)]">
+            <div className="text-sm font-semibold text-[rgba(38,36,33,0.95)] dark:text-[rgba(38,36,33,0.95)]">{t.formTitle}</div>
+            <div className="mt-1 text-xs text-[rgba(107,103,97,0.72)] dark:text-[rgba(107,103,97,0.72)]">{t.formHint}</div>
           </div>
 
           <div className="feed-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
@@ -676,7 +676,7 @@ export function CreateProjectDialog({
                         </option>
                       ))}
                     </select>
-                    <div className="inline-flex h-9 items-center rounded-[10px] border border-[rgba(45,42,38,0.09)] bg-white/65 px-3 text-[11px] text-[rgba(75,73,69,0.72)] dark:border-white/[0.10] dark:bg-white/[0.04] dark:text-white/56">
+                    <div className="inline-flex h-9 items-center rounded-[10px] border border-[rgba(45,42,38,0.09)] bg-white/65 px-3 text-[11px] text-[rgba(75,73,69,0.72)] dark:border-[rgba(45,42,38,0.09)] dark:bg-white/72 dark:text-[rgba(75,73,69,0.72)]">
                       {templates.length}
                     </div>
                   </div>
@@ -684,15 +684,15 @@ export function CreateProjectDialog({
               </SectionCard>
 
               <SectionCard title={t.questTarget} muted>
-                <div className="text-[11px] leading-5 text-[rgba(107,103,97,0.72)] dark:text-white/48">{t.targetHint}</div>
+                <div className="text-[11px] leading-5 text-[rgba(107,103,97,0.72)] dark:text-[rgba(107,103,97,0.72)]">{t.targetHint}</div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="rounded-lg border border-[rgba(45,42,38,0.08)] bg-white/70 px-3 py-3 dark:border-white/[0.08] dark:bg-white/[0.04]">
-                    <div className="text-[11px] text-[rgba(107,103,97,0.72)] dark:text-white/48">{t.targetMode}</div>
-                    <div className="mt-1 text-sm font-semibold text-[rgba(38,36,33,0.95)] dark:text-white">{t.targetModeValue}</div>
+                  <div className="rounded-lg border border-[rgba(45,42,38,0.08)] bg-white/70 px-3 py-3 dark:border-[rgba(45,42,38,0.08)] dark:bg-white/76">
+                    <div className="text-[11px] text-[rgba(107,103,97,0.72)] dark:text-[rgba(107,103,97,0.72)]">{t.targetMode}</div>
+                    <div className="mt-1 text-sm font-semibold text-[rgba(38,36,33,0.95)] dark:text-[rgba(38,36,33,0.95)]">{t.targetModeValue}</div>
                   </div>
-                  <div className="rounded-lg border border-[rgba(45,42,38,0.08)] bg-white/70 px-3 py-3 dark:border-white/[0.08] dark:bg-white/[0.04]">
-                    <div className="text-[11px] text-[rgba(107,103,97,0.72)] dark:text-white/48">{t.targetRunner}</div>
-                    <div className="mt-1 text-sm font-semibold text-[rgba(38,36,33,0.95)] dark:text-white">{t.targetRunnerValue}</div>
+                  <div className="rounded-lg border border-[rgba(45,42,38,0.08)] bg-white/70 px-3 py-3 dark:border-[rgba(45,42,38,0.08)] dark:bg-white/76">
+                    <div className="text-[11px] text-[rgba(107,103,97,0.72)] dark:text-[rgba(107,103,97,0.72)]">{t.targetRunner}</div>
+                    <div className="mt-1 text-sm font-semibold text-[rgba(38,36,33,0.95)] dark:text-[rgba(38,36,33,0.95)]">{t.targetRunnerValue}</div>
                   </div>
                 </div>
               </SectionCard>
@@ -703,7 +703,7 @@ export function CreateProjectDialog({
                     value={form.title}
                     onChange={(event) => setField('title', event.target.value)}
                     placeholder={t.titlePlaceholder}
-                    className="rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs dark:border-white/[0.10] dark:bg-white/[0.04]"
+                    className="rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs dark:border-[rgba(45,42,38,0.09)] dark:bg-white/78"
                     disabled={manualOverride}
                   />
                 </InlineField>
@@ -713,7 +713,7 @@ export function CreateProjectDialog({
                     value={form.quest_id}
                     onChange={(event) => setField('quest_id', slugifyQuestRepo(event.target.value))}
                     placeholder={t.repoPlaceholder}
-                    className="rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs dark:border-white/[0.10] dark:bg-white/[0.04]"
+                    className="rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs dark:border-[rgba(45,42,38,0.09)] dark:bg-white/78"
                     disabled={manualOverride}
                   />
                 </InlineField>
@@ -723,7 +723,7 @@ export function CreateProjectDialog({
                     value={form.goal}
                     onChange={(event) => setField('goal', event.target.value)}
                     placeholder={t.goalPlaceholder}
-                    className="min-h-[150px] rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs leading-5 dark:border-white/[0.10] dark:bg-white/[0.04]"
+                    className="min-h-[150px] rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs leading-5 dark:border-[rgba(45,42,38,0.09)] dark:bg-white/78"
                     disabled={manualOverride}
                   />
                 </InlineField>
@@ -737,7 +737,7 @@ export function CreateProjectDialog({
                       value={form.baseline_root_id}
                       onChange={(event) => setField('baseline_root_id', event.target.value)}
                       placeholder={t.baselineRootPlaceholder}
-                      className="rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs dark:border-white/[0.10] dark:bg-white/[0.04]"
+                      className="rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs dark:border-[rgba(45,42,38,0.09)] dark:bg-white/78"
                       disabled={manualOverride}
                     />
                   </InlineField>
@@ -758,7 +758,7 @@ export function CreateProjectDialog({
                     value={form.baseline_urls}
                     onChange={(event) => setField('baseline_urls', event.target.value)}
                     placeholder={t.baselineUrlsPlaceholder}
-                    className="min-h-[92px] rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs leading-5 dark:border-white/[0.10] dark:bg-white/[0.04]"
+                    className="min-h-[92px] rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs leading-5 dark:border-[rgba(45,42,38,0.09)] dark:bg-white/78"
                     disabled={manualOverride}
                   />
                 </InlineField>
@@ -767,7 +767,7 @@ export function CreateProjectDialog({
                     value={form.paper_urls}
                     onChange={(event) => setField('paper_urls', event.target.value)}
                     placeholder={t.paperUrlsPlaceholder}
-                    className="min-h-[92px] rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs leading-5 dark:border-white/[0.10] dark:bg-white/[0.04]"
+                    className="min-h-[92px] rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs leading-5 dark:border-[rgba(45,42,38,0.09)] dark:bg-white/78"
                     disabled={manualOverride}
                   />
                 </InlineField>
@@ -784,7 +784,7 @@ export function CreateProjectDialog({
                   disabled={manualOverride}
                 />
                 {!activeContractPresetId ? (
-                  <div className="rounded-[14px] border border-[rgba(45,42,38,0.08)] bg-[rgba(244,239,233,0.52)] px-3 py-2 text-[11px] leading-5 text-[rgba(86,82,77,0.82)] dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/60">
+                  <div className="rounded-[14px] border border-[rgba(45,42,38,0.08)] bg-[rgba(244,239,233,0.52)] px-3 py-2 text-[11px] leading-5 text-[rgba(86,82,77,0.82)] dark:border-[rgba(45,42,38,0.08)] dark:bg-[rgba(244,239,233,0.62)] dark:text-[rgba(86,82,77,0.82)]">
                     {t.contractProfilesCustomHint}
                   </div>
                 ) : null}
@@ -829,7 +829,7 @@ export function CreateProjectDialog({
                     value={form.time_budget_hours}
                     onChange={(event) => setField('time_budget_hours', event.target.value)}
                     placeholder="24"
-                    className="rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs dark:border-white/[0.10] dark:bg-white/[0.04]"
+                    className="rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs dark:border-[rgba(45,42,38,0.09)] dark:bg-white/78"
                     disabled={manualOverride}
                   />
                 </InlineField>
@@ -838,7 +838,7 @@ export function CreateProjectDialog({
                     value={form.runtime_constraints}
                     onChange={(event) => setField('runtime_constraints', event.target.value)}
                     placeholder={t.runtimeConstraintsPlaceholder}
-                    className="min-h-[92px] rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs leading-5 dark:border-white/[0.10] dark:bg-white/[0.04]"
+                    className="min-h-[92px] rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs leading-5 dark:border-[rgba(45,42,38,0.09)] dark:bg-white/78"
                     disabled={manualOverride}
                   />
                 </InlineField>
@@ -850,7 +850,7 @@ export function CreateProjectDialog({
                     value={form.objectives}
                     onChange={(event) => setField('objectives', event.target.value)}
                     placeholder={t.objectivesPlaceholder}
-                    className="min-h-[120px] rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs leading-5 dark:border-white/[0.10] dark:bg-white/[0.04]"
+                    className="min-h-[120px] rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs leading-5 dark:border-[rgba(45,42,38,0.09)] dark:bg-white/78"
                     disabled={manualOverride}
                   />
                 </InlineField>
@@ -862,8 +862,8 @@ export function CreateProjectDialog({
         <div className={cn(panelClass, 'flex min-h-0 flex-col overflow-hidden p-4')}>
           <div className="mb-3 flex shrink-0 flex-wrap items-start justify-between gap-2">
             <div>
-              <div className="text-sm font-semibold text-[rgba(38,36,33,0.95)] dark:text-white">{t.preview}</div>
-              <div className="mt-1 text-xs text-[rgba(107,103,97,0.72)] dark:text-white/50">{t.previewBody}</div>
+              <div className="text-sm font-semibold text-[rgba(38,36,33,0.95)] dark:text-[rgba(38,36,33,0.95)]">{t.preview}</div>
+              <div className="mt-1 text-xs text-[rgba(107,103,97,0.72)] dark:text-[rgba(107,103,97,0.72)]">{t.previewBody}</div>
             </div>
             {manualOverride ? (
               <Badge className="rounded-full px-2.5 py-1 text-[10px] uppercase tracking-wide">{t.manual}</Badge>
@@ -871,17 +871,17 @@ export function CreateProjectDialog({
           </div>
 
           <div className="mb-3 shrink-0 grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <div className="rounded-lg border border-[rgba(45,42,38,0.09)] bg-[rgba(244,239,233,0.55)] px-3 py-2 text-[11px] dark:border-white/[0.08] dark:bg-white/[0.03]">
-              <div className="text-[rgba(107,103,97,0.72)] dark:text-white/46">{t.repoLabel}</div>
-              <div className="mt-1 font-semibold text-[rgba(38,36,33,0.95)] dark:text-white">{form.quest_id || deriveQuestRepoId(form) || 'auto-generated'}</div>
+            <div className="rounded-lg border border-[rgba(45,42,38,0.09)] bg-[rgba(244,239,233,0.55)] px-3 py-2 text-[11px] dark:border-[rgba(45,42,38,0.09)] dark:bg-[rgba(244,239,233,0.65)]">
+              <div className="text-[rgba(107,103,97,0.72)] dark:text-[rgba(107,103,97,0.72)]">{t.repoLabel}</div>
+              <div className="mt-1 font-semibold text-[rgba(38,36,33,0.95)] dark:text-[rgba(38,36,33,0.95)]">{form.quest_id || deriveQuestRepoId(form) || 'auto-generated'}</div>
             </div>
-            <div className="rounded-lg border border-[rgba(45,42,38,0.09)] bg-[rgba(244,239,233,0.55)] px-3 py-2 text-[11px] dark:border-white/[0.08] dark:bg-white/[0.03]">
-              <div className="text-[rgba(107,103,97,0.72)] dark:text-white/46">{t.scopeLabel}</div>
-              <div className="mt-1 font-semibold text-[rgba(38,36,33,0.95)] dark:text-white">{form.scope.replaceAll('_', ' ')}</div>
+            <div className="rounded-lg border border-[rgba(45,42,38,0.09)] bg-[rgba(244,239,233,0.55)] px-3 py-2 text-[11px] dark:border-[rgba(45,42,38,0.09)] dark:bg-[rgba(244,239,233,0.65)]">
+              <div className="text-[rgba(107,103,97,0.72)] dark:text-[rgba(107,103,97,0.72)]">{t.scopeLabel}</div>
+              <div className="mt-1 font-semibold text-[rgba(38,36,33,0.95)] dark:text-[rgba(38,36,33,0.95)]">{form.scope.replaceAll('_', ' ')}</div>
             </div>
-            <div className="rounded-lg border border-[rgba(45,42,38,0.09)] bg-[rgba(244,239,233,0.55)] px-3 py-2 text-[11px] dark:border-white/[0.08] dark:bg-white/[0.03]">
-              <div className="text-[rgba(107,103,97,0.72)] dark:text-white/46">{t.timeBudgetLabel}</div>
-              <div className="mt-1 font-semibold text-[rgba(38,36,33,0.95)] dark:text-white">{form.time_budget_hours ? `${form.time_budget_hours}h` : '—'}</div>
+            <div className="rounded-lg border border-[rgba(45,42,38,0.09)] bg-[rgba(244,239,233,0.55)] px-3 py-2 text-[11px] dark:border-[rgba(45,42,38,0.09)] dark:bg-[rgba(244,239,233,0.65)]">
+              <div className="text-[rgba(107,103,97,0.72)] dark:text-[rgba(107,103,97,0.72)]">{t.timeBudgetLabel}</div>
+              <div className="mt-1 font-semibold text-[rgba(38,36,33,0.95)] dark:text-[rgba(38,36,33,0.95)]">{form.time_budget_hours ? `${form.time_budget_hours}h` : '—'}</div>
             </div>
           </div>
 
@@ -889,10 +889,10 @@ export function CreateProjectDialog({
             aria-label={t.preview}
             value={promptDraft}
             onChange={(event) => handlePromptChange(event.target.value)}
-            className="feed-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain resize-none rounded-xl border border-[rgba(45,42,38,0.09)] bg-white/65 p-3 font-mono text-xs leading-5 text-[rgba(38,36,33,0.95)] outline-none dark:border-white/[0.10] dark:bg-white/[0.03] dark:text-white/88"
+            className="feed-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain resize-none rounded-xl border border-[rgba(45,42,38,0.09)] bg-white/65 p-3 font-mono text-xs leading-5 text-[rgba(38,36,33,0.95)] outline-none dark:border-[rgba(45,42,38,0.09)] dark:bg-white/78 dark:text-[rgba(38,36,33,0.95)]"
           />
 
-          <div className="mt-2 flex shrink-0 items-center justify-between gap-2 text-[11px] text-[rgba(107,103,97,0.72)] dark:text-white/48">
+          <div className="mt-2 flex shrink-0 items-center justify-between gap-2 text-[11px] text-[rgba(107,103,97,0.72)] dark:text-[rgba(107,103,97,0.72)]">
             <span>{t.footer}</span>
             <span>{promptDraft.length}</span>
           </div>
@@ -901,7 +901,7 @@ export function CreateProjectDialog({
           {error ? <div className="mt-2 shrink-0 text-xs text-[#9a1b1b]">{error}</div> : null}
 
           <div className="mt-3 flex shrink-0 items-center justify-between gap-3">
-            <div className="inline-flex items-center gap-2 text-[11px] text-[rgba(107,103,97,0.72)] dark:text-white/48">
+            <div className="inline-flex items-center gap-2 text-[11px] text-[rgba(107,103,97,0.72)] dark:text-[rgba(107,103,97,0.72)]">
               <BookmarkPlus className="h-3.5 w-3.5" />
               <span>{templates.length} template(s)</span>
             </div>

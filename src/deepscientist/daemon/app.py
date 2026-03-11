@@ -638,6 +638,25 @@ class DaemonApp:
                 run_id=result.run_id,
                 skill_id=skill_id,
             )
+            self._relay_quest_message_to_bound_connectors(
+                quest_id,
+                message=result.output_text,
+                kind="assistant",
+                response_phase="final",
+                importance="normal",
+                attachments=[
+                    {
+                        "kind": "runner_result",
+                        "run_id": result.run_id,
+                        "skill_id": skill_id,
+                        "runner": runner_name,
+                        "model": result.model,
+                        "exit_code": result.exit_code,
+                        "history_root": str(result.history_root),
+                        "run_root": str(result.run_root),
+                    }
+                ],
+            )
         self._normalize_status_after_turn(quest_id)
 
     def _runner_name_for(self, snapshot: dict) -> str:
@@ -722,6 +741,22 @@ class DaemonApp:
             model=model,
             summary=summary,
         )
+        self._relay_quest_message_to_bound_connectors(
+            quest_id,
+            message=summary,
+            kind="error",
+            response_phase="final",
+            importance="warning",
+            attachments=[
+                {
+                    "kind": "runner_error",
+                    "run_id": run_id,
+                    "skill_id": skill_id,
+                    "runner": runner_name,
+                    "model": model,
+                }
+            ],
+        )
         self._normalize_status_after_turn(quest_id)
 
     def _normalize_status_after_turn(self, quest_id: str) -> None:
@@ -743,6 +778,42 @@ class DaemonApp:
             return
         if int(snapshot.get("pending_user_message_count") or 0) > 0:
             self.schedule_turn(quest_id, reason="queued_user_messages")
+
+    def _relay_quest_message_to_bound_connectors(
+        self,
+        quest_id: str,
+        *,
+        message: str,
+        kind: str = "assistant",
+        response_phase: str | None = "final",
+        importance: str | None = "normal",
+        attachments: list[dict[str, object]] | None = None,
+    ) -> list[str]:
+        text = str(message or "").strip()
+        if not text:
+            return []
+        quest_root = self.quest_service._quest_root(quest_id)
+        connectors = self.artifact_service._connectors_config()
+        targets = self.artifact_service._select_delivery_targets(
+            self.artifact_service._bound_conversations(quest_root),
+            connectors=connectors,
+        )
+        delivered: list[str] = []
+        for target in targets:
+            channel_name = self.artifact_service._normalize_channel_name(target)
+            payload = {
+                "quest_root": str(quest_root),
+                "quest_id": quest_id,
+                "conversation_id": target,
+                "kind": kind,
+                "message": text,
+                "response_phase": response_phase,
+                "importance": importance,
+                "attachments": attachments or [],
+            }
+            if self.artifact_service._send_to_channel(channel_name, payload, connectors=connectors):
+                delivered.append(target)
+        return delivered
 
     def request_shutdown(self, *, source: str = "local-admin") -> dict:
         if self._shutdown_requested.is_set():

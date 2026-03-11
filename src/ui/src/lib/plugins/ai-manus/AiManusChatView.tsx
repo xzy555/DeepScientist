@@ -65,11 +65,13 @@ import {
 } from '@/lib/api/sessions'
 import {
   buildQuestSessionId,
+  getQuestLatestSession,
   getQuestSessionEventsOnly,
   isQuestSessionId,
   resolveQuestResumeToken,
   shouldUseQuestSessionCompat,
 } from '@/lib/api/quest-session-compat'
+import { isQuestRuntimeSurface } from '@/lib/runtime/quest-runtime'
 import { useTabsStore } from '@/lib/stores/tabs'
 import { useFileTreeStore } from '@/lib/stores/file-tree'
 import { useFileContentStore } from '@/lib/stores/file-content'
@@ -1997,6 +1999,7 @@ export function AiManusChatView({
 
   useEffect(() => {
     if (!projectId) return
+    if (isQuestRuntimeSurface()) return
     if (!allowSurfaceFallback) return
     if (draftSessionId) return
     if (surfaceSessionId) return
@@ -2033,6 +2036,7 @@ export function AiManusChatView({
 
   useEffect(() => {
     if (!projectId) return
+    if (isQuestRuntimeSurface()) return
     if (mode !== 'welcome') return
     if (!surfaceSessionId || surfaceSessionId === copilotSessionId) return
     setSessionIdForSurface(projectId, 'copilot', surfaceSessionId)
@@ -2040,6 +2044,7 @@ export function AiManusChatView({
 
   useEffect(() => {
     if (!projectId) return
+    if (isQuestRuntimeSurface()) return
     if (mode !== 'welcome' || uiSurface !== 'copilot') return
     if (!surfaceSessionId || surfaceSessionId === welcomeSessionId) return
     setSessionIdForSurface(projectId, 'welcome', surfaceSessionId)
@@ -2438,6 +2443,24 @@ export function AiManusChatView({
       const storedSessionId = sessionIdRef.current
       const draft = draftSessionIdRef.current
 
+      if (isQuestRuntimeSurface()) {
+        const questSessionId = buildQuestSessionId(projectId)
+        if (storedSessionId !== questSessionId) {
+          console.info('[CopilotAudit][entry] adopt quest session', {
+            projectId,
+            sessionId: questSessionId,
+          })
+          setSessionIdForSurface(projectId, sessionSurface, questSessionId)
+        } else if (messagesRef.current.length === 0) {
+          console.info('[CopilotAudit][entry] restore quest session', {
+            projectId,
+            sessionId: questSessionId,
+          })
+          requestRestore()
+        }
+        return
+      }
+
       console.info('[CopilotAudit][entry]', {
         projectId,
         apiBaseUrl,
@@ -2469,7 +2492,7 @@ export function AiManusChatView({
         return
       }
 
-      console.info('[CopilotAudit][entry] GET /api/v1/sessions/latest', {
+      console.info('[CopilotAudit][entry] request product latest session', {
         projectId,
         url: `${apiBaseUrl}/api/v1/sessions/latest`,
       })
@@ -2957,11 +2980,16 @@ export function AiManusChatView({
         return null
       }
       try {
-        let latest = await getLatestSession(projectId, options?.limit, sessionSurface)
+        let latest = null
         let usedFallback = false
-        if (!latest?.session_id) {
-          latest = await getLatestSession(projectId, options?.limit)
-          usedFallback = Boolean(latest?.session_id)
+        if (isQuestRuntimeSurface()) {
+          latest = await getQuestLatestSession(projectId, options?.limit)
+        } else {
+          latest = await getLatestSession(projectId, options?.limit, sessionSurface)
+          if (!latest?.session_id) {
+            latest = await getLatestSession(projectId, options?.limit)
+            usedFallback = Boolean(latest?.session_id)
+          }
         }
         if (!latest?.session_id) {
           debugLog('latest:none', { usedFallback })
@@ -8190,28 +8218,43 @@ export function AiManusChatView({
             restoreFallbackRef.current?.sessionId === sessionId
           if (!alreadyAttempted) {
             restoreFallbackRef.current = { projectId, sessionId }
-            console.info('[CopilotAudit][restore] fallback to latest session', {
-              projectId,
-              failedSessionId: sessionId,
-              status: error.response?.status ?? null,
-              url: `${getApiBaseUrl()}/api/v1/sessions/latest`,
-            })
-            clearSessionIdForSurface(projectId, sessionSurface)
-            try {
-              const latest = await getLatestSession(projectId, undefined, sessionSurface)
-              syncRuntimeFromSession(latest ?? undefined)
-              const latestId = latest?.session_id ?? null
-              console.info('[CopilotAudit][restore] fallback latest resolved', {
+            if (isQuestRuntimeSurface()) {
+              const questSessionId = buildQuestSessionId(projectId)
+              console.info('[CopilotAudit][restore] switch to quest session', {
                 projectId,
-                sessionId: latestId,
-                events: latest?.events?.length ?? 0,
+                failedSessionId: sessionId,
+                sessionId: questSessionId,
+                status: error.response?.status ?? null,
               })
-              if (latestId) {
-                setSessionIdForSurface(projectId, sessionSurface, latestId)
+              clearSessionIdForSurface(projectId, sessionSurface)
+              setSessionIdForSurface(projectId, sessionSurface, questSessionId)
+              if (sessionIdRef.current === questSessionId) {
                 requestRestore()
               }
-            } catch (latestError) {
-              console.warn('[CopilotAudit][restore] fallback latest failed', latestError)
+            } else {
+              console.info('[CopilotAudit][restore] fallback to product latest session', {
+                projectId,
+                failedSessionId: sessionId,
+                status: error.response?.status ?? null,
+                url: `${getApiBaseUrl()}/api/v1/sessions/latest`,
+              })
+              clearSessionIdForSurface(projectId, sessionSurface)
+              try {
+                const latest = await getLatestSession(projectId, undefined, sessionSurface)
+                syncRuntimeFromSession(latest ?? undefined)
+                const latestId = latest?.session_id ?? null
+                console.info('[CopilotAudit][restore] fallback latest resolved', {
+                  projectId,
+                  sessionId: latestId,
+                  events: latest?.events?.length ?? 0,
+                })
+                if (latestId) {
+                  setSessionIdForSurface(projectId, sessionSurface, latestId)
+                  requestRestore()
+                }
+              } catch (latestError) {
+                console.warn('[CopilotAudit][restore] fallback latest failed', latestError)
+              }
             }
           }
         }
