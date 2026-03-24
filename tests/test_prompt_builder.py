@@ -270,7 +270,30 @@ def test_prompt_builder_loads_weixin_connector_contract_when_bound(temp_home: Pa
     assert "native image, video, and file delivery" in prompt
     assert "connector_delivery={'weixin': {'media_kind': 'image'}}" in prompt
     assert "userfiles/weixin/..." in prompt
-    assert "roughly 10 tool calls" in prompt
+    assert "roughly 6 tool calls" in prompt
+
+
+def test_prompt_builder_prefers_local_surface_when_latest_user_turn_is_local_even_if_bound(temp_home: Path) -> None:
+    builder, snapshot = _make_builder(temp_home)
+    quest_service = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home))
+    quest_service.bind_source(snapshot["quest_id"], "qq:direct:openid-qq-1")
+    quest_service.append_message(
+        snapshot["quest_id"],
+        role="user",
+        content="Continue this quest from the web workspace.",
+        source="web-react",
+    )
+
+    prompt = builder.build(
+        quest_id=snapshot["quest_id"],
+        skill_id="decision",
+        user_message="Continue this quest from the web workspace.",
+        model="gpt-5.4",
+    )
+
+    assert "active_surface: local" in prompt
+    assert "active_connector: local" in prompt
+    assert "## Connector Contract" not in prompt
 
 
 @pytest.mark.parametrize(("skill_id",), [("decision",), ("baseline",), ("analysis-campaign",), ("write",)])
@@ -722,6 +745,95 @@ def test_prompt_builder_includes_revision_rebuttal_launch_guidance(temp_home: Pa
     assert "rebuttal_entry_rule:" in prompt
     assert "rebuttal_routing_rule:" in prompt
     assert "rebuttal" in prompt
+
+
+def test_prompt_builder_includes_review_audit_launch_guidance(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    service = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home))
+    snapshot = service.create(
+        "audit the current draft before submission",
+        startup_contract={
+            "launch_mode": "custom",
+            "custom_profile": "review_audit",
+            "entry_state_summary": "A substantial draft and figures already exist.",
+            "review_summary": "Need a hard skeptical audit before finalizing.",
+            "custom_brief": "Treat the current draft as the active contract.",
+        },
+    )
+    builder = PromptBuilder(repo_root(), temp_home)
+
+    prompt = builder.build(
+        quest_id=snapshot["quest_id"],
+        skill_id="write",
+        user_message="Audit the draft before we finalize anything.",
+        model="gpt-5.4",
+    )
+
+    assert "launch_mode: custom" in prompt
+    assert "custom_profile: review_audit" in prompt
+    assert "review_entry_rule:" in prompt
+    assert "review_routing_rule:" in prompt
+    assert "review" in prompt
+
+
+def test_prompt_builder_includes_review_followup_and_latex_guidance(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    service = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home))
+    snapshot = service.create(
+        "review the draft and keep going if the fixes are clear",
+        startup_contract={
+            "launch_mode": "custom",
+            "custom_profile": "review_audit",
+            "review_followup_policy": "auto_execute_followups",
+            "manuscript_edit_mode": "latex_required",
+            "review_materials": ["/abs/path/reviews", "/abs/path/paper/latex"],
+            "review_summary": "Audit first, then execute the justified fixes.",
+        },
+    )
+    builder = PromptBuilder(repo_root(), temp_home)
+
+    prompt = builder.build(
+        quest_id=snapshot["quest_id"],
+        skill_id="review",
+        user_message="Audit and keep going through the necessary fixes.",
+        model="gpt-5.4",
+    )
+
+    assert "review_followup_policy: auto_execute_followups" in prompt
+    assert "manuscript_edit_mode: latex_required" in prompt
+    assert "review_followup_rule:" in prompt
+    assert "continue automatically into the required experiments" in prompt
+    assert "manuscript_edit_rule:" in prompt
+    assert "LaTeX tree" in prompt or "LaTeX" in prompt
+
+
+def test_prompt_builder_includes_custom_baseline_execution_policy_guidance(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    service = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home))
+    snapshot = service.create(
+        "respond to reviewer comments without redoing the full baseline unless needed",
+        startup_contract={
+            "launch_mode": "custom",
+            "custom_profile": "revision_rebuttal",
+            "baseline_execution_policy": "skip_unless_blocking",
+            "review_summary": "Only one reviewer item might need an extra comparator.",
+        },
+    )
+    builder = PromptBuilder(repo_root(), temp_home)
+
+    prompt = builder.build(
+        quest_id=snapshot["quest_id"],
+        skill_id="rebuttal",
+        user_message="Handle the rebuttal efficiently.",
+        model="gpt-5.4",
+    )
+
+    assert "baseline_execution_policy: skip_unless_blocking" in prompt
+    assert "baseline_execution_rule:" in prompt
+    assert "do not spend time on baseline reruns by default" in prompt
 
 
 def test_prompt_builder_includes_review_gate_rule_for_paper_like_quests(temp_home: Path) -> None:

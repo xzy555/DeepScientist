@@ -30,6 +30,8 @@ This page is the shortest path to the right document.
 
 - [00 Quick Start](./00_QUICK_START.md)
   Start here if you want to install DeepScientist, launch it locally, and create your first project.
+- [15 Codex Provider Setup](./15_CODEX_PROVIDER_SETUP.md)
+  Read this when you want to run DeepScientist through MiniMax, GLM, Volcengine Ark, Alibaba Bailian, or another Codex profile.
 - [12 Guided Workflow Tour](./12_GUIDED_WORKFLOW_TOUR.md)
   Follow the real product flow from landing page to workspace, step by step.
 - [02 Start Research Guide](./02_START_RESEARCH_GUIDE.md)
@@ -68,6 +70,8 @@ This page is the shortest path to the right document.
 
 - [09 Doctor](./09_DOCTOR.md)
   Start here for diagnostics and common runtime problems.
+- [15 Codex Provider Setup](./15_CODEX_PROVIDER_SETUP.md)
+  Check this if the problem is likely in your Codex profile, provider endpoint, API key, or model configuration.
 - [01 Settings Reference](./01_SETTINGS_REFERENCE.md)
   Check this if the problem is likely caused by config, credentials, or connector setup.
 

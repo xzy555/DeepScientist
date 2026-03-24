@@ -172,7 +172,11 @@ class ConfigManager:
 
     def save_named_payload(self, name: str, payload: dict) -> dict:
         prepared = self._prepare_payload_for_save(name, payload)
-        return self.save_named_text(name, self.render_named_payload(name, prepared))
+        previous = self.load_named_normalized(name) if name in CONFIG_NAMES and self.path_for(name).exists() else default_payload(name, self.home)
+        result = self.save_named_text(name, self.render_named_payload(name, prepared))
+        if result.get("ok") and name == "runners":
+            self._invalidate_codex_bootstrap_state_if_runner_changed(previous, self.load_named_normalized("runners"))
+        return result
 
     def _prepare_payload_for_save(self, name: str, payload: dict) -> dict:
         prepared = deepcopy(payload) if isinstance(payload, dict) else {}
@@ -190,6 +194,35 @@ class ConfigManager:
             lingzhu["auth_ak"] = generate_lingzhu_auth_ak()
         prepared["lingzhu"] = lingzhu
         return prepared
+
+    def _invalidate_codex_bootstrap_state_if_runner_changed(self, previous: dict, current: dict) -> None:
+        previous_codex = previous.get("codex") if isinstance(previous.get("codex"), dict) else {}
+        current_codex = current.get("codex") if isinstance(current.get("codex"), dict) else {}
+        tracked_keys = (
+            "binary",
+            "config_dir",
+            "profile",
+            "model",
+            "model_reasoning_effort",
+            "approval_policy",
+            "sandbox_mode",
+            "env",
+        )
+        if all(previous_codex.get(key) == current_codex.get(key) for key in tracked_keys):
+            return
+        config = self.load_named_normalized("config")
+        bootstrap = config.get("bootstrap") if isinstance(config.get("bootstrap"), dict) else {}
+        bootstrap["codex_ready"] = False
+        bootstrap["codex_last_checked_at"] = utc_now()
+        bootstrap["codex_last_result"] = {
+            "ok": False,
+            "summary": "Codex runner configuration changed. A new startup probe is required.",
+            "warnings": [],
+            "errors": [],
+            "guidance": [],
+        }
+        config["bootstrap"] = bootstrap
+        self.save_named_text("config", self.render_named_payload("config", config))
 
     def bind_qq_main_chat(self, *, profile_id: str | None = None, chat_id: str) -> dict:
         normalized_chat_id = str(chat_id or "").strip()
@@ -451,6 +484,8 @@ This page edits `{home_text}/config/runners.yaml`.
 - keep `codex.enabled: true`
 - keep `claude.enabled: false`
 - `claude` remains TODO / reserved in the current open-source release and is not runnable yet
+- set `codex.profile` only when your Codex CLI uses a named provider profile such as `m27`
+- when you launch DeepScientist ad hoc with a provider profile, you can also use `ds --codex-profile <name>`
 - keep `codex.model_reasoning_effort: xhigh` unless you explicitly want a lighter default
 - keep `codex.retry_on_failure: true` so transient Codex failures can resume automatically
 - keep retry timing near `10s / 6x / 1800s max` so Codex backs off exponentially and the last retry waits about 30 minutes
@@ -462,7 +497,7 @@ The **Test** button checks:
 
 - whether the configured runner binaries are on PATH
 - whether disabled runners are intentionally skipped
-- for Codex, it also runs a real hello probe so login and first-run setup problems surface before quest execution
+- for Codex, it also runs a real hello probe so login problems, profile misconfiguration, and first-run setup issues surface before quest execution
 - it does not simulate the full failure/retry loop, so use quest runtime logs when debugging recovery behavior
 """
         if name == "plugins":
@@ -1152,6 +1187,70 @@ Use **Test** when the file exposes runtime dependencies.
         return str(raw_model).strip()
 
     @staticmethod
+    def _codex_profile_name(config: dict) -> str:
+        raw_profile = config.get("profile")
+        if raw_profile is None:
+            return ""
+        return str(raw_profile).strip()
+
+    @staticmethod
+    def _codex_runner_env(config: dict) -> dict[str, str]:
+        raw_env = config.get("env")
+        if not isinstance(raw_env, dict):
+            return {}
+        resolved: dict[str, str] = {}
+        for key, value in raw_env.items():
+            env_key = str(key or "").strip()
+            if not env_key or value is None:
+                continue
+            resolved[env_key] = str(value)
+        return resolved
+
+    def _codex_missing_binary_guidance(self, config: dict) -> list[str]:
+        profile = self._codex_profile_name(config)
+        guidance = [
+            "Run `npm install -g @researai/deepscientist` again so the bundled Codex dependency is installed.",
+            "If `codex` is still missing, install it explicitly with `npm install -g @openai/codex`.",
+        ]
+        if profile:
+            guidance.extend(
+                [
+                    f"Then verify `codex --profile {profile}` works from a terminal before starting DeepScientist.",
+                    "If that profile uses a custom provider, make sure its API key and Base URL are configured in Codex first.",
+                ]
+            )
+        else:
+            guidance.append("Run `codex --login` (or `codex`) once and finish authentication before starting DeepScientist.")
+        guidance.append("If you use a custom Codex path, set `runners.codex.binary` to that absolute executable path.")
+        return guidance
+
+    def _codex_probe_failure_guidance(self, config: dict) -> tuple[list[str], list[str]]:
+        profile = self._codex_profile_name(config)
+        if profile:
+            return (
+                [
+                    f"Codex profile `{profile}` did not complete the startup hello probe successfully.",
+                ],
+                [
+                    f"Run `codex --profile {profile}` in a terminal and confirm that profile can start normally.",
+                    "If the profile uses a custom provider, make sure its API key, Base URL, and model configuration are available to Codex.",
+                    "If the provider expects the model from the Codex profile itself, set `model: inherit` in `~/DeepScientist/config/runners.yaml`.",
+                    "Then run `ds doctor` and start DeepScientist again.",
+                ],
+            )
+        return (
+            [
+                "Run `codex --login` (or `codex`) once and complete login before starting DeepScientist.",
+            ],
+            [
+                "Run `codex --login` (or `codex`) in a terminal and complete login or first-run setup.",
+                "If `codex` is missing, install it explicitly with `npm install -g @openai/codex`.",
+                "If the configured model is not available to your Codex account, update `~/DeepScientist/config/runners.yaml` and try again.",
+                "Then run `ds doctor` and start DeepScientist again.",
+            ],
+        )
+
+    @staticmethod
     def _codex_model_unavailable(stdout_text: str, stderr_text: str) -> bool:
         haystack = f"{stdout_text}\n{stderr_text}".lower()
         markers = [
@@ -1172,6 +1271,7 @@ Use **Test** when the file exposes runtime dependencies.
         self,
         *,
         resolved_binary: str,
+        profile: str,
         requested_model: str,
         approval_policy: str,
         reasoning_effort: str | None,
@@ -1180,12 +1280,18 @@ Use **Test** when the file exposes runtime dependencies.
         command = [
             resolved_binary,
             "--search",
+        ]
+        if profile:
+            command.extend(["--profile", profile])
+        command.extend(
+            [
             "exec",
             "--json",
             "--cd",
             str(repo_root()),
             "--skip-git-repo-check",
-        ]
+            ]
+        )
         if not self._codex_should_inherit_model(requested_model):
             command.extend(["--model", requested_model])
         if approval_policy:
@@ -1217,6 +1323,7 @@ Use **Test** when the file exposes runtime dependencies.
         checked_at = utc_now()
         binary = str(config.get("binary") or "codex").strip() or "codex"
         resolved_binary = resolve_runner_binary(binary, runner_name="codex")
+        profile = self._codex_profile_name(config)
         requested_model = self._codex_requested_model(config)
         raw_reasoning_effort = config.get("model_reasoning_effort")
         reasoning_effort = (
@@ -1228,6 +1335,7 @@ Use **Test** when the file exposes runtime dependencies.
             "binary": binary,
             "resolved_binary": resolved_binary,
             "config_dir": str(config.get("config_dir") or "~/.codex"),
+            "profile": profile,
             "model": requested_model or "inherit",
             "requested_model": requested_model or "inherit",
             "effective_model": requested_model or "inherit",
@@ -1248,18 +1356,14 @@ Use **Test** when the file exposes runtime dependencies.
                     "DeepScientist could not resolve the bundled or configured `codex` CLI.",
                 ],
                 "details": details,
-                "guidance": [
-                    "Run `npm install -g @researai/deepscientist` again so the bundled Codex dependency is installed.",
-                    "If `codex` is still missing, install it explicitly with `npm install -g @openai/codex`.",
-                    "Run `codex --login` (or `codex`) once and finish authentication before starting DeepScientist.",
-                    "If you use a custom Codex path, set `runners.codex.binary` to that absolute executable path.",
-                ],
+                "guidance": self._codex_missing_binary_guidance(config),
             }
 
         approval_policy = str(config.get("approval_policy") or "on-request").strip()
         sandbox_mode = str(config.get("sandbox_mode") or "workspace-write").strip()
 
         env = os.environ.copy()
+        env.update(self._codex_runner_env(config))
         config_dir = str(config.get("config_dir") or "~/.codex").strip()
         if config_dir:
             env["CODEX_HOME"] = str(Path(config_dir).expanduser())
@@ -1268,6 +1372,7 @@ Use **Test** when the file exposes runtime dependencies.
         def run_probe_once(model_for_command: str) -> tuple[list[str], subprocess.CompletedProcess[str] | None, subprocess.TimeoutExpired | None]:
             command = self._build_codex_probe_command(
                 resolved_binary=resolved_binary,
+                profile=profile,
                 requested_model=model_for_command,
                 approval_policy=approval_policy,
                 reasoning_effort=reasoning_effort,
@@ -1304,14 +1409,13 @@ Use **Test** when the file exposes runtime dependencies.
                 "warnings": [],
                 "errors": [
                     "Codex did not answer the startup hello probe within 90 seconds.",
-                    "Run `codex --login` (or `codex`) manually, complete login, then retry DeepScientist.",
+                    *self._codex_probe_failure_guidance(config)[0],
                 ],
                 "details": details,
                 "guidance": [
-                    "Run `codex --login` (or `codex`) manually to finish interactive login or first-run setup.",
+                    *self._codex_probe_failure_guidance(config)[1],
                     "If `codex` is missing on PATH, install it explicitly with `npm install -g @openai/codex`.",
-                    "Confirm the configured model is available to your account. DeepScientist currently probes Codex with the configured runner model.",
-                    "Run `ds doctor` after login, then start DeepScientist again.",
+                    "Confirm the configured model is available to your Codex setup. DeepScientist currently probes Codex with the configured runner model first.",
                 ],
             }
 
@@ -1389,19 +1493,15 @@ Use **Test** when the file exposes runtime dependencies.
                 warnings.append("Codex returned stderr during the startup probe.")
             if details.get("model_fallback_attempted") and not details.get("model_fallback_used"):
                 warnings.append("DeepScientist also tried the current Codex default model, but that fallback probe did not succeed.")
-            errors.append("Run `codex --login` (or `codex`) once and complete login before starting DeepScientist.")
+            errors.extend(self._codex_probe_failure_guidance(config)[0])
+        failure_guidance = self._codex_probe_failure_guidance(config)[1]
         return {
             "ok": ok,
             "summary": "Codex startup probe completed." if ok else "Codex startup probe failed.",
             "warnings": warnings,
             "errors": errors,
             "details": details,
-            "guidance": [] if ok else [
-                "Run `codex --login` (or `codex`) in a terminal and complete login or first-run setup.",
-                "If `codex` is missing, install it explicitly with `npm install -g @openai/codex`.",
-                "If the configured model is not available to your Codex account, update `~/DeepScientist/config/runners.yaml` and try again.",
-                "Then run `ds doctor` and start DeepScientist again.",
-            ],
+            "guidance": [] if ok else failure_guidance,
         }
 
     def _persist_codex_bootstrap_result(self, result: dict) -> None:
@@ -1418,6 +1518,7 @@ Use **Test** when the file exposes runtime dependencies.
             "guidance": list(result.get("guidance") or []),
             "binary": details.get("binary"),
             "resolved_binary": details.get("resolved_binary"),
+            "profile": details.get("profile"),
             "model": details.get("model"),
             "requested_model": details.get("requested_model"),
             "effective_model": details.get("effective_model"),

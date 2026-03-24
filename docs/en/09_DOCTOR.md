@@ -10,10 +10,18 @@ Use `ds doctor` when DeepScientist does not start cleanly after installation.
    npm install -g @researai/deepscientist
    ```
 
-2. Make sure Codex is installed and authenticated:
+2. Make sure Codex itself is working first:
+
+   Default OpenAI path:
 
    ```bash
    codex --login
+   ```
+
+   Provider-backed profile path:
+
+   ```bash
+   codex --profile minimax
    ```
 
    If `codex` is missing, repair it explicitly with:
@@ -21,8 +29,6 @@ Use `ds doctor` when DeepScientist does not start cleanly after installation.
    ```bash
    npm install -g @openai/codex
    ```
-
-   If your Codex CLI version does not expose `--login`, run `codex` and finish the interactive setup there.
 
 3. Try to start DeepScientist:
 
@@ -81,6 +87,23 @@ If your Codex CLI version does not expose `--login`, run `codex` and finish the 
 
 Finish login once, then rerun `ds doctor`.
 
+### Codex profile works in the terminal, but DeepScientist still fails
+
+Run DeepScientist with the same profile explicitly:
+
+```bash
+ds doctor --codex-profile minimax
+ds --codex-profile minimax
+```
+
+Replace `minimax` with your real profile name such as `m27`, `glm`, `ark`, or `bailian`.
+
+Also check:
+
+- the same shell still exports the provider API key
+- the profile points at the provider's Coding Plan endpoint, not the generic API endpoint
+- `~/DeepScientist/config/runners.yaml` uses `model: inherit` if the provider expects the model to come from the profile itself
+
 ### The configured Codex model is unavailable
 
 DeepScientist blocks startup until Codex passes a real startup hello probe. In the current release, that probe first uses the runner model configured in:
@@ -94,6 +117,8 @@ The default is `gpt-5.4`. If your Codex account or CLI config cannot access that
 ```bash
 ds doctor
 ```
+
+For provider-backed Codex profiles, `model: inherit` is usually the right default.
 
 ### `uv` is missing
 

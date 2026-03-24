@@ -392,6 +392,7 @@ codex:
   enabled: true
   binary: codex
   config_dir: ~/.codex
+  profile: ""
   model: gpt-5.4
   model_reasoning_effort: xhigh
   approval_policy: on-request
@@ -439,6 +440,15 @@ claude:
 - UI label: `Config directory`
 - Meaning: global runner home for auth and global config.
 
+**`profile`**
+
+- Type: `string`
+- Default: `""`
+- UI label: `Codex profile`
+- Meaning: optional Codex profile name passed through as `codex --profile <name>`.
+- Use this when your Codex CLI is already configured for a provider-backed setup such as MiniMax, GLM, Volcengine Ark, or Alibaba Bailian.
+- One-off note: you can also leave this field empty and launch with `ds --codex-profile <name>`.
+
 **`model`**
 
 - Type: `string`
@@ -446,6 +456,7 @@ claude:
 - UI label: `Default model`
 - Meaning: default model used when a project does not override it.
 - Startup note: DeepScientist's Codex readiness probe uses this configured model first. If your Codex account cannot access it, DeepScientist falls back to the current Codex default model and persists `model: inherit`.
+- Provider-profile note: when `profile` is set, `model: inherit` is usually the right choice so the Codex profile itself controls the provider model.
 
 **`model_reasoning_effort`**
 

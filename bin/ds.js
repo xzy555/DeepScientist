@@ -36,15 +36,33 @@ const pythonCommands = new Set([
 const UPDATE_PACKAGE_NAME = String(packageJson.name || '@researai/deepscientist').trim() || '@researai/deepscientist';
 const UPDATE_CHECK_TTL_MS = 12 * 60 * 60 * 1000;
 
-const optionsWithValues = new Set(['--home', '--host', '--port', '--quest-id', '--mode', '--proxy']);
+const optionsWithValues = new Set(['--home', '--host', '--port', '--quest-id', '--mode', '--proxy', '--codex-profile']);
 
-function buildCodexOverrideEnv({ yolo = false } = {}) {
+function buildCodexOverrideEnv({ yolo = false, profile = null } = {}) {
+  const normalizedProfile = typeof profile === 'string' ? profile.trim() : '';
+  const overrides = {};
   if (!yolo) {
-    return {};
+    if (normalizedProfile) {
+      overrides.DEEPSCIENTIST_CODEX_PROFILE = normalizedProfile;
+      overrides.DEEPSCIENTIST_CODEX_MODEL = 'inherit';
+    }
+    return overrides;
   }
-  return {
-    DEEPSCIENTIST_CODEX_YOLO: '1',
-  };
+  overrides.DEEPSCIENTIST_CODEX_YOLO = '1';
+  if (normalizedProfile) {
+    overrides.DEEPSCIENTIST_CODEX_PROFILE = normalizedProfile;
+    overrides.DEEPSCIENTIST_CODEX_MODEL = 'inherit';
+  }
+  return overrides;
+}
+
+function readOptionValue(argv, optionName) {
+  for (let index = 0; index < argv.length; index += 1) {
+    if (argv[index] === optionName && argv[index + 1]) {
+      return argv[index + 1];
+    }
+  }
+  return null;
 }
 
 function printLauncherHelp() {
@@ -84,6 +102,7 @@ Launcher flags:
   --here                Create/use ./DeepScientist under the current working directory as home
   --proxy <url>         Use an outbound HTTP/WS proxy for npm and Python runtime traffic
   --yolo                Run Codex in YOLO mode: approval_policy=never and sandbox_mode=danger-full-access
+  --codex-profile <id>  Run DeepScientist with a specific Codex profile, for example \`m27\`
   --quest-id <id>       Open the TUI on one quest directly
 
 Update:
@@ -754,6 +773,13 @@ function writeCodexPreflightReport(home, probe) {
   const errors = Array.isArray(probe?.errors) ? probe.errors : [];
   const guidance = Array.isArray(probe?.guidance) ? probe.guidance : [];
   const details = probe && typeof probe.details === 'object' ? probe.details : {};
+  const profile = typeof details.profile === 'string' ? details.profile.trim() : '';
+  const intro = profile
+    ? `DeepScientist blocked startup because the Codex hello probe did not pass for profile \`${profile}\`. Verify that \`codex --profile ${profile}\` works on this machine and that the profile's provider-specific API key, Base URL, and model configuration are already set up.`
+    : 'DeepScientist blocked startup because the Codex hello probe did not pass. In most installs, `npm install -g @researai/deepscientist` also installs the bundled Codex dependency. If `codex` is still missing, repair it with `npm install -g @openai/codex`. Then run `codex --login` (or `codex`), finish authentication, run `ds doctor`, and launch `ds` again.';
+  const introZh = profile
+    ? `DeepScientist 启动前进行了 Codex 可用性检查，但 profile \`${profile}\` 的 hello 探测没有通过。请先确认 \`codex --profile ${profile}\` 在当前机器上可以正常启动，并确保该 profile 依赖的 provider API Key、Base URL 和模型配置都已经在 Codex 中配置好。`
+    : 'DeepScientist 启动前进行了 Codex 可用性检查，但 hello 探测没有通过。正常情况下，`npm install -g @researai/deepscientist` 也会一并安装 bundled Codex 依赖；如果此后 `codex` 仍不可用，请再执行 `npm install -g @openai/codex` 修复。然后运行 `codex --login`（或 `codex`）完成认证，再执行 `ds doctor`，最后重新启动 `ds`。';
   const renderItems = (items, tone) =>
     items
       .map(
@@ -814,8 +840,8 @@ function writeCodexPreflightReport(home, probe) {
     <main class="page">
       <section class="panel">
         <h1>DeepScientist could not start Codex</h1>
-        <p class="meta">DeepScientist blocked startup because the Codex hello probe did not pass. In most installs, <code>npm install -g @researai/deepscientist</code> also installs the bundled Codex dependency. If <code>codex</code> is still missing, repair it with <code>npm install -g @openai/codex</code>. Then run <code>codex --login</code> (or <code>codex</code>), finish authentication, run <code>ds doctor</code>, and launch <code>ds</code> again.</p>
-        <p class="meta">DeepScientist 启动前进行了 Codex 可用性检查，但 hello 探测没有通过。正常情况下，<code>npm install -g @researai/deepscientist</code> 也会一并安装 bundled Codex 依赖；如果此后 <code>codex</code> 仍不可用，请再执行 <code>npm install -g @openai/codex</code> 修复。然后运行 <code>codex --login</code>（或 <code>codex</code>）完成认证，再执行 <code>ds doctor</code>，最后重新启动 <code>ds</code>。</p>
+        <p class="meta">${escapeHtml(intro)}</p>
+        <p class="meta">${escapeHtml(introZh)}</p>
 
         <h2>Summary</h2>
         <p>${escapeHtml(probe?.summary || 'Codex startup probe failed.')}</p>
@@ -837,6 +863,10 @@ function writeCodexPreflightReport(home, probe) {
           <dl class="kv">
             <dt>Model</dt>
             <dd>${escapeHtml(details.model || '')}</dd>
+          </dl>
+          <dl class="kv">
+            <dt>Profile</dt>
+            <dd>${escapeHtml(details.profile || '')}</dd>
           </dl>
           <dl class="kv">
             <dt>Exit code</dt>
@@ -950,6 +980,7 @@ function parseLauncherArgs(argv) {
   let daemonOnly = false;
   let skipUpdateCheck = false;
   let yolo = false;
+  let codexProfile = null;
 
   if (args[0] === 'ui') {
     args.shift();
@@ -969,6 +1000,7 @@ function parseLauncherArgs(argv) {
     else if (arg === '--daemon-only') daemonOnly = true;
     else if (arg === '--skip-update-check') skipUpdateCheck = true;
     else if (arg === '--yolo') yolo = true;
+    else if (arg === '--codex-profile' && args[index + 1]) codexProfile = args[++index];
     else if (arg === '--host' && args[index + 1]) host = args[++index];
     else if (arg === '--port' && args[index + 1]) port = Number(args[++index]);
     else if (arg === '--home' && args[index + 1]) home = path.resolve(args[++index]);
@@ -994,6 +1026,7 @@ function parseLauncherArgs(argv) {
     daemonOnly,
     skipUpdateCheck,
     yolo,
+    codexProfile,
   };
 }
 
@@ -2284,6 +2317,10 @@ function normalizePythonCliArgs(args, home) {
     if (arg === '--yolo') {
       continue;
     }
+    if (arg === '--codex-profile') {
+      index += 1;
+      continue;
+    }
     normalized.push(arg);
   }
   return ['--home', home, ...normalized];
@@ -2492,6 +2529,270 @@ function removeDaemonState(home) {
   }
 }
 
+function daemonSupervisorLogPath(home) {
+  return path.join(home, 'logs', 'daemon-supervisor.log');
+}
+
+function appendDaemonSupervisorLog(home, message) {
+  try {
+    const logPath = daemonSupervisorLogPath(home);
+    ensureDir(path.dirname(logPath));
+    fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${String(message || '').trim()}\n`, 'utf8');
+  } catch {}
+}
+
+function observeManagedDaemonChild(home, child, daemonId) {
+  if (!child || typeof child.once !== 'function') {
+    return;
+  }
+  const normalizedDaemonId = String(daemonId || '').trim() || 'unknown';
+  child.once('exit', (code, signal) => {
+    appendDaemonSupervisorLog(
+      home,
+      `daemon ${normalizedDaemonId} exited with code=${code === null ? 'null' : code} signal=${signal || 'null'}`
+    );
+  });
+  child.once('error', (error) => {
+    appendDaemonSupervisorLog(
+      home,
+      `daemon ${normalizedDaemonId} child process error: ${error instanceof Error ? error.message : String(error)}`
+    );
+  });
+}
+
+function encodeSupervisorEnvPayload(envOverrides) {
+  const payload = envOverrides && typeof envOverrides === 'object' && !Array.isArray(envOverrides) ? envOverrides : {};
+  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
+}
+
+function decodeSupervisorEnvPayload(rawValue) {
+  const normalized = String(rawValue || '').trim();
+  if (!normalized) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(Buffer.from(normalized, 'base64').toString('utf8'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function spawnManagedDaemonProcess({ home, runtimePython, host, port, proxy = null, envOverrides = {}, daemonId = null }) {
+  const browserUrl = browserUiUrl(host, port);
+  const daemonBindUrl = bindUiUrl(host, port);
+  const logPath = path.join(home, 'logs', 'daemon.log');
+  ensureDir(path.dirname(logPath));
+  const out = fs.openSync(logPath, 'a');
+  const resolvedDaemonId = String(daemonId || crypto.randomUUID()).trim();
+  const launcherPath = path.join(repoRoot, 'bin', 'ds.js');
+  const child = spawn(
+    runtimePython,
+    [
+      '-m',
+      'deepscientist.cli',
+      '--home',
+      home,
+      ...(normalizeProxyUrl(proxy) ? ['--proxy', normalizeProxyUrl(proxy)] : []),
+      'daemon',
+      '--host',
+      host,
+      '--port',
+      String(port),
+    ],
+    {
+      cwd: repoRoot,
+      detached: true,
+      stdio: ['ignore', out, out],
+      env: {
+        ...process.env,
+        ...envOverrides,
+        DEEPSCIENTIST_REPO_ROOT: repoRoot,
+        DEEPSCIENTIST_NODE_BINARY: process.execPath,
+        DEEPSCIENTIST_LAUNCHER_PATH: launcherPath,
+        DS_DAEMON_ID: resolvedDaemonId,
+        DS_DAEMON_MANAGED_BY: 'ds-launcher',
+      },
+    }
+  );
+  child.unref();
+  const statePayload = {
+    pid: child.pid,
+    host,
+    port,
+    url: browserUrl,
+    bind_url: daemonBindUrl,
+    log_path: logPath,
+    started_at: new Date().toISOString(),
+    home: normalizeHomePath(home),
+    daemon_id: resolvedDaemonId,
+  };
+  writeDaemonState(home, statePayload);
+  return {
+    child,
+    statePayload,
+    browserUrl,
+    bindUrl: daemonBindUrl,
+    logPath,
+  };
+}
+
+function spawnDaemonSupervisor({ home, runtimePython, host, port, proxy = null, envOverrides = {}, daemonId }) {
+  const launcherPath = resolveLauncherPath() || path.join(repoRoot, 'bin', 'ds.js');
+  const args = [
+    launcherPath,
+    '--daemon-supervisor',
+    '--home',
+    home,
+    '--runtime-python',
+    runtimePython,
+    '--host',
+    host,
+    '--port',
+    String(port),
+    '--daemon-id',
+    String(daemonId || '').trim(),
+  ];
+  const normalizedProxy = normalizeProxyUrl(proxy);
+  if (normalizedProxy) {
+    args.push('--proxy', normalizedProxy);
+  }
+  const envPayload = encodeSupervisorEnvPayload(envOverrides);
+  if (envPayload) {
+    args.push('--env-json', envPayload);
+  }
+  const child = spawn(process.execPath, args, {
+    cwd: repoRoot,
+    detached: true,
+    stdio: 'ignore',
+    env: {
+      ...process.env,
+      DEEPSCIENTIST_REPO_ROOT: repoRoot,
+      DEEPSCIENTIST_NODE_BINARY: process.execPath,
+      DEEPSCIENTIST_LAUNCHER_PATH: launcherPath,
+    },
+  });
+  child.unref();
+  return child.pid || null;
+}
+
+function parseDaemonSupervisorArgs(argv) {
+  const args = [...argv];
+  let home = null;
+  let runtimePython = null;
+  let host = '0.0.0.0';
+  let port = 20999;
+  let proxy = null;
+  let daemonId = null;
+  let envJson = '';
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--home' && args[index + 1]) home = path.resolve(args[++index]);
+    else if (arg === '--runtime-python' && args[index + 1]) runtimePython = args[++index];
+    else if (arg === '--host' && args[index + 1]) host = args[++index];
+    else if (arg === '--port' && args[index + 1]) port = Number(args[++index]);
+    else if (arg === '--proxy' && args[index + 1]) proxy = args[++index];
+    else if (arg === '--daemon-id' && args[index + 1]) daemonId = args[++index];
+    else if (arg === '--env-json' && args[index + 1]) envJson = args[++index];
+    else if (arg === '--help' || arg === '-h') return { help: true };
+    else return null;
+  }
+
+  if (!home || !runtimePython || !daemonId || !Number.isFinite(port) || port <= 0) {
+    return null;
+  }
+
+  return {
+    help: false,
+    home,
+    runtimePython,
+    host,
+    port,
+    proxy,
+    daemonId,
+    envOverrides: decodeSupervisorEnvPayload(envJson),
+  };
+}
+
+async function daemonSupervisorMain(rawArgs) {
+  const options = parseDaemonSupervisorArgs(rawArgs);
+  if (!options) {
+    console.error('Invalid daemon supervisor arguments.');
+    process.exit(1);
+  }
+  if (options.help) {
+    process.exit(0);
+  }
+
+  const home = options.home;
+  let trackedDaemonId = String(options.daemonId || '').trim();
+  let restartBackoffMs = 1000;
+  appendDaemonSupervisorLog(home, `supervisor started for daemon ${trackedDaemonId}`);
+
+  while (true) {
+    const state = readDaemonState(home);
+    if (!state) {
+      appendDaemonSupervisorLog(home, 'daemon state removed; supervisor exiting');
+      return;
+    }
+    if (state.shutdown_requested_at) {
+      appendDaemonSupervisorLog(home, 'managed shutdown requested; supervisor exiting');
+      return;
+    }
+    const stateHome = normalizeHomePath(state.home || home);
+    if (stateHome !== normalizeHomePath(home)) {
+      appendDaemonSupervisorLog(home, `daemon state home changed to ${stateHome}; supervisor exiting`);
+      return;
+    }
+    const stateDaemonId = String(state.daemon_id || '').trim();
+    if (trackedDaemonId && stateDaemonId && stateDaemonId !== trackedDaemonId) {
+      appendDaemonSupervisorLog(home, `daemon id changed to ${stateDaemonId}; supervisor exiting`);
+      return;
+    }
+    const health = await fetchHealth(state.url || browserUiUrl(options.host, options.port));
+    if (health && health.status === 'ok' && healthMatchesManagedState({ health, state, home })) {
+      restartBackoffMs = 1000;
+      await sleep(2500);
+      continue;
+    }
+    if (state.pid && isPidAlive(state.pid)) {
+      await sleep(2500);
+      continue;
+    }
+
+    appendDaemonSupervisorLog(
+      home,
+      `daemon ${stateDaemonId || trackedDaemonId || 'unknown'} is not healthy; attempting restart`
+    );
+    try {
+      const restarted = spawnManagedDaemonProcess({
+        home,
+        runtimePython: options.runtimePython,
+        host: options.host,
+        port: options.port,
+        proxy: options.proxy,
+        envOverrides: options.envOverrides,
+      });
+      trackedDaemonId = String(restarted.statePayload.daemon_id || '').trim();
+      observeManagedDaemonChild(home, restarted.child, trackedDaemonId);
+      appendDaemonSupervisorLog(
+        home,
+        `restarted daemon ${trackedDaemonId} with pid ${restarted.statePayload.pid}`
+      );
+      restartBackoffMs = 1000;
+      await sleep(2500);
+    } catch (error) {
+      appendDaemonSupervisorLog(
+        home,
+        `restart failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+      await sleep(restartBackoffMs);
+      restartBackoffMs = Math.min(restartBackoffMs * 2, 30000);
+    }
+  }
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -2661,6 +2962,13 @@ async function stopDaemon(home) {
       console.error(daemonIdentityError({ url, home, health: healthBefore, state }));
       process.exit(1);
     }
+  }
+
+  if (state) {
+    writeDaemonState(home, {
+      ...state,
+      shutdown_requested_at: new Date().toISOString(),
+    });
   }
 
   let stopped = false;
@@ -3253,60 +3561,35 @@ async function startDaemon(home, runtimePython, host, port, proxy = null, envOve
   }
 
   ensureNodeBundle('src/ui', 'dist/index.html');
-
-  const logPath = path.join(home, 'logs', 'daemon.log');
-  ensureDir(path.dirname(logPath));
-  const out = fs.openSync(logPath, 'a');
-  const daemonId = crypto.randomUUID();
-  const child = spawn(
+  const startedProcess = spawnManagedDaemonProcess({
+    home,
     runtimePython,
-    [
-      '-m',
-      'deepscientist.cli',
-      '--home',
-      home,
-      ...(normalizeProxyUrl(proxy) ? ['--proxy', normalizeProxyUrl(proxy)] : []),
-      'daemon',
-      '--host',
-      host,
-      '--port',
-      String(port),
-    ],
-    {
-      cwd: repoRoot,
-      detached: true,
-      stdio: ['ignore', out, out],
-      env: {
-        ...process.env,
-        ...envOverrides,
-        DEEPSCIENTIST_REPO_ROOT: repoRoot,
-        DEEPSCIENTIST_NODE_BINARY: process.execPath,
-        DEEPSCIENTIST_LAUNCHER_PATH: path.join(repoRoot, 'bin', 'ds.js'),
-        DS_DAEMON_ID: daemonId,
-        DS_DAEMON_MANAGED_BY: 'ds-launcher',
-      },
-    }
-  );
-  child.unref();
-  const statePayload = {
-    pid: child.pid,
     host,
     port,
-    url: browserUrl,
-    bind_url: daemonBindUrl,
-    log_path: logPath,
-    started_at: new Date().toISOString(),
-    home: normalizeHomePath(home),
-    daemon_id: daemonId,
-  };
-  writeDaemonState(home, statePayload);
+    proxy,
+    envOverrides,
+  });
+  const logPath = startedProcess.logPath;
 
   for (let attempt = 0; attempt < 60; attempt += 1) {
     const health = await fetchHealth(browserUrl);
     if (health && health.status === 'ok') {
-      if (!healthMatchesManagedState({ health, state: readDaemonState(home), home })) {
-        console.error(daemonIdentityError({ url: browserUrl, home, health, state: readDaemonState(home) }));
+      const liveState = readDaemonState(home);
+      if (!healthMatchesManagedState({ health, state: liveState, home })) {
+        console.error(daemonIdentityError({ url: browserUrl, home, health, state: liveState }));
         process.exit(1);
+      }
+      const supervisorPid = spawnDaemonSupervisor({
+        home,
+        runtimePython,
+        host,
+        port,
+        proxy,
+        envOverrides,
+        daemonId: String((liveState || {}).daemon_id || ''),
+      });
+      if (supervisorPid) {
+        appendDaemonSupervisorLog(home, `supervisor started with pid ${supervisorPid}`);
       }
       return { url: browserUrl, bindUrl: daemonBindUrl, reused: false };
     }
@@ -3380,11 +3663,18 @@ function handleCodexPreflightFailure(error) {
     }
   }
   console.error(`${warningLabel} Recommended fix:`);
-  console.error(`${warningLabel} 1. In most installs, \`npm install -g @researai/deepscientist\` also installs the bundled Codex dependency.`);
-  console.error(`${warningLabel} 2. If \`codex\` is still missing, run \`npm install -g @openai/codex\`.`);
-  console.error(`${warningLabel} 3. Run \`codex --login\` (or \`codex\`) and finish authentication.`);
-  console.error(`${warningLabel} 4. Run \`ds doctor\` and confirm the Codex check passes.`);
-  console.error(`${warningLabel} 5. Run \`ds\` again.`);
+  const guidance = Array.isArray(error.probe?.guidance) && error.probe.guidance.length > 0
+    ? error.probe.guidance
+    : [
+        'In most installs, `npm install -g @researai/deepscientist` also installs the bundled Codex dependency.',
+        'If `codex` is still missing, run `npm install -g @openai/codex`.',
+        'Run `codex --login` (or `codex`) and finish authentication.',
+        'Run `ds doctor` and confirm the Codex check passes.',
+        'Run `ds` again.',
+      ];
+  guidance.forEach((item, index) => {
+    console.error(`${warningLabel} ${index + 1}. ${item}`);
+  });
   openBrowser(error.reportUrl);
   process.exit(1);
   return true;
@@ -3712,7 +4002,7 @@ async function launcherMain(rawArgs) {
 
   const pythonRuntime = ensurePythonRuntime(home);
   const runtimePython = pythonRuntime.runtimePython;
-  const codexOverrideEnv = buildCodexOverrideEnv({ yolo: options.yolo });
+  const codexOverrideEnv = buildCodexOverrideEnv({ yolo: options.yolo, profile: options.codexProfile });
   ensureInitialized(home, runtimePython);
   if (await maybeHandleStartupUpdate(home, rawArgs, options)) {
     return true;
@@ -3765,6 +4055,10 @@ async function launcherMain(rawArgs) {
 
 async function main() {
   const args = process.argv.slice(2);
+  if (args[0] === '--daemon-supervisor') {
+    await daemonSupervisorMain(args.slice(1));
+    return;
+  }
   const positional = findFirstPositionalArg(args);
   if (positional && positional.value === 'update') {
     await updateMain(args);
@@ -3786,7 +4080,10 @@ async function main() {
     const home = resolveHome(args);
     const pythonRuntime = ensurePythonRuntime(home);
     const runtimePython = pythonRuntime.runtimePython;
-    const codexOverrideEnv = buildCodexOverrideEnv({ yolo: args.includes('--yolo') });
+    const codexOverrideEnv = buildCodexOverrideEnv({
+      yolo: args.includes('--yolo'),
+      profile: readOptionValue(args, '--codex-profile'),
+    });
     if (positional.value === 'run' || positional.value === 'daemon') {
       maybePrintOptionalLatexNotice(home);
     }

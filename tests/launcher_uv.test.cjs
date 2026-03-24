@@ -252,6 +252,18 @@ test('parseLauncherArgs accepts --proxy without treating its URL as a positional
   assert.equal(parsed.proxy, 'http://127.0.0.1:58887');
 });
 
+test('parseLauncherArgs accepts --codex-profile for provider-backed Codex setups', () => {
+  const parsed = __internal.parseLauncherArgs([
+    '--port',
+    '8890',
+    '--codex-profile',
+    'm27',
+  ]);
+
+  assert.equal(parsed.port, 8890);
+  assert.equal(parsed.codexProfile, 'm27');
+});
+
 test('repairLegacyPathWrappers rewrites old install wrappers to the current npm launcher', () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-wrapper-repair-'));
   const launcherPath = path.join(tempDir, 'global-ds.js');

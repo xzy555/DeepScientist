@@ -31,10 +31,13 @@ import {
   saveStartResearchTemplate,
   slugifyQuestRepo,
   shouldRecommendStartResearchConnectorBinding,
+  type BaselineExecutionPolicy,
   type CustomProfile,
   type DecisionPolicy,
   type LaunchMode,
+  type ManuscriptEditMode,
   type ResearchIntensity,
+  type ReviewFollowupPolicy,
   type StartResearchTemplate,
   type StartResearchTemplateEntry,
 } from '@/lib/startResearch'
@@ -102,12 +105,24 @@ const copy = {
     basics: 'Core research brief',
     references: 'Baseline & references',
     policy: 'Research contract',
-    launchModeLabel: 'Launch mode',
+    launchModeLabel: 'Launch path',
     launchModeHelp:
-      'Standard starts from the ordinary research loop. Custom is for continuing existing state, rebuttal / revision, or a user-defined brief.',
-    customProfileLabel: 'Custom profile',
+      'First choose whether this project should follow the ordinary research workflow or enter through a custom task type.',
+    standardProfileLabel: 'Entry type',
+    standardProfileHelp:
+      'In Standard mode, this stays on the canonical research workflow.',
+    customProfileLabel: 'Entry type',
     customProfileHelp:
-      'Only shown in custom mode. Use it to tell the agent whether this project should first audit existing state, handle rebuttal work, or follow a freeform brief.',
+      'In Custom mode, choose what kind of entry this is: continue existing state, run a review audit, handle rebuttal / revision, or follow a freeform brief.',
+    reviewFollowupPolicyLabel: 'Review follow-up',
+    reviewFollowupPolicyHelp:
+      'Only meaningful for the Review task type. Use this to decide whether the system should stop after the audit, continue automatically into experiments and manuscript updates, or pause for approval after the audit.',
+    baselineExecutionPolicyLabel: 'Baseline handling',
+    baselineExecutionPolicyHelp:
+      'Only shown in custom mode. Use this to tell the agent whether it should verify/reproduce a baseline first, reuse current evidence only, or skip baseline reruns unless a reviewer-linked issue truly blocks on them.',
+    manuscriptEditModeLabel: 'Manuscript update mode',
+    manuscriptEditModeHelp:
+      'Use this to control whether the system should only give review/rebuttal planning artifacts, produce copy-ready revision text, or require LaTeX-ready revision text and edits.',
     entryStateSummaryLabel: 'Existing state summary',
     entryStateSummaryHelp:
       'Briefly describe what already exists, such as a trusted baseline, finished main runs, analysis results, or a paper draft.',
@@ -118,11 +133,18 @@ const copy = {
       'Use this when the project is driven by reviewer comments, a revision request, or a meta-review.',
     reviewSummaryPlaceholder:
       'Example: reviewers asked for stronger ablations, one extra baseline, and a clearer limitation discussion.',
+    reviewMaterialsLabel: 'Reviewer / revision materials',
+    reviewMaterialsHelp:
+      'Use one URL or one absolute local file/folder path per line for reviewer comments, a decision letter, meta-review notes, or a revision packet.',
+    reviewMaterialsPlaceholder:
+      'Example: /data/rebuttal/review_comments.md or https://openreview.net/forum?id=demo',
     customBriefLabel: 'Custom brief',
     customBriefHelp:
       'Any extra task-specific instruction that should override the standard full-research launch behavior.',
     customBriefPlaceholder:
       'Example: do not rerun the baseline; first normalize existing results, then decide whether supplementary analysis is still needed.',
+    manuscriptEditModeNote:
+      'If `LaTeX required` is selected, provide the LaTeX source tree or a local LaTeX folder path in the manuscript/reference inputs when possible.',
     researchIntensityLabel: 'Research intensity',
     researchIntensityHelp:
       'Choose how much the first autonomous research round should attempt before reporting back.',
@@ -152,12 +174,14 @@ const copy = {
       'Pick a previously confirmed reusable baseline entry from the global registry. Runtime will attach and confirm it before the new project starts.',
     baselineVariant: 'Baseline variant',
     baselineVariantHelp: 'Optional: choose a specific baseline variant when the entry contains multiple variants.',
-    baselineUrls: 'Baseline links',
-    baselineUrlsPlaceholder: 'One repository or artifact URL per line',
-    baselineUrlsHelp: 'Provide source repositories or artifacts that help recover the baseline quickly.',
-    paperUrls: 'Reference papers / repos',
-    paperUrlsPlaceholder: 'Relevant papers, code, benchmarks, or leaderboards',
-    paperUrlsHelp: 'These references help the agent scope the problem and compare against prior work.',
+    baselineUrls: 'Baseline links / local paths',
+    baselineUrlsPlaceholder: 'One URL or one absolute local file/folder path per line',
+    baselineUrlsHelp:
+      'Provide repositories, artifacts, or local file/folder paths that help recover the baseline quickly.',
+    paperUrls: 'Paper / reference sources',
+    paperUrlsPlaceholder: 'Papers, repos, or absolute local file/folder paths',
+    paperUrlsHelp:
+      'These references can be web links or local file/folder paths. Use them for manuscripts, code, benchmarks, or leaderboards.',
     runtimeConstraintsLabel: 'Runtime constraints',
     runtimeConstraintsPlaceholder: 'Budget, hardware, privacy, storage, data access, or deadline constraints',
     runtimeConstraintsHelp: 'Anything here becomes a hard operating rule for the first research round.',
@@ -230,13 +254,97 @@ const copy = {
       manual_integration_only: 'Manual integration only — avoid automatic integration and require explicit merge decisions.',
     },
     launchModeOptions: {
-      standard: 'Standard — start from the ordinary research graph.',
-      custom: 'Custom — continue existing state, rebuttal/revision, or a user-defined brief.',
+      standard: 'Standard workflow — follow the ordinary research graph.',
+      custom: 'Custom entry — continue existing state, review, rebuttal/revision, or a user-defined brief.',
+    },
+    standardProfileChoiceOption: {
+      title: 'Canonical research workflow',
+      meta: 'Standard path',
+      body: 'Stay on the normal full-research route: baseline, idea, experiment, analysis, and then paper work when justified.',
     },
     customProfileOptions: {
       continue_existing_state: 'Continue existing state — first audit baselines, results, drafts, and current project assets.',
+      review_audit: 'Review — run an independent skeptical audit on the current draft or paper package.',
       revision_rebuttal: 'Revision / rebuttal — first interpret reviews, then route extra experiments and writing updates.',
-      freeform: 'Freeform — follow the custom brief and use only the skills actually needed.',
+      freeform: 'Other / freeform — follow the custom brief and use only the skills actually needed.',
+    },
+    customProfileChoiceOptions: {
+      continue_existing_state: {
+        title: 'Continue existing state',
+        meta: 'Reuse-first',
+        body: 'Audit existing baselines, results, drafts, and mixed project assets before deciding whether anything expensive must be rerun.',
+      },
+      review_audit: {
+        title: 'Review',
+        meta: 'Skeptical audit',
+        body: 'Use the current draft or paper package as the active contract and run an independent skeptical review before more writing or finalization.',
+      },
+      revision_rebuttal: {
+        title: 'Rebuttal / revision',
+        meta: 'Reviewer-driven',
+        body: 'Treat reviewer comments, a revision packet, or a decision letter as the active contract. First map comments to actions, then run only the necessary supplementary work.',
+      },
+      freeform: {
+        title: 'Other / freeform',
+        meta: 'User-defined',
+        body: 'Follow the custom brief and open only the skills actually needed. Use this when the task does not match the standard custom entry types.',
+      },
+    },
+    baselineExecutionPolicyOptions: {
+      auto: {
+        title: 'Automatic',
+        meta: 'Recommended',
+        body: 'Let the startup contract and current evidence decide whether rebuttal work should verify, reuse, or skip baseline reruns.',
+      },
+      must_reproduce_or_verify: {
+        title: 'Verify / reproduce first',
+        meta: 'Baseline-first',
+        body: 'Before reviewer-linked follow-up work, recover or verify the baseline/comparator that the rebuttal depends on.',
+      },
+      reuse_existing_only: {
+        title: 'Reuse existing only',
+        meta: 'No fresh rerun',
+        body: 'Trust the current baseline evidence and do not rerun it unless stored results look inconsistent or unusable.',
+      },
+      skip_unless_blocking: {
+        title: 'Skip unless blocking',
+        meta: 'Rebuttal-first',
+        body: 'Do not spend time rerunning baselines by default. Only do it if a named reviewer-linked issue truly requires a missing comparator.',
+      },
+    },
+    reviewFollowupPolicyOptions: {
+      audit_only: {
+        title: 'Audit only',
+        meta: 'Stop after review',
+        body: 'Finish the skeptical audit artifacts and stop with a route recommendation instead of running follow-up experiments or manuscript edits automatically.',
+      },
+      auto_execute_followups: {
+        title: 'Auto execute',
+        meta: 'Run and revise',
+        body: 'After the audit artifacts are durable, continue automatically into the necessary experiments, manuscript deltas, and review-closure work.',
+      },
+      user_gated_followups: {
+        title: 'Ask after audit',
+        meta: 'Approval gate',
+        body: 'Finish the audit first, then raise a structured decision before expensive experiments or manuscript revisions continue.',
+      },
+    },
+    manuscriptEditModeOptions: {
+      none: {
+        title: 'No manuscript edits',
+        meta: 'Planning only',
+        body: 'Limit output to audit / rebuttal planning artifacts and route recommendations.',
+      },
+      copy_ready_text: {
+        title: 'Copy-ready text',
+        meta: 'Section deltas',
+        body: 'Produce manuscript-facing revision text and section-level replacement wording, without requiring LaTeX-specific delivery.',
+      },
+      latex_required: {
+        title: 'LaTeX required',
+        meta: 'LaTeX-ready',
+        body: 'When manuscript revision is needed, prefer the provided LaTeX tree as the writing surface and produce LaTeX-ready replacement text; if LaTeX source is missing, make that blocker explicit.',
+      },
     },
   },
   zh: {
@@ -295,12 +403,24 @@ const copy = {
     basics: '核心研究简述',
     references: 'Baseline 与参考',
     policy: '研究合同',
-    launchModeLabel: '启动模式',
+    launchModeLabel: '启动路径',
     launchModeHelp:
-      'Standard 表示按普通科研主线启动；Custom 用于继续已有状态、处理 rebuttal / revision，或执行自定义研究任务。',
-    customProfileLabel: '自定义档位',
+      '先选择这次项目是走普通科研工作流，还是通过自定义任务入口启动。',
+    standardProfileLabel: '入口类型',
+    standardProfileHelp:
+      '在 Standard 模式下，这里固定为普通科研工作流。',
+    customProfileLabel: '入口类型',
     customProfileHelp:
-      '仅在 Custom 模式下显示。用来告诉 agent 这是继续已有状态、处理审稿回复，还是一个自由定制任务。',
+      '在 Custom 模式下，选择这次启动属于哪一种入口：继续已有状态、Review、Rebuttal / Revision，还是自由任务。',
+    reviewFollowupPolicyLabel: 'Review 后续动作',
+    reviewFollowupPolicyHelp:
+      '仅对 Review 任务类型有意义。用来决定系统是在审计后停止，还是自动继续补实验和改稿，还是先审计再等待你的批准。',
+    baselineExecutionPolicyLabel: 'Baseline 处理方式',
+    baselineExecutionPolicyHelp:
+      '仅在 Custom 模式下显示。用来明确告诉 agent：是先验证/复现 baseline，还是只复用现有证据，还是除非 reviewer-linked 问题卡住否则先跳过 baseline 重跑。',
+    manuscriptEditModeLabel: '论文修改模式',
+    manuscriptEditModeHelp:
+      '用来控制系统是只输出 review/rebuttal 规划产物，还是给出可直接使用的修改文本，还是要求 LaTeX-ready 的修改文本和编辑结果。',
     entryStateSummaryLabel: '已有状态摘要',
     entryStateSummaryHelp:
       '简要写清当前已经有什么，例如可信 baseline、主实验结果、分析结果、论文草稿等。',
@@ -311,11 +431,18 @@ const copy = {
       '当项目由 reviewer comments、revision request 或 meta-review 驱动时，在这里概括主要要求。',
     reviewSummaryPlaceholder:
       '例如：reviewer 要求补更强的 ablation、增加一个 baseline、并澄清 limitation。',
+    reviewMaterialsLabel: '审稿 / 修改材料',
+    reviewMaterialsHelp:
+      '每行填写一个 URL，或一个绝对本地文件/文件夹路径，用于 reviewer comments、decision letter、meta-review 或 revision packet。',
+    reviewMaterialsPlaceholder:
+      '例如：/data/rebuttal/review_comments.md 或 https://openreview.net/forum?id=demo',
     customBriefLabel: '自定义说明',
     customBriefHelp:
       '任何需要覆盖标准 full research 启动方式的额外任务说明，都可以写在这里。',
     customBriefPlaceholder:
       '例如：不要重新跑 baseline；先整理现有结果，再决定是否需要额外分析实验。',
+    manuscriptEditModeNote:
+      '如果选择了 `LaTeX required`，尽量在论文/参考输入里提供 LaTeX 源目录或本地 LaTeX 文件夹路径。',
     researchIntensityLabel: '研究投入强度',
     researchIntensityHelp: '只需决定第一轮自治研究准备投入到什么程度，其余执行策略会自动推导。',
     decisionPolicyLabel: '决策模式',
@@ -343,12 +470,14 @@ const copy = {
     baselineRootHelp: '选择全局 registry 中已经确认可复用的 baseline。运行时会在新项目创建前自动 attach 并 confirm；留空则从零开始建立 baseline。',
     baselineVariant: 'Baseline variant',
     baselineVariantHelp: '可选：当 baseline entry 里包含多个 variant 时，可以在这里指定。',
-    baselineUrls: 'Baseline 链接',
-    baselineUrlsPlaceholder: '每行一个仓库或 artifact 链接',
-    baselineUrlsHelp: '这些链接用于帮助系统更快恢复或修复 baseline。',
-    paperUrls: '参考论文 / 仓库',
-    paperUrlsPlaceholder: '相关论文、代码、benchmark 或 leaderboard',
-    paperUrlsHelp: '这些参考资料会帮助 agent 更好地界定问题和比较工作。',
+    baselineUrls: 'Baseline 链接 / 本地路径',
+    baselineUrlsPlaceholder: '每行一个 URL，或一个绝对本地文件/文件夹路径',
+    baselineUrlsHelp:
+      '这些来源既可以是仓库、artifact，也可以是本地文件或文件夹路径，用于帮助系统更快恢复或修复 baseline。',
+    paperUrls: '论文 / 参考来源',
+    paperUrlsPlaceholder: '论文、仓库，或绝对本地文件/文件夹路径',
+    paperUrlsHelp:
+      '这些参考来源既可以是网络链接，也可以是本地文件或文件夹路径，可用于论文、代码、benchmark 或 leaderboard。',
     runtimeConstraintsLabel: '运行约束',
     runtimeConstraintsPlaceholder: '预算、硬件、隐私、存储、数据访问、截止时间等限制',
     runtimeConstraintsHelp: '写在这里的内容会被视为第一轮研究中的硬性运行约束。',
@@ -421,13 +550,97 @@ const copy = {
       manual_integration_only: '仅手动集成 —— 避免自动集成，所有合并都需要显式决策。',
     },
     launchModeOptions: {
-      standard: 'Standard —— 按普通科研图谱启动。',
-      custom: 'Custom —— 继续已有状态、处理 rebuttal/revision，或执行用户自定义任务。',
+      standard: '标准工作流 —— 按普通科研图谱推进。',
+      custom: '自定义入口 —— 继续已有状态、做 Review、处理 rebuttal/revision，或执行自定义任务。',
+    },
+    standardProfileChoiceOption: {
+      title: '普通科研工作流',
+      meta: '标准主线',
+      body: '沿用常规 full research 路线：baseline、方向选择、主实验、补充分析，以及在证据足够后进入论文工作。',
     },
     customProfileOptions: {
       continue_existing_state: '继续已有状态 —— 先审计 baseline、结果、草稿和现有项目资产。',
+      review_audit: 'Review —— 先对当前 draft / paper package 做一次独立、skeptical 的审计。',
       revision_rebuttal: '审稿修改 / rebuttal —— 先解析 review，再决定补实验和改文。',
-      freeform: '自由模式 —— 以自定义 brief 为主，只打开真正需要的 skills。',
+      freeform: '其它 / 自由模式 —— 以自定义 brief 为主，只打开真正需要的 skills。',
+    },
+    customProfileChoiceOptions: {
+      continue_existing_state: {
+        title: '继续已有状态',
+        meta: '先复用',
+        body: '先审计现有 baseline、结果、草稿和混合资产，再决定是否真的需要重跑任何昂贵步骤。',
+      },
+      review_audit: {
+        title: 'Review',
+        meta: '独立审计',
+        body: '把当前 draft / paper package 当作主动合同，先做一次独立、skeptical 的审阅，再决定是否继续写作或收尾。',
+      },
+      revision_rebuttal: {
+        title: 'Rebuttal / Revision',
+        meta: '审稿驱动',
+        body: '把 reviewer comments、revision packet 或 decision letter 当作主动合同。先拆评论，再只补真正必要的实验和改文。',
+      },
+      freeform: {
+        title: '其它 / 自定义',
+        meta: '用户自定义',
+        body: '以 custom brief 为主，只打开真正需要的 skills。适合不完全属于标准 custom 入口类型的任务。',
+      },
+    },
+    baselineExecutionPolicyOptions: {
+      auto: {
+        title: '自动',
+        meta: '推荐',
+        body: '让启动合同和当前证据自己决定 rebuttal 阶段应该验证、复用还是跳过 baseline 重跑。',
+      },
+      must_reproduce_or_verify: {
+        title: '先验证 / 复现',
+        meta: 'Baseline 优先',
+        body: '在 reviewer-linked 的后续工作之前，先恢复或验证 rebuttal 真正依赖的 baseline / comparator。',
+      },
+      reuse_existing_only: {
+        title: '只复用现有',
+        meta: '不新跑',
+        body: '默认信任当前已有 baseline 证据；除非现有结果不一致或不可用，否则不重新跑。',
+      },
+      skip_unless_blocking: {
+        title: '除非卡住否则跳过',
+        meta: 'Rebuttal 优先',
+        body: '默认先不花时间重跑 baseline；只有当某个 reviewer-linked 问题明确依赖缺失 comparator 时才补跑。',
+      },
+    },
+    reviewFollowupPolicyOptions: {
+      audit_only: {
+        title: '只做审计',
+        meta: '审后停止',
+        body: '完成 skeptical 审计产物后就停止，只给出路由建议，不自动补实验或改稿。',
+      },
+      auto_execute_followups: {
+        title: '自动继续执行',
+        meta: '补实验并改稿',
+        body: '当审计产物落盘后，自动继续进入必要的实验、论文修改和 review closure 工作。',
+      },
+      user_gated_followups: {
+        title: '审后再问我',
+        meta: '批准门',
+        body: '先完成审计，再把昂贵实验或改稿动作整理成结构化决策，等待你的批准后继续。',
+      },
+    },
+    manuscriptEditModeOptions: {
+      none: {
+        title: '不改论文',
+        meta: '只做规划',
+        body: '只输出审计 / rebuttal 规划产物和路由建议，不要求进一步生成可直接替换的论文文本。',
+      },
+      copy_ready_text: {
+        title: '可直接改写文本',
+        meta: '段落替换',
+        body: '输出面向论文的修改文本和 section-level 替换建议，但不强制要求 LaTeX 格式。',
+      },
+      latex_required: {
+        title: 'LaTeX required',
+        meta: 'LaTeX-ready',
+        body: '当需要修改论文时，优先把提供的 LaTeX 树当作写作表面，并输出 LaTeX-ready 的替换文本；如果缺少 LaTeX 源，要明确说明阻塞。',
+      },
     },
   },
 } as const
@@ -897,8 +1110,12 @@ function buildTutorialStartResearchExample(language: 'en' | 'zh'): Partial<Start
       decision_policy: 'autonomous',
       launch_mode: 'standard',
       custom_profile: 'freeform',
+      review_followup_policy: 'audit_only',
+      baseline_execution_policy: 'auto',
+      manuscript_edit_mode: 'none',
       entry_state_summary: '',
       review_summary: '',
+      review_materials: '',
       custom_brief: '',
       user_language: 'zh',
     }
@@ -930,8 +1147,12 @@ function buildTutorialStartResearchExample(language: 'en' | 'zh'): Partial<Start
     decision_policy: 'autonomous',
     launch_mode: 'standard',
     custom_profile: 'freeform',
+    review_followup_policy: 'audit_only',
+    baseline_execution_policy: 'auto',
+    manuscript_edit_mode: 'none',
     entry_state_summary: '',
     review_summary: '',
+    review_materials: '',
     custom_brief: '',
     user_language: 'en',
   }
@@ -1061,6 +1282,76 @@ export function CreateProjectDialog({
     [t]
   )
 
+  const customProfileItems = useMemo(
+    () =>
+      (['continue_existing_state', 'review_audit', 'revision_rebuttal', 'freeform'] as const).map((value) => ({
+        value,
+        title: t.customProfileChoiceOptions[value].title,
+        meta: t.customProfileChoiceOptions[value].meta,
+        description: t.customProfileChoiceOptions[value].body,
+      })),
+    [t]
+  )
+
+  const launchModeItems = useMemo(
+    () =>
+      (['standard', 'custom'] as const).map((value) => {
+        const copy = splitOptionCopy(t.launchModeOptions[value])
+        return {
+          value,
+          title: copy.title,
+          meta: value === 'standard' ? (locale === 'zh' ? '默认' : 'Default') : 'Custom',
+          description: copy.description,
+        }
+      }),
+    [locale, t]
+  )
+
+  const standardProfileItems = useMemo(
+    () => [
+      {
+        value: 'canonical_research_graph' as const,
+        title: t.standardProfileChoiceOption.title,
+        meta: t.standardProfileChoiceOption.meta,
+        description: t.standardProfileChoiceOption.body,
+      },
+    ],
+    [t]
+  )
+
+  const reviewFollowupPolicyItems = useMemo(
+    () =>
+      (['audit_only', 'auto_execute_followups', 'user_gated_followups'] as const).map((value) => ({
+        value,
+        title: t.reviewFollowupPolicyOptions[value].title,
+        meta: t.reviewFollowupPolicyOptions[value].meta,
+        description: t.reviewFollowupPolicyOptions[value].body,
+      })),
+    [t]
+  )
+
+  const baselineExecutionPolicyItems = useMemo(
+    () =>
+      (['auto', 'must_reproduce_or_verify', 'reuse_existing_only', 'skip_unless_blocking'] as const).map((value) => ({
+        value,
+        title: t.baselineExecutionPolicyOptions[value].title,
+        meta: t.baselineExecutionPolicyOptions[value].meta,
+        description: t.baselineExecutionPolicyOptions[value].body,
+      })),
+    [t]
+  )
+
+  const manuscriptEditModeItems = useMemo(
+    () =>
+      (['none', 'copy_ready_text', 'latex_required'] as const).map((value) => ({
+        value,
+        title: t.manuscriptEditModeOptions[value].title,
+        meta: t.manuscriptEditModeOptions[value].meta,
+        description: t.manuscriptEditModeOptions[value].body,
+      })),
+    [t]
+  )
+
   const derivedContract = useMemo(
     () => resolveStartResearchContractFields(form),
     [form.baseline_id, form.research_intensity]
@@ -1125,21 +1416,6 @@ export function CreateProjectDialog({
       return next
     })
   }
-
-  const handleApplyTutorialExample = useCallback(() => {
-    const example = buildTutorialStartResearchExample(locale)
-    setManualOverride(false)
-    setQuestIdManualOverride(false)
-    setForm((current) => {
-      const next: StartResearchTemplate = {
-        ...current,
-        ...example,
-        quest_id: current.quest_id,
-      }
-      saveStartResearchDraft(next)
-      return next
-    })
-  }, [locale])
 
   useEffect(() => {
     if (!open) return
@@ -1437,8 +1713,12 @@ export function CreateProjectDialog({
       decision_policy: next.decision_policy,
       launch_mode: next.launch_mode,
       custom_profile: next.custom_profile,
+      review_followup_policy: next.review_followup_policy,
+      baseline_execution_policy: next.baseline_execution_policy,
+      manuscript_edit_mode: next.manuscript_edit_mode,
       entry_state_summary: next.entry_state_summary,
       review_summary: next.review_summary,
+      review_materials: next.review_materials,
       custom_brief: next.custom_brief,
       user_language: next.user_language,
     })
@@ -1492,6 +1772,20 @@ export function CreateProjectDialog({
         }
       : null
     const derivedFields = resolveStartResearchContractFields(saved)
+    const effectiveReviewFollowupPolicy =
+      saved.custom_profile === 'review_audit' ? saved.review_followup_policy : 'audit_only'
+    const effectiveManuscriptEditMode =
+      saved.custom_profile === 'review_audit' || saved.custom_profile === 'revision_rebuttal'
+        ? saved.manuscript_edit_mode
+        : 'none'
+    const effectiveReviewSummary =
+      saved.custom_profile === 'review_audit' || saved.custom_profile === 'revision_rebuttal'
+        ? saved.review_summary
+        : ''
+    const effectiveReviewMaterials =
+      saved.custom_profile === 'review_audit' || saved.custom_profile === 'revision_rebuttal'
+        ? sanitizeLines(saved.review_materials)
+        : []
     const timeBudget = Number(derivedFields.time_budget_hours)
     const requestedConnectorBindings = connectorChoices
       .map((item) => ({
@@ -1507,6 +1801,9 @@ export function CreateProjectDialog({
       decision_policy: saved.decision_policy,
       launch_mode: saved.launch_mode,
       custom_profile: saved.custom_profile,
+      review_followup_policy: effectiveReviewFollowupPolicy,
+      baseline_execution_policy: saved.baseline_execution_policy,
+      manuscript_edit_mode: effectiveManuscriptEditMode,
       scope: derivedFields.scope,
       baseline_mode: derivedFields.baseline_mode,
       resource_policy: derivedFields.resource_policy,
@@ -1517,7 +1814,8 @@ export function CreateProjectDialog({
       baseline_urls: sanitizeLines(saved.baseline_urls),
       paper_urls: sanitizeLines(saved.paper_urls),
       entry_state_summary: saved.entry_state_summary,
-      review_summary: saved.review_summary,
+      review_summary: effectiveReviewSummary,
+      review_materials: effectiveReviewMaterials,
       custom_brief: saved.custom_brief,
     }
     await onCreate({
@@ -1653,22 +1951,6 @@ export function CreateProjectDialog({
                   />
                 </InlineField>
 
-                {onboardingStatus !== 'running' ? (
-                  <div className="flex justify-end">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="rounded-full"
-                      onClick={handleApplyTutorialExample}
-                      disabled={manualOverride}
-                      title={t.tutorialExampleHelp}
-                    >
-                      {t.tutorialExample}
-                    </Button>
-                  </div>
-                ) : null}
-
                 <InlineField label={t.goalLabel} help={t.goalHelp} dataOnboardingId="start-research-goal">
                   <Textarea
                     value={form.goal}
@@ -1785,31 +2067,65 @@ export function CreateProjectDialog({
               </SectionCard>
 
               <SectionCard title={t.policy} dataOnboardingId="start-research-contract">
-                <InlineField label={t.launchModeLabel} help={t.launchModeHelp} hint={t.launchModeHelp}>
-                  <select
-                    value={form.launch_mode}
-                    onChange={(event) => setField('launch_mode', event.target.value as LaunchMode)}
-                    className={selectClassName}
-                    disabled={manualOverride}
-                  >
-                    <option value="standard">{t.launchModeOptions.standard}</option>
-                    <option value="custom">{t.launchModeOptions.custom}</option>
-                  </select>
-                </InlineField>
+                <ChoiceField
+                  label={t.launchModeLabel}
+                  help={t.launchModeHelp}
+                  hint={t.launchModeHelp}
+                  value={form.launch_mode}
+                  items={launchModeItems}
+                  onChange={(value) => setField('launch_mode', value as LaunchMode)}
+                  disabled={manualOverride}
+                />
                 {form.launch_mode === 'custom' ? (
                   <>
-                    <InlineField label={t.customProfileLabel} help={t.customProfileHelp} hint={t.customProfileHelp}>
-                      <select
-                        value={form.custom_profile}
-                        onChange={(event) => setField('custom_profile', event.target.value as CustomProfile)}
-                        className={selectClassName}
+                    <ChoiceField
+                      label={t.customProfileLabel}
+                      help={t.customProfileHelp}
+                      hint={t.customProfileHelp}
+                      value={form.custom_profile}
+                      items={customProfileItems}
+                      onChange={(value) => setField('custom_profile', value as CustomProfile)}
+                      disabled={manualOverride}
+                    />
+                    <ChoiceField
+                      label={t.baselineExecutionPolicyLabel}
+                      help={t.baselineExecutionPolicyHelp}
+                      hint={t.baselineExecutionPolicyHelp}
+                      value={form.baseline_execution_policy}
+                      items={baselineExecutionPolicyItems}
+                      onChange={(value) => setField('baseline_execution_policy', value as BaselineExecutionPolicy)}
+                      disabled={manualOverride}
+                    />
+                    {form.custom_profile === 'review_audit' ? (
+                      <ChoiceField
+                        label={t.reviewFollowupPolicyLabel}
+                        help={t.reviewFollowupPolicyHelp}
+                        hint={t.reviewFollowupPolicyHelp}
+                        value={form.review_followup_policy}
+                        items={reviewFollowupPolicyItems}
+                        onChange={(value) => setField('review_followup_policy', value as ReviewFollowupPolicy)}
                         disabled={manualOverride}
-                      >
-                        <option value="continue_existing_state">{t.customProfileOptions.continue_existing_state}</option>
-                        <option value="revision_rebuttal">{t.customProfileOptions.revision_rebuttal}</option>
-                        <option value="freeform">{t.customProfileOptions.freeform}</option>
-                      </select>
-                    </InlineField>
+                      />
+                    ) : null}
+                    {form.custom_profile === 'revision_rebuttal' ||
+                    (form.custom_profile === 'review_audit' && form.review_followup_policy !== 'audit_only') ? (
+                      <>
+                        <ChoiceField
+                          label={t.manuscriptEditModeLabel}
+                          help={t.manuscriptEditModeHelp}
+                          hint={t.manuscriptEditModeHelp}
+                          value={form.manuscript_edit_mode}
+                          items={manuscriptEditModeItems}
+                          onChange={(value) => setField('manuscript_edit_mode', value as ManuscriptEditMode)}
+                          disabled={manualOverride}
+                        />
+                        {form.manuscript_edit_mode === 'latex_required' ? (
+                          <div className="rounded-lg border border-[rgba(126,77,42,0.22)] bg-[rgba(126,77,42,0.06)] px-3 py-2 text-[11px] leading-5 text-[rgba(86,82,77,0.88)] dark:border-[rgba(126,77,42,0.22)] dark:bg-[rgba(126,77,42,0.08)] dark:text-[rgba(86,82,77,0.88)]">
+                            {t.manuscriptEditModeNote}
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
                     <InlineField label={t.entryStateSummaryLabel} help={t.entryStateSummaryHelp}>
                       <Textarea
                         value={form.entry_state_summary}
@@ -1819,12 +2135,23 @@ export function CreateProjectDialog({
                         disabled={manualOverride}
                       />
                     </InlineField>
-                    {form.custom_profile === 'revision_rebuttal' ? (
+                    {form.custom_profile === 'review_audit' || form.custom_profile === 'revision_rebuttal' ? (
                       <InlineField label={t.reviewSummaryLabel} help={t.reviewSummaryHelp}>
                         <Textarea
                           value={form.review_summary}
                           onChange={(event) => setField('review_summary', event.target.value)}
                           placeholder={t.reviewSummaryPlaceholder}
+                          className="min-h-[92px] rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs leading-5 dark:border-[rgba(45,42,38,0.09)] dark:bg-white/78"
+                          disabled={manualOverride}
+                        />
+                      </InlineField>
+                    ) : null}
+                    {form.custom_profile === 'review_audit' || form.custom_profile === 'revision_rebuttal' ? (
+                      <InlineField label={t.reviewMaterialsLabel} help={t.reviewMaterialsHelp}>
+                        <Textarea
+                          value={form.review_materials}
+                          onChange={(event) => setField('review_materials', event.target.value)}
+                          placeholder={t.reviewMaterialsPlaceholder}
                           className="min-h-[92px] rounded-[10px] border-[rgba(45,42,38,0.09)] bg-white/75 text-xs leading-5 dark:border-[rgba(45,42,38,0.09)] dark:bg-white/78"
                           disabled={manualOverride}
                         />
@@ -1840,7 +2167,17 @@ export function CreateProjectDialog({
                       />
                     </InlineField>
                   </>
-                ) : null}
+                ) : (
+                  <ChoiceField
+                    label={t.standardProfileLabel}
+                    help={t.standardProfileHelp}
+                    hint={t.standardProfileHelp}
+                    value="canonical_research_graph"
+                    items={standardProfileItems}
+                    onChange={() => {}}
+                    disabled={manualOverride}
+                  />
+                )}
                 <ChoiceField
                   label={t.researchIntensityLabel}
                   help={t.researchIntensityHelp}

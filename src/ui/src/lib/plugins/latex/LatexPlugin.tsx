@@ -46,6 +46,7 @@ import {
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useWorkspaceSurfaceStore } from "@/lib/stores/workspace-surface";
 import { toFilesResourcePath } from "@/lib/utils/resource-paths";
+import { supportsSocketIo } from "@/lib/runtime/quest-runtime";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 configureMonacoLoader();
@@ -78,7 +79,7 @@ function useIsDarkMode(): boolean {
 
 type PdfSurfaceProps = {
   pdfDocument: PDFDocumentProxy;
-  scale: number;
+  zoomFactor: number;
   highlights: IHighlight[];
   onPageWidth: (width: number) => void;
 };
@@ -223,7 +224,7 @@ function resolveLatexFileId(files: LatexFileMeta[], rawPath?: string | null) {
   return simpleName?.id ?? null;
 }
 
-function PdfSurface({ pdfDocument, scale, highlights, onPageWidth }: PdfSurfaceProps) {
+function PdfSurface({ pdfDocument, zoomFactor, highlights, onPageWidth }: PdfSurfaceProps) {
   React.useEffect(() => {
     let cancelled = false;
     pdfDocument
@@ -243,7 +244,9 @@ function PdfSurface({ pdfDocument, scale, highlights, onPageWidth }: PdfSurfaceP
     };
   }, [onPageWidth, pdfDocument]);
 
-  const pdfScaleValue = Number.isFinite(scale) && scale > 0 ? String(scale) : "page-width";
+  const safeZoomFactor = Number.isFinite(zoomFactor) && zoomFactor > 0 ? zoomFactor : 1;
+  const pdfScaleValue =
+    Math.abs(safeZoomFactor - 1) < 0.001 ? "page-width" : `page-width:${safeZoomFactor}`;
 
   return (
     <PdfHighlighter<IHighlight>
@@ -332,6 +335,7 @@ export default function LatexPlugin({ context, tabId, setDirty, setTitle }: Plug
 
   const effectiveReadOnly = viewReadOnly || roleWritable === false;
   const socketAuthMode = "user";
+  const canUseRealtimeSync = supportsSocketIo();
   const isBibFile = activeFileName.toLowerCase().endsWith(".bib");
 
   React.useEffect(() => {
@@ -541,6 +545,33 @@ export default function LatexPlugin({ context, tabId, setDirty, setTitle }: Plug
       yDocRef.current = ydoc;
       yTextRef.current = ytext;
 
+      if (!canUseRealtimeSync) {
+        const seed = await getFileContent(activeFileId);
+        ydoc.transact(() => {
+          const length = ytext.length || 0;
+          if (length) ytext.delete(0, length);
+          if (seed) ytext.insert(0, seed);
+        }, "ds-local-seed");
+
+        const textNow = ytext.toString();
+        setInitialText(textNow);
+        lastSavedRef.current = textNow;
+        setIsDirty(false);
+        setDirty(false);
+        setSyncState("ready");
+
+        cleanup = () => {
+          try {
+            bindingCleanupRef.current?.();
+          } finally {
+            bindingCleanupRef.current = null;
+            if (yDocRef.current === ydoc) yDocRef.current = null;
+            if (yTextRef.current === ytext) yTextRef.current = null;
+          }
+        };
+        return;
+      }
+
       const sync = new ProjectSyncClient(projectId, {
         authMode: socketAuthMode,
         docKind: "latex",
@@ -732,7 +763,7 @@ export default function LatexPlugin({ context, tabId, setDirty, setTitle }: Plug
       cancelled = true;
       cleanup?.();
     };
-  }, [activeFileId, effectiveReadOnly, projectId, resetNonce, setDirty, socketAuthMode, t, user?.id, user?.username]);
+  }, [activeFileId, canUseRealtimeSync, effectiveReadOnly, projectId, resetNonce, setDirty, socketAuthMode, t, user?.id, user?.username]);
 
   const jumpEditorToLine = React.useCallback((line: number) => {
     const editor = editorRef.current;
@@ -2179,7 +2210,7 @@ export default function LatexPlugin({ context, tabId, setDirty, setTitle }: Plug
                 {(pdfDocument) => (
                   <PdfSurface
                     pdfDocument={pdfDocument}
-                    scale={renderScale}
+                    zoomFactor={zoomScale}
                     highlights={emptyHighlights}
                     onPageWidth={handlePageWidth}
                   />

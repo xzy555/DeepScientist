@@ -118,18 +118,21 @@ Good pattern:
 
 Use these fields to reduce ambiguity before the first round starts.
 
-Put repositories in `Baseline links` when:
+Put repositories or absolute local file/folder paths in `Baseline links` when:
 
 - the quest should restore a known repo
 - the baseline must come from a specific official implementation
 
-Put papers or important external references in `Reference papers / repos` when:
+Put papers, manuscript paths, or important external references in `Paper / reference sources` when:
 
 - the task is defined by a paper
 - the expected protocol comes from prior work
 - the system should read a known source first
 
 If you already know the baseline and paper, do not hide them in the main request. Put them in the dedicated fields.
+
+These reference fields are not web-only.
+You can use network links, absolute local file paths, or absolute local folder paths.
 
 ### 4.5 Reusable baseline
 
@@ -176,6 +179,22 @@ Why these defaults are usually correct:
 - `Autonomous` avoids unnecessary blocking
 - `Standard` keeps the workflow on the ordinary path
 - `Research paper = On` keeps analysis and writing in scope
+
+If you switch `Launch mode` to `Custom`, choose the custom task type explicitly:
+
+- `Continue existing state`
+  - for reuse-first work on an existing quest state
+- `Review`
+  - for an independent skeptical audit of a substantial draft or paper package
+- `Rebuttal / revision`
+  - for reviewer-driven work where comments must be mapped into experiments, manuscript deltas, and a response letter
+- `Other / freeform`
+  - for everything else that does not fit the standard custom types
+
+If you choose `Review`, also decide:
+
+- whether the system should stop after the audit or continue automatically into follow-up experiments and manuscript updates
+- whether manuscript-facing output should be ordinary copy-ready text or LaTeX-ready text
 
 ### 4.8 Runtime constraints
 

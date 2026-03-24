@@ -98,6 +98,7 @@ If `codex --login` is unavailable, run `codex` once and finish authentication th
 For detailed install, troubleshooting, PDF compile, and other launch modes, use:
 
 - [Quick Start](docs/en/00_QUICK_START.md)
+- [Codex Provider Setup](docs/en/15_CODEX_PROVIDER_SETUP.md)
 - [Doctor](docs/en/09_DOCTOR.md)
 
 ## Documentation
@@ -111,6 +112,7 @@ For detailed install, troubleshooting, PDF compile, and other launch modes, use:
 - [Lingzhu / Rokid Guide (English)](docs/en/04_LINGZHU_CONNECTOR_GUIDE.md)
 - [Memory and MCP Guide (English)](docs/en/07_MEMORY_AND_MCP.md)
 - [Settings Reference (English)](docs/en/01_SETTINGS_REFERENCE.md)
+- [Codex Provider Setup (English)](docs/en/15_CODEX_PROVIDER_SETUP.md)
 
 ## Maintainers
 

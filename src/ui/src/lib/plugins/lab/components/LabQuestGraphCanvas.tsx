@@ -155,6 +155,8 @@ type QuestNodeData = {
   metricDirection?: 'higher' | 'lower' | null
   metricTone?: 'good' | 'bad' | 'neutral' | null
   metricEmptyReason?: string | null
+  isCurrentWorkspace?: boolean
+  isCurrentPath?: boolean
 }
 
 type AgentNodeData = {
@@ -1663,6 +1665,8 @@ const QuestGraphNode = ({ data }: NodeProps) => {
         nodeData.isRoot && 'is-root',
         nodeData.isHead && 'is-head',
         nodeData.isSelected && 'is-selected',
+        nodeData.isCurrentPath && 'is-current-path',
+        nodeData.isCurrentWorkspace && 'is-current-workspace',
         nodeData.isEvent && 'is-event',
         nodeData.isPlaceholder && 'is-placeholder',
         nodeData.baselineGate === 'waived' && 'is-waived',
@@ -1676,6 +1680,11 @@ const QuestGraphNode = ({ data }: NodeProps) => {
       <Handle type="source" position={FlowPosition.Right} className="lab-flow-handle" />
       <div className="lab-quest-graph-node__eyebrow">
         <span className="lab-quest-graph-node__kind">{semanticLabel}</span>
+        {nodeData.isCurrentWorkspace ? (
+          <span className="lab-quest-graph-node__location is-current">
+            {t('quest_current_workspace_badge', undefined, 'CURRENT')}
+          </span>
+        ) : null}
         {nodeData.verdict ? (
           <span className={cn('lab-quest-graph-node__verdict', `is-${nodeData.verdict}`)}>
             {nodeData.verdict}
@@ -3000,9 +3009,21 @@ function LabQuestGraphCanvasInner({
     const targetBranch =
       pathFilterMode === 'selected'
         ? activeBranch || headBranch || fallbackBranch
-        : headBranch || activeBranch || fallbackBranch
+        : activeBranch || headBranch || fallbackBranch
     return buildBranchLineageSet(branchNodesBase, targetBranch)
   }, [activeBranch, branchNodesBase, headBranch, pathFilterMode])
+
+  const currentWorkspaceBranch = React.useMemo(() => {
+    const fallbackBranch =
+      branchNodesBase.find((node) => node.node_kind !== 'baseline_root' && node.node_kind !== 'placeholder')?.branch_name ||
+      null
+    return activeBranch || headBranch || fallbackBranch || null
+  }, [activeBranch, branchNodesBase, headBranch])
+
+  const currentWorkspaceLineage = React.useMemo(
+    () => buildBranchLineageSet(branchNodesBase, currentWorkspaceBranch),
+    [branchNodesBase, currentWorkspaceBranch]
+  )
 
   const branchNodes = React.useMemo(() => {
     if (pathFilterMode === 'all') return branchNodesBase
@@ -3386,6 +3407,15 @@ function LabQuestGraphCanvasInner({
     return ids
   }, [highlightBranch, highlightNodeId, viewMode, viewNodes])
 
+  const currentPathNodeIds = React.useMemo(() => {
+    if (viewMode !== 'branch' || !currentWorkspaceLineage.size) return new Set<string>()
+    return new Set(
+      viewNodes
+        .filter((node) => node.branch_name && currentWorkspaceLineage.has(node.branch_name))
+        .map((node) => node.node_id)
+    )
+  }, [currentWorkspaceLineage, viewMode, viewNodes])
+
   React.useEffect(() => {
     if (viewMode !== 'event') return
     if (eventTraceMode !== 'compact') return
@@ -3499,8 +3529,12 @@ function LabQuestGraphCanvasInner({
           highlightIds.size > 0
             ? highlightIds.has(node.node_id)
             : viewMode === 'branch'
-              ? node.branch_name === activeBranch
+              ? Boolean(currentWorkspaceBranch && node.branch_name === currentWorkspaceBranch)
               : false
+        const isCurrentWorkspace =
+          viewMode === 'branch' && Boolean(currentWorkspaceBranch && node.branch_name === currentWorkspaceBranch)
+        const isCurrentPath =
+          viewMode === 'branch' && Boolean(node.branch_name && currentWorkspaceLineage.has(node.branch_name))
         return {
           id: node.node_id,
           type: 'questNode',
@@ -3543,6 +3577,8 @@ function LabQuestGraphCanvasInner({
             isRoot: viewMode === 'branch' && isBaselineRoot,
             isPlaceholder: viewMode === 'branch' && isPlaceholder,
             isSelected,
+            isCurrentWorkspace,
+            isCurrentPath,
             isEvent: viewMode === 'event',
             branchName: node.branch_name,
             decisionType: decisionValue ? decisionValue.toLowerCase() : null,
@@ -3598,11 +3634,12 @@ function LabQuestGraphCanvasInner({
         }
       }),
     [
-      activeBranch,
       baselineMetricSnapshot,
       branchInsights,
       curveMetric,
       curveMode,
+      currentWorkspaceBranch,
+      currentWorkspaceLineage,
       headBranch,
       highlightIds,
       interactionLocked,
@@ -3742,6 +3779,8 @@ function LabQuestGraphCanvasInner({
     const questEdges = viewEdges.map((edge, index) => {
       const baseStyle = resolveEdgeStyle(edge.edge_type, edgePalette)
       const isHighlighted = highlightIds.has(edge.source) && highlightIds.has(edge.target)
+      const isCurrentPathEdge =
+        viewMode === 'branch' && currentPathNodeIds.has(edge.source) && currentPathNodeIds.has(edge.target)
       const style = isHighlighted
         ? {
             ...baseStyle,
@@ -3751,7 +3790,16 @@ function LabQuestGraphCanvasInner({
                 ? Math.max(baseStyle.strokeWidth + 0.6, 2)
                 : 2,
           }
-        : baseStyle
+        : isCurrentPathEdge
+          ? {
+              ...baseStyle,
+              stroke: 'rgba(83, 176, 174, 0.82)',
+              strokeWidth:
+                typeof baseStyle.strokeWidth === 'number'
+                  ? Math.max(baseStyle.strokeWidth + 0.3, 1.8)
+                  : 1.8,
+            }
+          : baseStyle
       const color = String(style.stroke || 'var(--lab-border-strong)')
       return {
         id: edge.edge_id || `${edge.source}-${edge.target}-${index}`,
@@ -3772,7 +3820,7 @@ function LabQuestGraphCanvasInner({
       }
     })
     return [...questEdges, ...agentGraph.edges, ...overlayGraph.edges]
-  }, [agentGraph.edges, edgePalette, highlightIds, overlayGraph.edges, viewEdges])
+  }, [agentGraph.edges, currentPathNodeIds, edgePalette, highlightIds, overlayGraph.edges, viewEdges, viewMode])
 
   React.useEffect(() => {
     const forceLayout = viewModeRef.current !== viewMode

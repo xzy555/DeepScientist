@@ -3,6 +3,8 @@
 ## Revision Summary
 
 - current draft state:
+- review_followup_policy:
+- manuscript_edit_mode:
 - highest-priority fixes:
 - blockers:
 
@@ -20,6 +22,8 @@
   - supplementary experiment
   - claim downgrade
 - concrete change:
+- copy-ready revision text:
+- latex-ready revision text:
 - status:
 - blocks finalize:
 

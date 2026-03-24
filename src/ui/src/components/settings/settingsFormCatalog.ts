@@ -526,6 +526,14 @@ export const runnerFields: SettingsField[] = [
     whereToGet: 'Point this to the runner home directory that stores auth and global config files.',
   },
   {
+    key: 'profile',
+    label: 'Codex profile',
+    kind: 'text',
+    placeholder: 'm27',
+    description: 'Optional Codex profile passed through as `codex --profile <name>`.',
+    whereToGet: 'Use this for provider-specific Codex setups such as MiniMax or other custom profiles. Leave it empty for the default login-based Codex path.',
+  },
+  {
     key: 'model',
     label: 'Default model',
     kind: 'text',

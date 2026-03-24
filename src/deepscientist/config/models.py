@@ -95,6 +95,7 @@ def default_runners() -> dict:
             "enabled": True,
             "binary": "codex",
             "config_dir": "~/.codex",
+            "profile": "",
             "model": "gpt-5.4",
             "model_reasoning_effort": "xhigh",
             "approval_policy": "on-request",

@@ -20,7 +20,7 @@ This skill intentionally absorbs the strongest old DeepScientist writing discipl
 ## Interaction discipline
 
 - Follow the shared interaction contract injected by the system prompt.
-- For ordinary active work, prefer a concise progress update once work has crossed roughly 10 tool calls with a human-meaningful delta, and do not drift beyond roughly 20 tool calls or about 15 minutes without a user-visible update.
+- For ordinary active work, prefer a concise progress update once work has crossed roughly 6 tool calls with a human-meaningful delta, and do not drift beyond roughly 12 tool calls or about 8 minutes without a user-visible update.
 - Prefer `bash_exec` for durable document-build commands such as LaTeX compilation, figure regeneration, and scripted export steps so logs remain quest-local and reviewable.
 - Keep ordinary subtask completions concise. When a paper/draft milestone is actually completed, upgrade to a richer `artifact.interact(kind='milestone', reply_mode='threaded', ...)` report instead of another short progress update.
 - That richer writing-stage milestone report should normally cover: which draft, section, or outline milestone finished, what is now supportable, what is still missing, and the exact recommended next revision or route decision.
@@ -146,6 +146,8 @@ The write stage should usually produce most of the following:
 
 - `paper/outline.md` or equivalent outline
 - `paper/selected_outline.json`
+- `paper/paper_experiment_matrix.md`
+- `paper/paper_experiment_matrix.json`
 - `paper/outline_selection.md`
 - `paper/reviewer_first_pass.md`
 - `paper/section_contracts.md`
@@ -202,6 +204,144 @@ At minimum, repeatedly verify:
 - figure and table provenance
 - file inclusion integrity for the draft or bundle
 
+## Paper experiment matrix contract
+
+For any paper-like writing line that has more than a trivial single-result story, create and maintain:
+
+- `paper/paper_experiment_matrix.md`
+- `paper/paper_experiment_matrix.json`
+
+Use `references/paper-experiment-matrix-template.md` when helpful.
+
+The paper experiment matrix is the durable experiment-control surface for the paper line.
+It exists to prevent two common failures:
+
+- an outline that overweights post-hoc analysis and under-specifies paper-typical experiments
+- a drifting supplementary-experiment queue where runs are launched ad hoc without a full paper-facing plan
+
+The matrix is not just an “analysis list”.
+It should cover the full paper-facing experiment program beyond the already-finished main run, including:
+
+- main comparison surfaces that still need packaging or extension
+- component ablations
+- sensitivity / hyperparameter checks
+- robustness or stress checks
+- efficiency / cost / latency / token-overhead checks when the method may have a strong deployment or efficiency story
+- highlight-validation experiments that test the method's most likely reader-facing strengths rather than merely assuming those strengths
+- failure-boundary or limitation-surface analyses
+- case study or trace walkthrough rows as optional supporting material rather than mandatory core evidence
+
+Case study is usually optional.
+Do not let it displace stronger quantitative evidence.
+Efficiency or cost experiments are not mandatory in every paper, but they should be added whenever:
+
+- the method may be attractive partly because it is lightweight or prompt-level
+- the overhead skepticism from reviewers is easy to anticipate
+- a performance-over-cost tradeoff could become part of the paper's practical contribution
+
+Highlight-validation rule:
+
+- do not assume the method's strongest selling point is already obvious from the aggregate metric
+- explicitly write down `highlight hypotheses`
+- plan at least one experiment that could confirm or falsify each serious highlight hypothesis
+
+Typical highlight hypotheses include:
+
+- the method is more selective rather than merely more conservative
+- the gain comes from a named mechanism rather than from generic stubbornness or scale
+- the improvement concentrates on the intended failure regime
+- the method keeps a strong performance / overhead tradeoff
+
+Each matrix row should normally record at least:
+
+- `exp_id`
+- `title`
+- `tier`
+  - `main_required`
+  - `main_optional`
+  - `appendix`
+  - `optional`
+  - `dropped`
+- `experiment_type`
+  - `main_comparison`
+  - `component_ablation`
+  - `sensitivity`
+  - `robustness`
+  - `efficiency_cost`
+  - `highlight_validation`
+  - `failure_boundary`
+  - `case_study_optional`
+- `status`
+  - `proposed`
+  - `planned`
+  - `ready`
+  - `running`
+  - `completed`
+  - `analyzed`
+  - `written`
+  - `excluded`
+  - `blocked`
+- `feasibility_now`
+  - whether the row is runnable with current assets or still blocked
+- `claim_ids`
+- `highlight_ids`
+- `research_question`
+- `hypothesis`
+- `why_this_matters`
+- `comparators`
+- `fixed_conditions`
+- `changed_variables`
+- `metrics`
+- `cost_budget`
+- `minimal_success_criterion`
+- `promotion_rule`
+  - what result would move the row into main text
+  - what result keeps it appendix-only
+  - what result should exclude it
+- `paper_placement`
+  - `main_text`
+  - `appendix`
+  - `maybe`
+  - `omit`
+- `result_artifacts`
+- `next_action`
+
+The matrix should also contain:
+
+- core paper claims
+- highlight hypotheses
+- a short experiment taxonomy summary
+- the current execution frontier
+- an explicit main-text gate
+- a refresh log that records how priorities changed after new evidence arrived
+
+Main-text drafting gate:
+
+- do not treat the main experiments section as stable while any row that is both:
+  - currently feasible
+  - and not marked `optional` or `dropped`
+  remains unaddressed
+- before the experiments section becomes stable, every currently feasible row should be:
+  - `completed`
+  - `analyzed`
+  - `excluded` with a real reason
+  - or `blocked` with a real reason
+
+This does not forbid drafting the introduction, method, or placeholders early.
+It does forbid pretending the paper's experimental story is settled while the feasible experiment frontier is still open.
+
+After every meaningful experiment outcome, even a null result or exclusion:
+
+- reopen the matrix first
+- update the row status and feasibility
+- update `paper_placement`
+- update the claim and highlight impact
+- update the priority order of the remaining rows
+- then decide the next experiment or writing move
+
+Do not decide the next supplementary experiment from memory alone when the matrix exists.
+The matrix should be the authoritative experiment-routing surface for the paper line, and the selected outline's `experimental_designs` should stay consistent with that matrix rather than drifting away from it.
+
 ## Venue template selection
 
 For paper-like writing, use a real venue template rather than improvising a blank LaTeX tree.
@@ -246,18 +386,20 @@ For paper-like deliverables, the safest default order is:
 3. choose the venue template from `templates/`, copy it into `paper/latex/`, and default general ML work to `templates/iclr2026/` unless a stronger venue target exists
 4. if the line benefits from an explicit outline contract, record one or more outline candidates with `artifact.submit_paper_outline(mode='candidate', ...)`
 5. if one outline should become the durable paper contract, select or revise it with `artifact.submit_paper_outline(mode='select'|'revise', ...)`
-6. if the selected outline still exposes evidence gaps, launch an outline-bound `artifact.create_analysis_campaign(...)` before drafting
-7. plan and generate decisive figures or tables
-8. draft sections directly from the evidence and the current working outline; do not force extra outline rounds when direct drafting is clearer and safer
-9. run harsh review and revision cycles
-10. proof, package, submit `artifact.submit_paper_bundle(...)` when the bundle is ready, and then pass to `finalize`
-11. if the final paper PDF exists and QQ milestone media is enabled in config, the bundle-ready milestone may attach that PDF once
+6. create or refresh `paper/paper_experiment_matrix.md` and `paper/paper_experiment_matrix.json` before stabilizing the experiments section
+7. if the selected outline or matrix still exposes evidence gaps, launch an outline-bound and matrix-bound `artifact.create_analysis_campaign(...)` before drafting the experiments section as if it were settled
+8. plan and generate decisive figures or tables
+9. draft sections directly from the evidence and the current working outline; do not force extra outline rounds when direct drafting is clearer and safer
+10. run harsh review and revision cycles
+11. proof, package, submit `artifact.submit_paper_bundle(...)` when the bundle is ready, and then pass to `finalize`
+12. if the final paper PDF exists and QQ milestone media is enabled in config, the bundle-ready milestone may attach that PDF once
 
 Before real drafting, force one explicit planning pass that stabilizes at least:
 
 - the current claim inventory
 - the claim-evidence map skeleton
 - the outline or outline candidates
+- the paper experiment matrix
 - the figure/table plan
 - the main evidence gaps
 
@@ -273,6 +415,7 @@ For substantial paper-like writing, the durable writing plan should usually incl
 
 - section goals
 - paragraph or subsection intent when it materially affects correctness
+- paper experiment matrix status and execution frontier
 - experiment-to-section mapping
 - figure/table-to-data-source mapping
 - citation/search plan
@@ -284,6 +427,7 @@ Do not let drafting quietly outrun the current evidence inventory.
 
 For reviewer-facing structure and section-level drafting contracts, read these references when the line needs sharper paper craft:
 
+- `references/paper-experiment-matrix-template.md`
 - `references/reviewer-first-writing.md`
 - `references/section-contracts.md`
 - `references/sentence-level-proofing.md`
@@ -306,6 +450,21 @@ Also build an experiment inventory before outlining:
   - appendix-only evidence
   - unusable or too-weak evidence
 - verify that each planned main claim has at least one durable evidence path
+- convert that inventory into the paper experiment matrix instead of leaving it as loose notes
+
+When building the matrix, do not reduce the candidate pool to “analysis experiments”.
+The inventory should explicitly consider:
+
+- ablations
+- robustness checks
+- sensitivity or hyperparameter checks
+- efficiency / cost / latency / token-overhead checks
+- experiments aimed at validating likely highlights
+- limitation-boundary analyses
+- optional case studies
+
+If the method appears to have a likely practical or deployment-facing strength, test it directly instead of burying that possibility in prose.
+If the method appears to have a likely conceptual highlight, write the corresponding `highlight hypothesis` and treat it as something that still needs evidence rather than something to assume.
 
 If an experiment is too weak, too tiny, or poorly comparable, do not let it silently anchor a main claim.
 As a strong default, experiments with very small evaluation support, such as `<=10` effective examples or similarly fragile sample counts, should not carry a main-text claim unless the user explicitly accepts that limitation and the caveat is written next to the claim.
@@ -1083,3 +1242,5 @@ Exit the write stage only when one of the following is durably true:
 - the current draft is evidence-complete enough for `finalize`, including a selected outline and a durable paper bundle manifest when the deliverable is paper-like
 - a clear evidence gap has been recorded and the quest is routed backward
 - a packaging or proofing blocker has been recorded and the next action is explicit
+
+For paper-like writing, do not treat the draft as evidence-complete enough for `finalize` while `paper/paper_experiment_matrix.*` still contains currently feasible non-optional rows that remain unresolved.

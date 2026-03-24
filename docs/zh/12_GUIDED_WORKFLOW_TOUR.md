@@ -118,18 +118,21 @@ DeepScientist 常见有两种使用方式：
 
 这两栏的目的，是在第一轮开始前尽量减少歧义。
 
-把仓库放进 `Baseline links`，适合这些情况：
+把仓库或绝对本地文件 / 文件夹路径放进 `Baseline links`，适合这些情况：
 
 - baseline 必须来自某个特定官方仓库
 - quest 需要先恢复指定实现
 
-把论文或关键材料放进 `Reference papers / repos`，适合这些情况：
+把论文、manuscript 路径或关键材料放进 `Paper / reference sources`，适合这些情况：
 
 - 任务由某篇论文定义
 - 评测协议来自某个明确来源
 - 系统应该优先阅读某篇参考资料
 
 如果你已经知道 baseline 和论文，不要把它们藏在主请求正文里，应该放进专门字段。
+
+这两个参考字段不是只能填网络链接。
+你也可以直接填写绝对本地文件路径，或者绝对本地文件夹路径。
 
 ### 4.5 Reusable baseline
 
@@ -176,6 +179,22 @@ DeepScientist 常见有两种使用方式：
 - `Autonomous` 可以减少无谓阻塞
 - `Standard` 让 quest 按普通研究主线启动
 - `Research paper = On` 可以把分析与写作保持在范围内
+
+如果你把 `Launch mode` 切到 `Custom`，要进一步明确自定义任务类型：
+
+- `Continue existing state`
+  - 适合已有资产很多、希望先复用再决策的任务
+- `Review`
+  - 适合已有较完整 draft / paper package，想先做一次独立 skeptical 审计
+- `Rebuttal / revision`
+  - 适合 reviewer comments 驱动，需要把评论映射成补实验、改文和 response letter 的任务
+- `Other / freeform`
+  - 适合其他不完全属于标准 custom 类型的任务
+
+如果你选择的是 `Review`，还要继续决定：
+
+- 审计后是直接停止，还是自动继续补实验和改稿
+- 论文修改输出是普通可直接替换文本，还是 LaTeX-ready 文本
 
 ### 4.8 Runtime constraints
 

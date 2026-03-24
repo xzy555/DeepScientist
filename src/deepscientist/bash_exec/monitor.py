@@ -22,7 +22,7 @@ from .service import (
     _coerce_session_status,
     _parse_progress_marker,
 )
-from ..shared import append_jsonl, ensure_dir, read_json, read_jsonl, utc_now
+from ..shared import append_jsonl, ensure_dir, iter_jsonl, read_json, read_jsonl, utc_now
 
 DEFAULT_STOP_GRACE_SECONDS = 5
 TERMINAL_IO_POLL_SECONDS = 0.02
@@ -298,7 +298,7 @@ def run_monitor(session_dir: Path) -> int:
     log_path.touch(exist_ok=True)
     input_path.touch(exist_ok=True)
     if not input_cursor_path.exists():
-        _atomic_write_json(input_cursor_path, {"offset": len(read_jsonl(input_path)), "updated_at": utc_now()})
+        _atomic_write_json(input_cursor_path, {"offset": sum(1 for _ in iter_jsonl(input_path)), "updated_at": utc_now()})
 
     tool_env = os.environ.pop("DS_BASH_EXEC_TOOL_ENV", "")
     env_payload = os.environ.copy()
@@ -451,9 +451,11 @@ def run_monitor(session_dir: Path) -> int:
             if output_fd is not None and process.poll() is None:
                 cursor_payload = read_json(input_cursor_path, {}) or {}
                 offset = int(cursor_payload.get("offset") or 0)
-                input_entries = read_jsonl(input_path)
-                if offset < len(input_entries):
-                    for entry in input_entries[offset:]:
+                total_input_entries = sum(1 for _ in iter_jsonl(input_path))
+                if offset < total_input_entries:
+                    for index, entry in enumerate(iter_jsonl(input_path)):
+                        if index < offset:
+                            continue
                         raw_data = str(entry.get("data") or "")
                         if raw_data:
                             try:

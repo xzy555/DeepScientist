@@ -6,7 +6,7 @@ from typing import Any
 from ..connector_runtime import build_discovered_target, conversation_identity_key, format_conversation_id, merge_discovered_targets, parse_conversation_id
 from ..bridges import get_connector_bridge
 from ..connector.qq_profiles import find_qq_profile, list_qq_profiles, merge_qq_profile_config, qq_profile_label
-from ..shared import append_jsonl, ensure_dir, generate_id, read_json, read_jsonl, utc_now, write_json
+from ..shared import append_jsonl, count_jsonl, ensure_dir, generate_id, read_json, read_jsonl, read_jsonl_tail, utc_now, write_json
 from .base import BaseChannel
 
 
@@ -387,9 +387,9 @@ class QQRelayChannel(BaseChannel):
             "main_chat_id": main_chat_id,
             "last_conversation_id": last_conversation_id,
             "last_error": last_error,
-            "inbox_count": len(read_jsonl(self.inbox_path)),
-            "outbox_count": len(read_jsonl(self.outbox_path)),
-            "ignored_count": len(read_jsonl(self.ignored_path)),
+            "inbox_count": count_jsonl(self.inbox_path),
+            "outbox_count": count_jsonl(self.outbox_path),
+            "ignored_count": count_jsonl(self.ignored_path),
             "binding_count": len(bindings),
             "bindings": bindings,
             "known_targets": known_targets,
@@ -947,15 +947,15 @@ class QQRelayChannel(BaseChannel):
 
     def _recent_events(self) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []
-        for record in read_jsonl(self.inbox_path)[-self.recent_event_limit :]:
+        for record in read_jsonl_tail(self.inbox_path, self.recent_event_limit):
             event = self._build_recent_event("inbound", record)
             if event is not None:
                 events.append(event)
-        for record in read_jsonl(self.outbox_path)[-self.recent_event_limit :]:
+        for record in read_jsonl_tail(self.outbox_path, self.recent_event_limit):
             event = self._build_recent_event("outbound", record)
             if event is not None:
                 events.append(event)
-        for record in read_jsonl(self.ignored_path)[-self.recent_event_limit :]:
+        for record in read_jsonl_tail(self.ignored_path, self.recent_event_limit):
             event = self._build_recent_event("ignored", record)
             if event is not None:
                 events.append(event)

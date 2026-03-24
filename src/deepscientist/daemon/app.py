@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import base64
+from collections import deque
+import faulthandler
 import json
 import mimetypes
 import os
 import re
+import signal
 import shutil
 import subprocess
+import sys
 import threading
 import time
+import traceback
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -67,7 +72,7 @@ from ..connector.qq_profiles import list_qq_profiles, merge_qq_profile_config, n
 from ..quest import QuestService
 from ..runners import CodexRunner, RunRequest, get_runner_factory, register_builtin_runners
 from ..runtime_logs import JsonlLogger
-from ..shared import append_jsonl, ensure_dir, generate_id, read_json, read_jsonl, read_text, resolve_within, run_command, slugify, utc_now, which, write_json
+from ..shared import append_jsonl, ensure_dir, generate_id, iter_jsonl, read_json, read_jsonl, read_jsonl_tail, read_text, resolve_within, run_command, slugify, utc_now, which, write_json
 from ..skills import SkillInstaller
 from ..team import SingleTeamService
 from ..connector.weixin_support import (
@@ -87,6 +92,7 @@ from websockets.sync.server import Server as WebSocketServer
 from websockets.sync.server import ServerConnection, serve as websocket_serve
 
 TERMINAL_STREAM_IDLE_SLEEP_SECONDS = 0.02
+_AUTO_CONTINUE_DELAY_SECONDS = 0.2
 CODEX_RETRY_DEFAULT_MAX_ATTEMPTS = 5
 CODEX_RETRY_DEFAULT_INITIAL_BACKOFF_SEC = 10.0
 CODEX_RETRY_DEFAULT_BACKOFF_MULTIPLIER = 6.0
@@ -94,6 +100,8 @@ CODEX_RETRY_DEFAULT_MAX_BACKOFF_SEC = 1800.0
 LEGACY_CODEX_RETRY_INITIAL_BACKOFF_SEC = 1.0
 LEGACY_CODEX_RETRY_BACKOFF_MULTIPLIER = 2.0
 LEGACY_CODEX_RETRY_MAX_BACKOFF_SEC = 8.0
+_CRASH_AUTO_RESUME_COOLDOWN = timedelta(minutes=10)
+_CRASH_AUTO_RESUME_MAX_RECENT_ATTEMPTS = 2
 _LINGZHU_SHORT_COMMAND_DIRECT_MAP = {
     "帮助": "help",
     "列表": "list",
@@ -188,6 +196,9 @@ class DaemonApp:
         self._feishu_long_connection: dict[str, FeishuLongConnectionService] = {}
         self._whatsapp_local_session: dict[str, WhatsAppLocalSessionService] = {}
         self._weixin_login_sessions: dict[str, dict[str, Any]] = {}
+        self._process_hooks_installed = False
+        self._faulthandler_stream = None
+        self._recovered_quest_ids: set[str] = set()
         self.handlers = ApiHandlers(self)
 
     def list_connector_statuses(self) -> list[dict[str, object]]:
@@ -377,6 +388,262 @@ class DaemonApp:
             "preferred_conversation_id": preferred_conversation_id,
             "available_connectors": available_connectors,
         }
+
+    def _log_unhandled_exception(
+        self,
+        *,
+        event_type: str,
+        exc_type: type[BaseException],
+        exc_value: BaseException,
+        exc_traceback: Any,
+        thread_name: str | None = None,
+    ) -> None:
+        try:
+            traceback_text = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+        except Exception:
+            traceback_text = str(exc_value or "")
+        payload: dict[str, Any] = {
+            "exception_type": getattr(exc_type, "__name__", str(exc_type)),
+            "message": str(exc_value),
+            "traceback": traceback_text,
+            "pid": os.getpid(),
+        }
+        if thread_name:
+            payload["thread_name"] = thread_name
+        self.logger.log("error", event_type, **payload)
+
+    def _handle_process_signal(self, signame: str) -> None:
+        self.logger.log(
+            "warning",
+            "daemon.signal_received",
+            signal=signame,
+            pid=os.getpid(),
+        )
+        self.request_shutdown(source=f"signal:{str(signame).lower()}")
+
+    def _install_process_observability(self) -> None:
+        if self._process_hooks_installed:
+            return
+        self._process_hooks_installed = True
+        faulthandler_path = self.home / "logs" / "daemon-faulthandler.log"
+        try:
+            ensure_dir(faulthandler_path.parent)
+            self._faulthandler_stream = open(faulthandler_path, "a", encoding="utf-8")
+            faulthandler.enable(file=self._faulthandler_stream)
+        except Exception as exc:
+            self.logger.log("warning", "daemon.faulthandler_enable_failed", error=str(exc))
+
+        def _sys_excepthook(exc_type: type[BaseException], exc_value: BaseException, exc_traceback: Any) -> None:
+            self._log_unhandled_exception(
+                event_type="daemon.unhandled_exception",
+                exc_type=exc_type,
+                exc_value=exc_value,
+                exc_traceback=exc_traceback,
+            )
+
+        def _thread_excepthook(args: threading.ExceptHookArgs) -> None:
+            self._log_unhandled_exception(
+                event_type="daemon.thread_exception",
+                exc_type=args.exc_type,
+                exc_value=args.exc_value,
+                exc_traceback=args.exc_traceback,
+                thread_name=getattr(args.thread, "name", None),
+            )
+
+        sys.excepthook = _sys_excepthook
+        threading.excepthook = _thread_excepthook
+        for signame in ("SIGTERM", "SIGHUP", "SIGINT"):
+            signum = getattr(signal, signame, None)
+            if signum is None:
+                continue
+            try:
+                signal.signal(signum, lambda _signum, _frame, _signame=signame: self._handle_process_signal(_signame))
+            except Exception as exc:
+                self.logger.log(
+                    "warning",
+                    "daemon.signal_handler_install_failed",
+                    signal=signame,
+                    error=str(exc),
+                )
+        self.logger.log("info", "daemon.process_hooks_installed", pid=os.getpid())
+
+    def _resume_reconciled_quests(self) -> list[dict[str, Any]]:
+        resumed: list[dict[str, Any]] = []
+        for item in self.reconciled_quests:
+            if not isinstance(item, dict):
+                continue
+            quest_id = str(item.get("quest_id") or "").strip()
+            if not quest_id or quest_id in self._recovered_quest_ids:
+                continue
+            if not bool(item.get("recoverable")):
+                continue
+            recent_attempts = self._recent_crash_auto_resume_count(quest_id)
+            if recent_attempts >= _CRASH_AUTO_RESUME_MAX_RECENT_ATTEMPTS:
+                self._record_auto_resume_suppressed(
+                    quest_id=quest_id,
+                    previous_status=str(item.get("previous_status") or "").strip() or None,
+                    abandoned_run_id=str(item.get("abandoned_run_id") or "").strip() or None,
+                    last_transition_at=str(item.get("last_transition_at") or "").strip() or None,
+                    recent_attempts=recent_attempts,
+                )
+                continue
+            try:
+                resume_payload = self.resume_quest(quest_id, source="auto:daemon-recovery")
+                snapshot = (
+                    dict(resume_payload.get("snapshot") or {})
+                    if isinstance(resume_payload.get("snapshot"), dict)
+                    else self.quest_service.snapshot(quest_id)
+                )
+                reason = (
+                    "queued_user_messages"
+                    if int(snapshot.get("pending_user_message_count") or 0) > 0
+                    else "auto_continue"
+                )
+                scheduled = self.schedule_turn(quest_id, reason=reason)
+                event = {
+                    "event_id": generate_id("evt"),
+                    "type": "quest.runtime_auto_resumed",
+                    "quest_id": quest_id,
+                    "previous_status": item.get("previous_status"),
+                    "abandoned_run_id": item.get("abandoned_run_id"),
+                    "last_transition_at": item.get("last_transition_at"),
+                    "reason": reason,
+                    "scheduled": bool(scheduled.get("scheduled")),
+                    "started": bool(scheduled.get("started")),
+                    "queued": bool(scheduled.get("queued")),
+                    "created_at": utc_now(),
+                }
+                append_jsonl(self.home / "quests" / quest_id / ".ds" / "events.jsonl", event)
+                self.logger.log(
+                    "warning",
+                    "quest.runtime_auto_resumed",
+                    quest_id=quest_id,
+                    previous_status=item.get("previous_status"),
+                    abandoned_run_id=item.get("abandoned_run_id"),
+                    last_transition_at=item.get("last_transition_at"),
+                    reason=reason,
+                    scheduled=bool(scheduled.get("scheduled")),
+                    started=bool(scheduled.get("started")),
+                    queued=bool(scheduled.get("queued")),
+                )
+                self._recovered_quest_ids.add(quest_id)
+                resumed.append(
+                    {
+                        "quest_id": quest_id,
+                        "previous_status": item.get("previous_status"),
+                        "abandoned_run_id": item.get("abandoned_run_id"),
+                        "last_transition_at": item.get("last_transition_at"),
+                        "reason": reason,
+                        "scheduled": dict(scheduled),
+                    }
+                )
+            except Exception as exc:
+                self.logger.log(
+                    "warning",
+                    "quest.runtime_auto_resume_failed",
+                    quest_id=quest_id,
+                    previous_status=item.get("previous_status"),
+                    abandoned_run_id=item.get("abandoned_run_id"),
+                    error=str(exc),
+                )
+        return resumed
+
+    @staticmethod
+    def _parse_event_timestamp(value: Any) -> datetime | None:
+        normalized = str(value or "").strip()
+        if not normalized:
+            return None
+        candidate = normalized.replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(candidate)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
+
+    def _recent_crash_auto_resume_count(self, quest_id: str) -> int:
+        quest_root = self.home / "quests" / quest_id
+        events = read_jsonl_tail(quest_root / ".ds" / "events.jsonl", 400)
+        now = datetime.now(UTC)
+        count = 0
+        for event in reversed(events[-200:]):
+            if str(event.get("type") or "").strip() != "quest.runtime_auto_resumed":
+                continue
+            parsed = self._parse_event_timestamp(event.get("created_at"))
+            if parsed is None:
+                continue
+            if now - parsed > _CRASH_AUTO_RESUME_COOLDOWN:
+                continue
+            count += 1
+        return count
+
+    def _record_auto_resume_suppressed(
+        self,
+        *,
+        quest_id: str,
+        previous_status: str | None,
+        abandoned_run_id: str | None,
+        last_transition_at: str | None,
+        recent_attempts: int,
+    ) -> None:
+        summary = self._polite_copy(
+            zh=(
+                "检测到 quest 在短时间内连续异常恢复，系统已暂时停止自动继续运行，"
+                "以避免进入重复崩溃循环。请先检查运行环境或 runner 侧问题，再手动恢复。"
+            ),
+            en=(
+                "DeepScientist detected repeated crash recovery attempts in a short window, "
+                "so automatic continuation has been paused to avoid a crash loop. "
+                "Inspect the runtime or runner path before resuming manually."
+            ),
+        )
+        payload = {
+            "event_id": generate_id("evt"),
+            "type": "quest.runtime_auto_resume_suppressed",
+            "quest_id": quest_id,
+            "previous_status": previous_status,
+            "abandoned_run_id": abandoned_run_id,
+            "last_transition_at": last_transition_at,
+            "recent_attempts": recent_attempts,
+            "cooldown_minutes": int(_CRASH_AUTO_RESUME_COOLDOWN.total_seconds() // 60),
+            "summary": summary,
+            "created_at": utc_now(),
+        }
+        append_jsonl(self.home / "quests" / quest_id / ".ds" / "events.jsonl", payload)
+        self.logger.log(
+            "warning",
+            "quest.runtime_auto_resume_suppressed",
+            quest_id=quest_id,
+            previous_status=previous_status,
+            abandoned_run_id=abandoned_run_id,
+            last_transition_at=last_transition_at,
+            recent_attempts=recent_attempts,
+            cooldown_minutes=int(_CRASH_AUTO_RESUME_COOLDOWN.total_seconds() // 60),
+        )
+        self.quest_service.append_message(
+            quest_id,
+            role="assistant",
+            content=summary,
+            source="system-control",
+        )
+        self._relay_quest_message_to_bound_connectors(
+            quest_id,
+            message=summary,
+            kind="progress",
+            response_phase="control",
+            importance="warning",
+            attachments=[
+                {
+                    "kind": "quest_control",
+                    "action": "auto_resume_suppressed",
+                    "previous_status": previous_status,
+                    "abandoned_run_id": abandoned_run_id,
+                    "recent_attempts": recent_attempts,
+                    "cooldown_minutes": int(_CRASH_AUTO_RESUME_COOLDOWN.total_seconds() // 60),
+                }
+            ],
+        )
 
     def _normalize_requested_connector_bindings(
         self,
@@ -1361,6 +1628,7 @@ class DaemonApp:
             status=str(snapshot.get("status") or next_status),
             interrupted=False,
             summary=summary,
+            automated=source.startswith("auto:"),
         )
         notice = self._announce_control_state(
             quest_id,
@@ -1425,6 +1693,7 @@ class DaemonApp:
         message = self._control_notice_message(
             quest_id,
             action=action,
+            source=source,
             snapshot=snapshot,
             interrupted=interrupted,
             cancelled_pending_user_message_count=cancelled_pending_user_message_count,
@@ -1485,6 +1754,7 @@ class DaemonApp:
         quest_id: str,
         *,
         action: str,
+        source: str,
         snapshot: dict,
         interrupted: bool,
         cancelled_pending_user_message_count: int,
@@ -1503,6 +1773,13 @@ class DaemonApp:
                     en="The current Git branch and worktree were kept intact, and the quest will continue from the existing research context.",
                 ),
             ]
+            if source.startswith("auto:daemon-recovery"):
+                lines.append(
+                    self._polite_copy(
+                        zh="检测到 daemon 曾异常退出；当前 quest 已在自动恢复后继续运行。",
+                        en="The daemon exited unexpectedly before; this quest has now been recovered automatically and will continue.",
+                    )
+                )
         elif action == "pause":
             lines = [
                 self._polite_copy(
@@ -2156,8 +2433,12 @@ class DaemonApp:
         snapshot = self.quest_service.snapshot(quest_id)
         quest_root = Path(snapshot["quest_root"])
         workspace_root = Path(str(snapshot.get("current_workspace_root") or snapshot.get("quest_root") or quest_root))
-        quest_events = read_jsonl(quest_root / ".ds" / "events.jsonl")
-        run_events = [event for event in quest_events if str(event.get("run_id") or "").strip() == failed_run_id][-120:]
+        run_events_window: deque[dict[str, Any]] = deque(maxlen=120)
+        for event in iter_jsonl(quest_root / ".ds" / "events.jsonl"):
+            if str(event.get("run_id") or "").strip() != failed_run_id:
+                continue
+            run_events_window.append(event)
+        run_events = list(run_events_window)
 
         recent_messages: list[str] = []
         tool_progress: list[dict[str, str]] = []
@@ -2317,12 +2598,29 @@ class DaemonApp:
             if int(snapshot.get("pending_user_message_count") or 0) > 0:
                 self.schedule_turn(quest_id, reason="queued_user_messages")
             else:
-                self.schedule_turn(quest_id, reason="auto_continue")
+                self._schedule_turn_later(quest_id, reason="auto_continue", delay_seconds=_AUTO_CONTINUE_DELAY_SECONDS)
             return
         if int(snapshot.get("pending_user_message_count") or 0) > 0:
             self.schedule_turn(quest_id, reason="queued_user_messages")
             return
-        self.schedule_turn(quest_id, reason="auto_continue")
+        self._schedule_turn_later(quest_id, reason="auto_continue", delay_seconds=_AUTO_CONTINUE_DELAY_SECONDS)
+
+    def _schedule_turn_later(self, quest_id: str, *, reason: str, delay_seconds: float) -> None:
+        def _delayed() -> None:
+            time.sleep(max(0.0, delay_seconds))
+            if self._turn_stop_requested(quest_id):
+                return
+            snapshot = self.quest_service.snapshot(quest_id)
+            status = str(snapshot.get("status") or snapshot.get("runtime_status") or "").strip().lower()
+            if status in {"completed", "paused", "stopped", "error", "waiting_for_user"}:
+                return
+            self.schedule_turn(quest_id, reason=reason)
+
+        threading.Thread(
+            target=_delayed,
+            daemon=True,
+            name=f"deepscientist-turn-delay-{quest_id}",
+        ).start()
 
     def _relay_quest_message_to_bound_connectors(
         self,
@@ -5737,6 +6035,7 @@ class DaemonApp:
             return
 
     def serve(self, host: str, port: int) -> None:
+        self._install_process_observability()
         app = self
 
         class RequestHandler(BaseHTTPRequestHandler):
@@ -5887,11 +6186,20 @@ class DaemonApp:
         self._shutdown_requested.clear()
         self._start_terminal_attach_server(host, port)
         self._start_background_connectors()
+        self._resume_reconciled_quests()
         print(f"DeepScientist daemon listening on http://{host}:{port}")
         try:
             server.serve_forever()
         except KeyboardInterrupt:
-            pass
+            self.logger.log("warning", "daemon.keyboard_interrupt", pid=os.getpid())
+        except BaseException as exc:
+            self._log_unhandled_exception(
+                event_type="daemon.serve_crashed",
+                exc_type=type(exc),
+                exc_value=exc,
+                exc_traceback=exc.__traceback__,
+            )
+            raise
         finally:
             self._stop_background_connectors()
             self._stop_terminal_attach_server()

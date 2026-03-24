@@ -111,6 +111,7 @@ export type NotebookSocket = Socket<ServerEvents, any> & {
     event: string,
     data: any
   ) => Promise<WebsocketResponse<T>>;
+  once?: (event: string, listener: (...args: any[]) => void) => NotebookSocket;
 };
 
 // Use resolveApiBaseUrl from @/lib/api/client for consistent API URL resolution
@@ -128,6 +129,7 @@ function createNoopNotebookSocket(): NotebookSocket {
     connect: () => socket,
     disconnect: () => socket,
     on: () => socket,
+    once: () => socket,
     off: () => socket,
     emit: () => true,
     emitWithAck: async () => ({ data: undefined }),

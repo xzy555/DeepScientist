@@ -10,7 +10,7 @@ Use this skill when the quest already has meaningful state and the first job is 
 ## Interaction discipline
 
 - Follow the shared interaction contract injected by the system prompt.
-- For ordinary active work, prefer a concise progress update once work has crossed roughly 10 tool calls with a human-meaningful delta, and do not drift beyond roughly 20 tool calls or about 15 minutes without a user-visible update.
+- For ordinary active work, prefer a concise progress update once work has crossed roughly 6 tool calls with a human-meaningful delta, and do not drift beyond roughly 12 tool calls or about 8 minutes without a user-visible update.
 - Message templates are references only. Adapt to the actual context and vary wording so updates feel natural and non-robotic.
 - If a threaded user reply arrives, interpret it relative to the latest intake-audit progress update before assuming the task changed completely.
 - When the audit reaches a durable route recommendation, send one richer `artifact.interact(kind='milestone', reply_mode='threaded', ...)` update that says what state is trusted, what still needs work, and which anchor should run next.

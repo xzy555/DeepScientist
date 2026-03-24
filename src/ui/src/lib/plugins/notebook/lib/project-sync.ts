@@ -77,9 +77,24 @@ export class ProjectSyncClient {
         (this.socket as any).off?.("error", onConnectError);
       };
 
-      this.socket.once("connect", onConnect);
-      this.socket.once("connect_error", onConnectError as any);
-      (this.socket as any).once?.("error", onConnectError);
+      const attachOnce = (eventName: string, handler: (...args: any[]) => void) => {
+        const socketAny = this.socket as any;
+        if (typeof socketAny.once === "function") {
+          socketAny.once(eventName, handler);
+          return;
+        }
+        const wrapped = (...args: any[]) => {
+          if (typeof socketAny.off === "function") {
+            socketAny.off(eventName, wrapped);
+          }
+          handler(...args);
+        };
+        socketAny.on?.(eventName, wrapped);
+      };
+
+      attachOnce("connect", onConnect);
+      attachOnce("connect_error", onConnectError as any);
+      attachOnce("error", onConnectError as any);
     });
   }
 

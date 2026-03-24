@@ -1,12 +1,12 @@
 {
   "name": "deepscientist-ui",
-  "version": "1.5.11",
+  "version": "1.5.12",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 21888",
-    "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0 --port 21888",
+    "dev": "node ./node_modules/vite/bin/vite.js --host 0.0.0.0 --port 21888",
+    "build": "node ./node_modules/vite/bin/vite.js build",
+    "preview": "node ./node_modules/vite/bin/vite.js preview --host 0.0.0.0 --port 21888",
     "test:e2e:git-diff": "playwright test e2e/git-diff-viewer.spec.ts",
     "test:e2e:lab-canvas": "playwright test e2e/lab-canvas-workflow.spec.ts"
   },

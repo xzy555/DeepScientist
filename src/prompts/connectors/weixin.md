@@ -10,7 +10,8 @@
 - weixin_summary_first_rule: start with the user-facing conclusion, then what it means, then the next action
 - weixin_progress_shape_rule: make the current task, the main difficulty or latest real progress, and the next concrete measure explicit whenever possible
 - weixin_eta_rule: for important long-running phases such as baseline reproduction, main experiments, analysis, or paper packaging, include a rough ETA or next check-in window when you can
-- weixin_tool_call_keepalive_rule: for ordinary active work, prefer one concise Weixin progress update after roughly 10 tool calls when there is already a human-meaningful delta, and do not let work drift beyond roughly 20 tool calls or about 15 minutes without a user-visible checkpoint
+- weixin_tool_call_keepalive_rule: for ordinary active work, prefer one concise Weixin progress update after roughly 6 tool calls when there is already a human-meaningful delta, and do not let work drift beyond roughly 12 tool calls or about 8 minutes without a user-visible checkpoint
+- weixin_read_plan_keepalive_rule: if the active work is still mostly reading, comparison, or planning, do not wait too long for a "big result"; send a short Weixin-facing checkpoint after about 5 consecutive tool calls if the user would otherwise see silence
 - weixin_internal_detail_rule: omit worker names, retry counters, pending/running/completed counts, low-level file listings, and monitor-window narration unless the user explicitly asked for them or they change the recommended action
 - weixin_translation_rule: translate internal execution and file-management work into user value instead of narrating tool or filesystem churn
 - weixin_preflight_rule: before sending a Weixin-facing progress update, rewrite it if it still reads like a monitor log, execution diary, or file inventory

@@ -147,6 +147,10 @@ def test_analysis_campaign_skill_requires_outline_bound_campaign_fields() -> Non
     assert "evaluation_summary" in text
     assert "takeaway" in text
     assert "comparability" in text
+    assert "paper/paper_experiment_matrix.md" in text
+    assert "`exp_id`" in text
+    assert "highlight-validation" in text or "highlight validation" in text
+    assert "efficiency or cost" in text
 
 
 def test_write_skill_prefers_flexible_outline_flow_and_bundle_submission() -> None:
@@ -168,6 +172,13 @@ def test_write_skill_prefers_flexible_outline_flow_and_bundle_submission() -> No
     assert "experiment-to-section mapping" in text
     assert "figure/table-to-data-source mapping" in text
     assert "verification checkpoints" in text
+    assert "paper/paper_experiment_matrix.md" in text
+    assert "paper/paper_experiment_matrix.json" in text
+    assert "references/paper-experiment-matrix-template.md" in text
+    assert "highlight hypotheses" in text
+    assert "efficiency / cost / latency / token-overhead checks" in text
+    assert "currently feasible" in text
+    assert "non-optional rows" in text
     assert "citation legitimacy" in text
     assert "file-structure audit" in text
     assert "Organize for the reader's understanding" in text
@@ -262,6 +273,8 @@ def test_rebuttal_skill_requires_review_matrix_response_bundle_and_memory() -> N
     assert "paper/rebuttal/response_letter.md" in text
     assert "paper/rebuttal/text_deltas.md" in text
     assert "paper/rebuttal/evidence_update.md" in text
+    assert "paper/paper_experiment_matrix.md" in text
+    assert "paper/paper_experiment_matrix.json" in text
     assert "review-matrix-template.md" in text
     assert "action-plan-template.md" in text
     assert "evidence-update-template.md" in text
@@ -272,6 +285,9 @@ def test_rebuttal_skill_requires_review_matrix_response_bundle_and_memory() -> N
     assert "MVP plan" in text
     assert "Enhanced plan" in text
     assert "analysis-experiment TODO list" in text
+    assert "`exp_id`" in text
+    assert "component_ablation" in text
+    assert "efficiency_cost" in text
     assert "[[AUTHOR TO FILL]]" in text
     assert "scout" in text
     assert "baseline" in text
@@ -279,6 +295,11 @@ def test_rebuttal_skill_requires_review_matrix_response_bundle_and_memory() -> N
     assert "write" in text
     assert "memory.write" in text
     assert "evaluation_summary" in text
+    assert "calm, direct, precise author voice" in text
+    assert "1 to 2 full paragraphs" in text
+    assert "local file paths" in text or "local paths" in text
+    assert "neutral reviewer or AC" in text
+    assert "strengths recognized across reviewers" in text
 
 
 def test_review_skill_requires_independent_audit_outputs_and_followup_routing() -> None:
@@ -288,6 +309,8 @@ def test_review_skill_requires_independent_audit_outputs_and_followup_routing() 
     assert "paper/review/review.md" in text
     assert "paper/review/revision_log.md" in text
     assert "paper/review/experiment_todo.md" in text
+    assert "paper/paper_experiment_matrix.md" in text
+    assert "paper/paper_experiment_matrix.json" in text
     assert "review-report-template.md" in text
     assert "revision-log-template.md" in text
     assert "experiment-todo-template.md" in text
@@ -298,6 +321,12 @@ def test_review_skill_requires_independent_audit_outputs_and_followup_routing() 
     assert "write" in text
     assert "memory.write" in text
     assert "evaluation_summary" in text
+    assert "review_followup_policy" in text
+    assert "manuscript_edit_mode" in text
+    assert "latex_required" in text
+    assert "matrix exp id" in text
+    assert "highlight hypotheses" in text
+    assert "copy-ready replacement sentence" in text or "copy-ready replacement" in text
 
 
 def test_stage_skill_progress_contracts_match_tool_call_keepalive_policy() -> None:
@@ -317,7 +346,7 @@ def test_stage_skill_progress_contracts_match_tool_call_keepalive_policy() -> No
 
     for skill_id in aligned_skills:
         text = _skill_text(skill_id)
-        assert "roughly 20 tool calls or about 15 minutes" in text
+        assert "roughly 12 tool calls or about 8 minutes" in text
         assert "Do not update by tool-call cadence." not in text
 
 

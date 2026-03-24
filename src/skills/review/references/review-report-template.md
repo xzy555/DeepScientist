@@ -1,5 +1,11 @@
 # Review Report Template
 
+## Review mode
+
+- review_followup_policy:
+- manuscript_edit_mode:
+- manuscript_source_status:
+
 ## Summary
 
 - paper / draft:
@@ -36,6 +42,8 @@
 - cause:
 - actionable fix:
 - acceptance criterion:
+- copy-ready revision text:
+- latex-ready revision text:
 
 ## Storyline Options + Writing Outlines
 
@@ -48,6 +56,14 @@
 1. 
 2. 
 3. 
+
+## Manuscript Revision Package
+
+- section:
+- old wording / weakness:
+- new wording:
+- evidence basis:
+- latex-ready replacement block:
 
 ## Experiment Inventory & Research Experiment Plan
 

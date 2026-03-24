@@ -14,7 +14,21 @@ export type GitStrategy =
 export type ResearchIntensity = 'light' | 'balanced' | 'sprint'
 export type DecisionPolicy = 'autonomous' | 'user_gated'
 export type LaunchMode = 'standard' | 'custom'
-export type CustomProfile = 'continue_existing_state' | 'revision_rebuttal' | 'freeform'
+export type CustomProfile =
+  | 'continue_existing_state'
+  | 'review_audit'
+  | 'revision_rebuttal'
+  | 'freeform'
+export type ReviewFollowupPolicy =
+  | 'audit_only'
+  | 'auto_execute_followups'
+  | 'user_gated_followups'
+export type BaselineExecutionPolicy =
+  | 'auto'
+  | 'must_reproduce_or_verify'
+  | 'reuse_existing_only'
+  | 'skip_unless_blocking'
+export type ManuscriptEditMode = 'none' | 'copy_ready_text' | 'latex_required'
 
 export type StartResearchTemplate = {
   title: string
@@ -31,8 +45,12 @@ export type StartResearchTemplate = {
   decision_policy: DecisionPolicy
   launch_mode: LaunchMode
   custom_profile: CustomProfile
+  review_followup_policy: ReviewFollowupPolicy
+  baseline_execution_policy: BaselineExecutionPolicy
+  manuscript_edit_mode: ManuscriptEditMode
   entry_state_summary: string
   review_summary: string
+  review_materials: string
   custom_brief: string
   user_language: 'en' | 'zh'
 }
@@ -146,8 +164,12 @@ export function defaultStartResearchTemplate(language: 'en' | 'zh'): StartResear
     decision_policy: 'autonomous',
     launch_mode: 'standard',
     custom_profile: 'freeform',
+    review_followup_policy: 'audit_only',
+    baseline_execution_policy: 'auto',
+    manuscript_edit_mode: 'none',
     entry_state_summary: '',
     review_summary: '',
+    review_materials: '',
     custom_brief: '',
     user_language: language,
   }
@@ -259,8 +281,12 @@ export function listReferenceStartResearchTemplates(): StartResearchTemplateEntr
     decision_policy: 'autonomous',
     launch_mode: 'standard',
     custom_profile: 'freeform',
+    review_followup_policy: 'audit_only',
+    baseline_execution_policy: 'auto',
+    manuscript_edit_mode: 'none',
     entry_state_summary: '',
     review_summary: '',
+    review_materials: '',
     custom_brief: '',
     user_language: 'zh',
   }
@@ -303,8 +329,12 @@ export function listReferenceStartResearchTemplates(): StartResearchTemplateEntr
     decision_policy: 'autonomous',
     launch_mode: 'standard',
     custom_profile: 'freeform',
+    review_followup_policy: 'audit_only',
+    baseline_execution_policy: 'auto',
+    manuscript_edit_mode: 'none',
     entry_state_summary: '',
     review_summary: '',
+    review_materials: '',
     custom_brief: '',
     user_language: 'en',
   }
@@ -388,12 +418,46 @@ function sanitizeCustomProfile(value: unknown): CustomProfile {
   const normalized = String(value || '').trim().toLowerCase()
   if (
     normalized === 'continue_existing_state' ||
+    normalized === 'review_audit' ||
     normalized === 'revision_rebuttal' ||
     normalized === 'freeform'
   ) {
     return normalized
   }
   return 'freeform'
+}
+
+function sanitizeBaselineExecutionPolicy(value: unknown): BaselineExecutionPolicy {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (
+    normalized === 'auto' ||
+    normalized === 'must_reproduce_or_verify' ||
+    normalized === 'reuse_existing_only' ||
+    normalized === 'skip_unless_blocking'
+  ) {
+    return normalized
+  }
+  return 'auto'
+}
+
+function sanitizeReviewFollowupPolicy(value: unknown): ReviewFollowupPolicy {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (
+    normalized === 'audit_only' ||
+    normalized === 'auto_execute_followups' ||
+    normalized === 'user_gated_followups'
+  ) {
+    return normalized
+  }
+  return 'audit_only'
+}
+
+function sanitizeManuscriptEditMode(value: unknown): ManuscriptEditMode {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (normalized === 'none' || normalized === 'copy_ready_text' || normalized === 'latex_required') {
+    return normalized
+  }
+  return 'none'
 }
 
 function sanitizeLines(text: string) {
@@ -433,8 +497,12 @@ function sanitizeTemplate(input: PersistedStartResearchTemplate): StartResearchT
     decision_policy: sanitizeDecisionPolicy(input.decision_policy),
     launch_mode: sanitizeLaunchMode(input.launch_mode),
     custom_profile: sanitizeCustomProfile(input.custom_profile),
+    review_followup_policy: sanitizeReviewFollowupPolicy(input.review_followup_policy),
+    baseline_execution_policy: sanitizeBaselineExecutionPolicy(input.baseline_execution_policy),
+    manuscript_edit_mode: sanitizeManuscriptEditMode(input.manuscript_edit_mode),
     entry_state_summary: String(input.entry_state_summary || '').trim(),
     review_summary: String(input.review_summary || '').trim(),
+    review_materials: String(input.review_materials || '').trim(),
     custom_brief: String(input.custom_brief || '').trim(),
     user_language: input.user_language === 'en' ? 'en' : 'zh',
   }
@@ -489,10 +557,47 @@ function labelCustomProfile(value: CustomProfile) {
   switch (value) {
     case 'continue_existing_state':
       return 'Continue existing state: audit and normalize an existing baseline, result, draft, or mixed project state before deciding the next anchor.'
+    case 'review_audit':
+      return 'Review / audit: treat the current draft or paper package as the active contract and run an independent skeptical review before more writing or finalization.'
     case 'revision_rebuttal':
       return 'Revision / rebuttal: treat the current paper and reviewer package as the active contract, then route supplementary experiments and manuscript edits from that state.'
     default:
-      return 'Freeform: follow the user-defined custom brief and open only the skills actually needed.'
+      return 'Other / freeform: follow the user-defined custom brief and open only the skills actually needed.'
+  }
+}
+
+function labelBaselineExecutionPolicy(value: BaselineExecutionPolicy) {
+  switch (value) {
+    case 'must_reproduce_or_verify':
+      return 'Reproduce or verify first: explicitly recover or verify the rebuttal-critical baseline/comparator before reviewer-linked follow-up work.'
+    case 'reuse_existing_only':
+      return 'Reuse existing only: start from the trusted current baseline and do not rerun it unless the stored evidence is inconsistent or unusable.'
+    case 'skip_unless_blocking':
+      return 'Skip unless blocking: do not spend time rerunning baselines by default; only do it if a reviewer-linked item truly depends on a missing comparator.'
+    default:
+      return 'Automatic: let the startup contract and current evidence decide whether rebuttal work should verify, reuse, or skip baseline reruns.'
+  }
+}
+
+function labelReviewFollowupPolicy(value: ReviewFollowupPolicy) {
+  switch (value) {
+    case 'auto_execute_followups':
+      return 'Auto-execute follow-ups: after the audit artifacts are durable, continue automatically into the required experiments, manuscript deltas, and closure work.'
+    case 'user_gated_followups':
+      return 'User-gated follow-ups: finish the audit first, then turn the next major experiment/revision package into a structured decision if continuation depends on user approval.'
+    default:
+      return 'Audit only: stop after the review artifacts and route recommendation are durable.'
+  }
+}
+
+function labelManuscriptEditMode(value: ManuscriptEditMode) {
+  switch (value) {
+    case 'copy_ready_text':
+      return 'Copy-ready text: produce manuscript-facing revision text and section-level deltas, but do not require LaTeX-specific delivery.'
+    case 'latex_required':
+      return 'LaTeX required: when manuscript revision is needed, prefer the provided LaTeX tree as the writing surface and produce LaTeX-ready replacement text; if LaTeX source is unavailable, make that blocker explicit.'
+    default:
+      return 'No manuscript edit package is required by default beyond the review/rebuttal planning artifacts.'
   }
 }
 
@@ -596,18 +701,40 @@ function customLaunchLines(input: StartResearchTemplate) {
   if (normalized.entry_state_summary) {
     lines.push('- Existing state summary:', normalized.entry_state_summary)
   }
-  if (normalized.review_summary) {
+  if ((normalized.custom_profile === 'review_audit' || normalized.custom_profile === 'revision_rebuttal') && normalized.review_summary) {
     lines.push('- Review / revision summary:', normalized.review_summary)
+  }
+  if ((normalized.custom_profile === 'review_audit' || normalized.custom_profile === 'revision_rebuttal') && normalized.review_materials) {
+    lines.push('- Review materials (URLs or local paths/directories):')
+    lines.push(...sanitizeLines(normalized.review_materials).map((item) => `  - ${item}`))
   }
   if (normalized.custom_brief) {
     lines.push('- Custom brief:', normalized.custom_brief)
   }
+  if (normalized.custom_profile === 'review_audit') {
+    lines.push(`- Review follow-up policy: ${labelReviewFollowupPolicy(normalized.review_followup_policy)}`)
+  }
+  lines.push(`- Baseline execution policy: ${labelBaselineExecutionPolicy(normalized.baseline_execution_policy)}`)
+  if (normalized.custom_profile === 'review_audit' || normalized.custom_profile === 'revision_rebuttal') {
+    lines.push(`- Manuscript edit mode: ${labelManuscriptEditMode(normalized.manuscript_edit_mode)}`)
+  }
   if (normalized.custom_profile === 'continue_existing_state') {
     lines.push('- First action: audit and trust-rank existing baselines, results, drafts, or review assets before rerunning expensive work.')
     lines.push('- Prefer `intake-audit` first if the starting state is not already normalized.')
+  } else if (normalized.custom_profile === 'review_audit') {
+    lines.push('- First action: inspect the current manuscript and run an independent skeptical audit before further drafting or finalization.')
+    lines.push('- Prefer `review` first, and only route to extra experiments when the audit shows the current evidence is genuinely insufficient.')
+    if (normalized.review_followup_policy === 'auto_execute_followups') {
+      lines.push('- After the audit artifacts are durable, continue automatically into the required experiments, manuscript deltas, and review-closure work.')
+    } else if (normalized.review_followup_policy === 'user_gated_followups') {
+      lines.push('- After the audit artifacts are durable, turn the next expensive follow-up package into a structured decision before continuing.')
+    } else {
+      lines.push('- Stop after the durable audit artifacts unless the user later asks for execution follow-up.')
+    }
   } else if (normalized.custom_profile === 'revision_rebuttal') {
     lines.push('- First action: interpret reviewer comments and current paper state before ordinary writing or fresh ideation.')
     lines.push('- Prefer `rebuttal` first, and route supplementary runs only when a reviewer issue genuinely requires them.')
+    lines.push('- If a manuscript PDF, reviewer packet, or local review directory is already known, inspect and normalize those inputs before planning reviewer-linked experiments.')
   } else {
     lines.push('- First action: follow the custom brief and open only the minimum necessary skills.')
   }
@@ -645,7 +772,7 @@ export function compileStartResearchPrompt(input: StartResearchTemplate) {
     'Baseline Context',
     baselineContext,
     '',
-    'Reference Papers / Repositories',
+    'Reference Papers / Repositories / Local Paths',
     paperUrls.length > 0 ? paperUrls.map((url) => `- ${url}`).join('\n') : '- None provided',
     '',
     'Operational Constraints',
@@ -667,6 +794,9 @@ export function compileStartResearchPrompt(input: StartResearchTemplate) {
     `- Research paper required: ${normalized.need_research_paper ? 'Yes' : 'No; optimize for the strongest justified algorithmic result.'}`,
     `- Scope: ${labelScope(derivedContract.scope)}`,
     `- Baseline policy: ${labelBaselineMode(derivedContract.baseline_mode)}`,
+    `- Review follow-up policy: ${normalized.custom_profile === 'review_audit' ? labelReviewFollowupPolicy(normalized.review_followup_policy) : 'Not applicable outside the Review custom task type.'}`,
+    `- Baseline execution policy: ${normalized.launch_mode === 'custom' ? labelBaselineExecutionPolicy(normalized.baseline_execution_policy) : 'Standard baseline handling from the ordinary research loop.'}`,
+    `- Manuscript edit mode: ${normalized.custom_profile === 'review_audit' || normalized.custom_profile === 'revision_rebuttal' ? labelManuscriptEditMode(normalized.manuscript_edit_mode) : 'No manuscript-facing custom edit contract requested.'}`,
     `- Resource policy: ${labelResourcePolicy(derivedContract.resource_policy)}`,
     `- Git strategy: ${labelGitStrategy(derivedContract.git_strategy)}`,
     `- Time budget per research round: ${derivedContract.time_budget_hours} hour(s)`,
@@ -680,6 +810,9 @@ export function compileStartResearchPrompt(input: StartResearchTemplate) {
     '- Emit explicit milestone updates after each meaningful step.',
     '- Every decision must include reasons, evidence, and the next recommended action.',
     '- If the startup contract already fixes the delivery mode and baseline policy, follow it without asking the user again unless cost, safety, or scope changes materially.',
+    normalized.manuscript_edit_mode === 'latex_required'
+      ? '- If manuscript edits are required, prefer the provided LaTeX tree as the writing surface; if LaTeX source is unavailable, produce LaTeX-ready replacement text and state the blocker explicitly.'
+      : '- If manuscript edits are required, make the section-level deltas explicit and keep the replacement wording copy-ready.',
     normalized.decision_policy === 'autonomous'
       ? '- Autonomous mode is the default contract here: decide the route yourself and continue unless you are requesting explicit completion approval.'
       : '- User-gated mode is enabled here: if local evidence is insufficient for a safe route decision, ask the user with one blocking decision request.',

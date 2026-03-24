@@ -406,6 +406,7 @@ codex:
   enabled: true
   binary: codex
   config_dir: ~/.codex
+  profile: ""
   model: gpt-5.4
   model_reasoning_effort: xhigh
   approval_policy: on-request
@@ -453,6 +454,15 @@ claude:
 - 页面标签：`Config directory`
 - 作用：runner 的全局配置目录，通常存放认证和全局配置。
 
+**`profile`**
+
+- 类型：`string`
+- 默认值：`""`
+- 页面标签：`Codex profile`
+- 作用：可选的 Codex profile 名称，会直接透传为 `codex --profile <name>`。
+- 当你的 Codex CLI 已经配置成 MiniMax、GLM、火山方舟、阿里百炼或其他 provider-backed 路径时，就在这里填写。
+- 临时使用说明：如果你不想持久化写配置，也可以保持这里为空，直接使用 `ds --codex-profile <name>` 启动。
+
 **`model`**
 
 - 类型：`string`
@@ -460,6 +470,7 @@ claude:
 - 页面标签：`Default model`
 - 作用：项目和单次请求没有覆盖时的默认模型。
 - 启动说明：DeepScientist 的 Codex 就绪探测会优先使用这里配置的模型。如果你的 Codex 账号无法访问它，DeepScientist 会自动回退到当前 Codex 默认模型，并持久化为 `model: inherit`。
+- provider-profile 说明：当 `profile` 已设置时，通常推荐使用 `model: inherit`，让 Codex profile 自己决定 provider 侧模型。
 
 **`model_reasoning_effort`**
 

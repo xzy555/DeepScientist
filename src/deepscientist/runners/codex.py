@@ -19,6 +19,11 @@ from ..shared import append_jsonl, ensure_dir, generate_id, read_yaml, resolve_r
 from ..web_search import extract_web_search_payload
 from .base import RunRequest, RunResult
 
+_TOOL_EVENT_ARGS_TEXT_LIMIT = 8_000
+_TOOL_EVENT_OUTPUT_TEXT_LIMIT = 16_000
+_MAX_QUEST_EVENT_JSON_BYTES = 2_000_000
+_OVERSIZED_EVENT_PREVIEW_TEXT_LIMIT = 12_000
+
 
 def _compact_text(value: object, *, limit: int = 1200) -> str:
     if value is None:
@@ -35,15 +40,94 @@ def _compact_text(value: object, *, limit: int = 1200) -> str:
     return text[: limit - 1].rstrip() + "…"
 
 
-def _structured_text(value: object) -> str:
+def _truncate_leaf_text(text: str, *, limit: int) -> str:
+    if limit <= 0 or len(text) <= limit:
+        return text
+    head = max(int(limit * 0.7), 256)
+    tail = max(limit - head - 64, 128)
+    omitted = max(len(text) - head - tail, 0)
+    return f"{text[:head].rstrip()}\n...[truncated {omitted} chars]...\n{text[-tail:].lstrip()}"
+
+
+def _truncate_structured_value(value: object, *, string_limit: int) -> object:
+    if isinstance(value, str):
+        return _truncate_leaf_text(value.strip(), limit=string_limit)
+    if isinstance(value, list):
+        return [_truncate_structured_value(item, string_limit=string_limit) for item in value[:200]]
+    if isinstance(value, dict):
+        truncated: dict[object, object] = {}
+        for index, (key, item) in enumerate(value.items()):
+            if index >= 200:
+                truncated["__truncated__"] = f"truncated remaining {len(value) - 200} item(s)"
+                break
+            truncated[key] = _truncate_structured_value(item, string_limit=string_limit)
+        return truncated
+    return value
+
+
+def _structured_text(value: object, *, limit: int | None = None) -> str:
     if value is None:
         return ""
     if isinstance(value, str):
-        return value.strip()
+        return _truncate_leaf_text(value.strip(), limit=limit or len(value))
+    normalized_value = _truncate_structured_value(value, string_limit=max(limit or _TOOL_EVENT_OUTPUT_TEXT_LIMIT, 512))
     try:
-        return json.dumps(value, ensure_ascii=False, indent=2)
+        return json.dumps(normalized_value, ensure_ascii=False, indent=2)
     except TypeError:
-        return str(value)
+        return _truncate_leaf_text(str(value), limit=limit or _TOOL_EVENT_OUTPUT_TEXT_LIMIT)
+
+
+def _encoded_json_size(value: object) -> int:
+    try:
+        return len(json.dumps(value, ensure_ascii=False).encode("utf-8"))
+    except Exception:
+        return len(str(value).encode("utf-8", errors="ignore"))
+
+
+def _compact_tool_event_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    if _encoded_json_size(payload) <= _MAX_QUEST_EVENT_JSON_BYTES:
+        return payload
+
+    compacted = dict(payload)
+    output_text = str(compacted.get("output") or "")
+    if output_text:
+        compacted["output_bytes"] = len(output_text.encode("utf-8", errors="ignore"))
+        compacted["output"] = _truncate_leaf_text(
+            output_text,
+            limit=_OVERSIZED_EVENT_PREVIEW_TEXT_LIMIT,
+        )
+        compacted["output_truncated"] = True
+    args_text = str(compacted.get("args") or "")
+    if args_text and _encoded_json_size(compacted) > _MAX_QUEST_EVENT_JSON_BYTES:
+        compacted["args"] = _truncate_leaf_text(args_text, limit=4_000)
+        compacted["args_truncated"] = True
+    if _encoded_json_size(compacted) > _MAX_QUEST_EVENT_JSON_BYTES:
+        metadata = compacted.get("metadata")
+        if isinstance(metadata, dict):
+            allowed_keys = {
+                "mcp_server",
+                "mcp_tool",
+                "bash_id",
+                "status",
+                "command",
+                "workdir",
+                "cwd",
+                "started_at",
+                "finished_at",
+                "exit_code",
+                "stop_reason",
+                "log_path",
+            }
+            compacted["metadata"] = {
+                key: metadata.get(key)
+                for key in allowed_keys
+                if key in metadata
+            }
+            compacted["metadata_truncated"] = True
+    if _encoded_json_size(compacted) > _MAX_QUEST_EVENT_JSON_BYTES:
+        compacted["output"] = _compact_text(compacted.get("output"), limit=2_000)
+        compacted["output_truncated"] = True
+    return compacted
 
 
 def _iter_event_texts(event: dict[str, Any]) -> list[str]:
@@ -209,7 +293,7 @@ def _tool_args(event: dict[str, Any], item: dict[str, Any]) -> str:
             item.get("input"),
             event.get("input"),
         ):
-            text = _structured_text(value)
+            text = _structured_text(value, limit=_TOOL_EVENT_ARGS_TEXT_LIMIT)
             if text:
                 return text
         return ""
@@ -243,7 +327,7 @@ def _tool_output(event: dict[str, Any], item: dict[str, Any]) -> str:
             item.get("aggregated_output"),
             event.get("aggregated_output"),
         ):
-            text = _structured_text(value)
+            text = _structured_text(value, limit=_TOOL_EVENT_OUTPUT_TEXT_LIMIT)
             if text:
                 return text
         return ""
@@ -361,7 +445,7 @@ def _tool_event(
                 "raw_event_type": event_type,
                 "created_at": created_at,
             }
-        return {
+        return _compact_tool_event_payload({
             "event_id": generate_id("evt"),
             "type": "runner.tool_result",
             "quest_id": quest_id,
@@ -375,7 +459,7 @@ def _tool_event(
             "output": _tool_output(event, item),
             "raw_event_type": event_type,
             "created_at": created_at,
-        }
+        })
 
     if item_type == "web_search":
         tool_call_id = _tool_call_id(event, item)
@@ -399,7 +483,7 @@ def _tool_event(
                 "raw_event_type": event_type,
                 "created_at": created_at,
             }
-        return {
+        return _compact_tool_event_payload({
             "event_id": generate_id("evt"),
             "type": "runner.tool_result",
             "quest_id": quest_id,
@@ -414,13 +498,13 @@ def _tool_event(
             "metadata": metadata,
             "raw_event_type": event_type,
             "created_at": created_at,
-        }
+        })
 
     if item_type == "file_change":
         tool_call_id = _tool_call_id(event, item)
         tool_name = "file_change"
         known_tool_names[tool_call_id] = tool_name
-        return {
+        return _compact_tool_event_payload({
             "event_id": generate_id("evt"),
             "type": "runner.tool_result",
             "quest_id": quest_id,
@@ -433,7 +517,7 @@ def _tool_event(
             "output": _tool_output(event, item),
             "raw_event_type": event_type,
             "created_at": created_at,
-        }
+        })
 
     if item_type == "mcp_tool_call":
         tool_call_id = _tool_call_id(event, item)
@@ -466,7 +550,7 @@ def _tool_event(
                 "raw_event_type": event_type,
                 "created_at": created_at,
             }
-        return {
+        return _compact_tool_event_payload({
             "event_id": generate_id("evt"),
             "type": "runner.tool_result",
             "quest_id": quest_id,
@@ -483,7 +567,7 @@ def _tool_event(
             "metadata": metadata,
             "raw_event_type": event_type,
             "created_at": created_at,
-        }
+        })
 
     if item_type in {"function_call", "custom_tool_call", "tool_call"} or "function_call" in event_type or "tool_call" in event_type:
         tool_call_id = _tool_call_id(event, item)
@@ -507,7 +591,7 @@ def _tool_event(
     if item_type in {"function_call_output", "custom_tool_call_output", "tool_result", "tool_call_output"} or "function_call_output" in event_type or "tool_result" in event_type:
         tool_call_id = _tool_call_id(event, item)
         tool_name = known_tool_names.get(tool_call_id) or _tool_name(event, item)
-        return {
+        return _compact_tool_event_payload({
             "event_id": generate_id("evt"),
             "type": "runner.tool_result",
             "quest_id": quest_id,
@@ -521,7 +605,7 @@ def _tool_event(
             "output": _tool_output(event, item),
             "raw_event_type": event_type,
             "created_at": created_at,
-        }
+        })
 
     return None
 
@@ -582,6 +666,12 @@ class CodexRunner:
         )
 
         env = dict(**os.environ)
+        runner_env = runner_config.get("env") if isinstance(runner_config.get("env"), dict) else {}
+        for key, value in runner_env.items():
+            env_key = str(key or "").strip()
+            if not env_key or value is None:
+                continue
+            env[env_key] = str(value)
         env["CODEX_HOME"] = str(codex_home)
         env["DEEPSCIENTIST_HOME"] = str(self.home)
         env["DS_HOME"] = str(self.home)
@@ -809,16 +899,23 @@ class CodexRunner:
         workspace_root = request.worktree_root or request.quest_root
         resolved_binary = resolve_runner_binary(self.binary, runner_name="codex")
         resolved_runner_config = runner_config if isinstance(runner_config, dict) else self._load_runner_config()
+        profile = str(resolved_runner_config.get("profile") or "").strip()
         normalized_model = str(request.model or "").strip()
         command = [
             resolved_binary or self.binary,
             "--search",
-            "exec",
-            "--json",
-            "--cd",
-            str(workspace_root),
-            "--skip-git-repo-check",
         ]
+        if profile:
+            command.extend(["--profile", profile])
+        command.extend(
+            [
+                "exec",
+                "--json",
+                "--cd",
+                str(workspace_root),
+                "--skip-git-repo-check",
+            ]
+        )
         if normalized_model.lower() not in {"", "inherit", "default", "codex-default"}:
             command.extend(["--model", normalized_model])
         if request.approval_policy:
@@ -846,7 +943,9 @@ class CodexRunner:
         runner_config: dict[str, Any] | None = None,
     ) -> Path:
         target = ensure_dir(workspace_root / ".codex")
-        source = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))).expanduser()
+        resolved_runner_config = runner_config if isinstance(runner_config, dict) else self._load_runner_config()
+        configured_home = str(resolved_runner_config.get("config_dir") or os.environ.get("CODEX_HOME") or str(Path.home() / ".codex"))
+        source = Path(configured_home).expanduser()
         for filename in ("config.toml", "auth.json"):
             source_path = source / filename
             target_path = target / filename

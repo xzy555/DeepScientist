@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+from collections import deque
+from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -91,6 +93,125 @@ def _build_default_bash_log_payload(log_text: str) -> dict[str, Any]:
         "log_preview_head_lines": DEFAULT_INLINE_BASH_LOG_HEAD_LINES,
         "log_preview_tail_lines": DEFAULT_INLINE_BASH_LOG_TAIL_LINES,
         "log_preview_omitted_lines": omitted,
+        "log_read_hint": LONG_BASH_LOG_HINT,
+    }
+
+
+def _stream_bash_log_summary(path: Path) -> tuple[list[str], int, list[str]]:
+    total = 0
+    full_lines: list[str] = []
+    head_lines: list[str] = []
+    tail_lines: deque[str] = deque(maxlen=DEFAULT_INLINE_BASH_LOG_TAIL_LINES)
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+        for raw_line in handle:
+            line = raw_line.rstrip("\n")
+            total += 1
+            if total <= DEFAULT_INLINE_BASH_LOG_LINE_LIMIT:
+                full_lines.append(line)
+                continue
+            if total == DEFAULT_INLINE_BASH_LOG_LINE_LIMIT + 1:
+                head_lines = full_lines[:DEFAULT_INLINE_BASH_LOG_HEAD_LINES]
+                tail_lines.extend(full_lines[-DEFAULT_INLINE_BASH_LOG_TAIL_LINES :])
+                full_lines = []
+            tail_lines.append(line)
+    return full_lines, total, list(head_lines or tail_lines)
+
+
+def _build_default_bash_log_payload_from_path(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {
+            "log": "",
+            "log_line_count": 0,
+            "log_truncated": False,
+        }
+    full_lines, total, preview_seed = _stream_bash_log_summary(path)
+    if total <= DEFAULT_INLINE_BASH_LOG_LINE_LIMIT:
+        return {
+            "log": _join_bash_log_lines(full_lines),
+            "log_line_count": total,
+            "log_truncated": False,
+        }
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+        tail_lines: deque[str] = deque(maxlen=DEFAULT_INLINE_BASH_LOG_TAIL_LINES)
+        for raw_line in handle:
+            tail_lines.append(raw_line.rstrip("\n"))
+    omitted = total - DEFAULT_INLINE_BASH_LOG_HEAD_LINES - DEFAULT_INLINE_BASH_LOG_TAIL_LINES
+    marker = (
+        f"[... omitted {omitted} lines from the middle of this log. {LONG_BASH_LOG_HINT}]"
+    )
+    preview_lines = preview_seed[:DEFAULT_INLINE_BASH_LOG_HEAD_LINES] + [marker] + list(tail_lines)
+    return {
+        "log": _join_bash_log_lines(preview_lines),
+        "log_line_count": total,
+        "log_truncated": True,
+        "log_preview_head_lines": DEFAULT_INLINE_BASH_LOG_HEAD_LINES,
+        "log_preview_tail_lines": DEFAULT_INLINE_BASH_LOG_TAIL_LINES,
+        "log_preview_omitted_lines": omitted,
+        "log_read_hint": LONG_BASH_LOG_HINT,
+    }
+
+
+def _build_bash_log_window_from_path(path: Path, *, start: int | None = None, tail: int | None = None) -> dict[str, Any]:
+    if not path.exists():
+        return {
+            "log": "",
+            "log_line_count": 0,
+            "log_windowed": True,
+            "line_start": 1,
+            "line_end": 0,
+            "line_limit": _normalize_bash_log_window_size(tail),
+            "returned_line_count": 0,
+            "has_more_before": False,
+            "has_more_after": False,
+            "log_read_hint": LONG_BASH_LOG_HINT,
+        }
+    line_limit = _normalize_bash_log_window_size(tail)
+    if start is not None:
+        requested_start = max(1, int(start))
+        selected: list[str] = []
+        total = 0
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            for raw_line in handle:
+                total += 1
+                if total < requested_start:
+                    continue
+                if len(selected) < line_limit:
+                    selected.append(raw_line.rstrip("\n"))
+        returned_count = len(selected)
+        line_start = requested_start if total else 1
+        line_end = requested_start + returned_count - 1 if returned_count else requested_start - 1
+        return {
+            "log": _join_bash_log_lines(selected),
+            "log_line_count": total,
+            "log_windowed": True,
+            "line_start": line_start,
+            "line_end": line_end,
+            "line_limit": line_limit,
+            "returned_line_count": returned_count,
+            "has_more_before": line_start > 1,
+            "has_more_after": line_end < total,
+            "log_read_hint": LONG_BASH_LOG_HINT,
+        }
+
+    tail_lines: deque[str] = deque(maxlen=line_limit)
+    total = 0
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+        for raw_line in handle:
+            total += 1
+            tail_lines.append(raw_line.rstrip("\n"))
+    returned_count = len(tail_lines)
+    line_start = max(1, total - returned_count + 1) if total else 1
+    line_end = total
+    return {
+        "log": _join_bash_log_lines(list(tail_lines)),
+        "log_line_count": total,
+        "log_windowed": True,
+        "line_start": line_start,
+        "line_end": line_end,
+        "line_limit": line_limit,
+        "returned_line_count": returned_count,
+        "has_more_before": line_start > 1,
+        "has_more_after": False,
         "log_read_hint": LONG_BASH_LOG_HINT,
     }
 
@@ -880,8 +1001,8 @@ def build_bash_exec_server(context: McpContext) -> FastMCP:
                     export_log_to=export_log_to,
                 )
                 payload.update(
-                    _build_bash_log_window(
-                        service.read_terminal_log(quest_root, bash_id),
+                    _build_bash_log_window_from_path(
+                        service.terminal_log_path(quest_root, bash_id),
                         start=start,
                         tail=tail if tail is not None else tail_limit,
                     )
@@ -921,7 +1042,7 @@ def build_bash_exec_server(context: McpContext) -> FastMCP:
                 export_log=export_log,
                 export_log_to=export_log_to,
             )
-            payload.update(_build_default_bash_log_payload(service.read_terminal_log(quest_root, bash_id)))
+            payload.update(_build_default_bash_log_payload_from_path(service.terminal_log_path(quest_root, bash_id)))
             return payload
         if normalized_mode == "kill":
             bash_id = service.resolve_session_id(quest_root, id)

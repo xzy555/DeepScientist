@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from deepscientist.runners import CodexRunner, RunRequest
-from deepscientist.runners.codex import _tool_event
+from deepscientist.runners.codex import _compact_tool_event_payload, _tool_event
 
 
 def test_codex_tool_event_preserves_parseable_bash_exec_payload_and_metadata() -> None:
@@ -56,6 +57,70 @@ def test_codex_tool_event_preserves_parseable_bash_exec_payload_and_metadata() -
     assert rendered["metadata"]["bash_id"] == "bash-123"
     assert rendered["metadata"]["command"] == "sed -n '1,220p' /tmp/example.txt"
     assert rendered["metadata"]["cwd"] == "/tmp/quest"
+
+
+def test_codex_tool_event_truncates_oversized_bash_exec_log_but_keeps_json_parseable() -> None:
+    long_log = "\n".join(f"line {index}: {'x' * 200}" for index in range(5000))
+    result_payload = {
+        "bash_id": "bash-oversized",
+        "status": "completed",
+        "command": "cat huge.log",
+        "cwd": "/tmp/quest",
+        "log": long_log,
+        "exit_code": 0,
+    }
+    event = {
+        "type": "item.completed",
+        "item_type": "mcp_tool_call",
+        "item": {
+            "type": "mcp_tool_call",
+            "id": "tool-oversized",
+            "server": "bash_exec",
+            "tool": "bash_exec",
+            "status": "completed",
+            "arguments": {"mode": "read", "id": "bash-oversized"},
+            "result": {
+                "structured_content": result_payload,
+                "content": [{"type": "text", "text": json.dumps(result_payload, ensure_ascii=False)}],
+            },
+        },
+    }
+
+    rendered = _tool_event(
+        event,
+        quest_id="q-001",
+        run_id="run-001",
+        skill_id="baseline",
+        known_tool_names={},
+        created_at="2026-03-21T00:00:00Z",
+    )
+
+    assert rendered is not None
+    parsed_output = json.loads(rendered["output"])
+    truncated_log = parsed_output["structured_content"]["log"]
+    assert len(truncated_log) < len(long_log)
+    assert "[truncated " in truncated_log
+
+
+def test_codex_compacts_extreme_tool_result_payload_before_event_write() -> None:
+    huge_output = "x" * (3 * 1024 * 1024)
+    payload = {
+        "event_id": "evt-1",
+        "type": "runner.tool_result",
+        "quest_id": "q-001",
+        "run_id": "run-001",
+        "tool_name": "bash_exec.bash_exec",
+        "output": huge_output,
+        "metadata": {"bash_id": "bash-extreme", "command": "cat extreme.log"},
+    }
+
+    rendered = _compact_tool_event_payload(payload)
+
+    assert rendered["type"] == "runner.tool_result"
+    assert rendered["output_truncated"] is True
+    assert rendered["output_bytes"] > 2_000_000
+    assert len(str(rendered["output"])) < 20_000
+    assert rendered["metadata"]["bash_id"] == "bash-extreme"
 
 
 def test_codex_tool_event_carries_bash_id_from_id_only_monitor_call() -> None:
@@ -119,3 +184,64 @@ def test_codex_runner_omits_model_flag_when_request_uses_inherit(temp_home) -> N
     command = runner._build_command(request, "prompt", runner_config={})
 
     assert "--model" not in command
+
+
+def test_codex_runner_includes_profile_when_runner_config_requests_it(temp_home) -> None:  # type: ignore[no-untyped-def]
+    runner = CodexRunner(
+        home=temp_home,
+        repo_root=temp_home,
+        binary="codex",
+        logger=object(),  # type: ignore[arg-type]
+        prompt_builder=object(),  # type: ignore[arg-type]
+        artifact_service=object(),  # type: ignore[arg-type]
+    )
+    request = RunRequest(
+        quest_id="q-001",
+        quest_root=temp_home,
+        worktree_root=None,
+        run_id="run-001",
+        skill_id="baseline",
+        message="hello",
+        model="inherit",
+        approval_policy="on-request",
+        sandbox_mode="workspace-write",
+        reasoning_effort="xhigh",
+    )
+
+    command = runner._build_command(request, "prompt", runner_config={"profile": "m27"})
+
+    assert command[1:4] == ["--search", "--profile", "m27"]
+
+
+def test_codex_runner_prepares_project_home_from_runner_config_dir(temp_home) -> None:  # type: ignore[no-untyped-def]
+    source_home = temp_home / "provider-codex-home"
+    source_home.mkdir(parents=True, exist_ok=True)
+    (source_home / "config.toml").write_text("[profiles.m27]\n", encoding="utf-8")
+    (source_home / "auth.json").write_text('{"provider":"custom"}', encoding="utf-8")
+
+    quest_root = temp_home / "quest"
+    quest_root.mkdir(parents=True, exist_ok=True)
+    workspace_root = quest_root / "workspace"
+    workspace_root.mkdir(parents=True, exist_ok=True)
+
+    runner = CodexRunner(
+        home=temp_home,
+        repo_root=temp_home,
+        binary="codex",
+        logger=object(),  # type: ignore[arg-type]
+        prompt_builder=object(),  # type: ignore[arg-type]
+        artifact_service=object(),  # type: ignore[arg-type]
+    )
+
+    target = runner._prepare_project_codex_home(
+        workspace_root,
+        quest_root=quest_root,
+        quest_id="q-001",
+        run_id="run-001",
+        runner_config={"config_dir": str(source_home)},
+    )
+
+    config_text = (Path(target) / "config.toml").read_text(encoding="utf-8")
+    assert config_text.startswith("[profiles.m27]\n")
+    assert "# BEGIN DEEPSCIENTIST BUILTINS" in config_text
+    assert (Path(target) / "auth.json").read_text(encoding="utf-8") == '{"provider":"custom"}'

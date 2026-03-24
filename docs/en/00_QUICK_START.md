@@ -36,7 +36,9 @@ See the full notice here:
 Prepare these first:
 
 - Node.js `>=18.18` and npm `>=9`; install them from the official download page: https://nodejs.org/en/download
-- a working Codex CLI setup; before the first `ds`, run `codex --login` (or `codex`) and finish authentication
+- one working Codex path:
+  - default OpenAI login path: `codex --login` (or `codex`)
+  - provider-backed path: one working Codex profile such as `minimax`, `glm`, `ark`, or `bailian`
 - a model or API credential if your project needs external inference
 - GPU or server access if your experiments are compute-heavy
 - if you plan to run DeepScientist for real work, prepare Docker or another isolated environment and a dedicated non-root user
@@ -51,6 +53,10 @@ If you are still choosing a coding plan or subscription, these are practical sta
 - GLM Coding Plan: https://docs.bigmodel.cn/cn/coding-plan/overview
 - Alibaba Cloud Bailian Coding Plan: https://help.aliyun.com/zh/model-studio/coding-plan
 - Volcengine Ark Coding Plan: https://www.volcengine.com/docs/82379/1925115?lang=zh
+
+If you plan to use a provider-backed Codex profile instead of the default OpenAI login flow, read this next:
+
+- [15 Codex Provider Setup](./15_CODEX_PROVIDER_SETUP.md)
 
 ## 1. Install Node.js and DeepScientist
 
@@ -89,6 +95,10 @@ This installs a lightweight TinyTeX runtime for local paper compilation.
 
 ## 2. Finish Codex Setup Before The First `ds`
 
+Choose one of these two paths.
+
+### 2.1 Default OpenAI login path
+
 Run:
 
 ```bash
@@ -103,13 +113,35 @@ codex
 
 and finish the interactive authentication there.
 
-Then verify the environment before startup:
+Then verify:
 
 ```bash
 ds doctor
 ```
 
-DeepScientist blocks startup until Codex can pass a real hello probe. In the current release, that probe first tries the runner model configured in `~/DeepScientist/config/runners.yaml`, which defaults to `gpt-5.4`. If that model is unavailable to your Codex setup, DeepScientist falls back to the current Codex default model and persists `model: inherit` for future runs.
+### 2.2 Provider-backed Codex profile path
+
+If you already use a named Codex profile for MiniMax, GLM, Volcengine Ark, Alibaba Bailian, or another provider-backed path, verify that profile first in a terminal:
+
+```bash
+codex --profile minimax
+```
+
+Then run DeepScientist through the same profile:
+
+```bash
+ds doctor --codex-profile minimax
+```
+
+and later:
+
+```bash
+ds --codex-profile minimax
+```
+
+Replace `minimax` with the real profile name you created, such as `m27`, `glm`, `ark`, or `bailian`.
+
+DeepScientist blocks startup until Codex can pass a real hello probe. By default, the runner model in `~/DeepScientist/config/runners.yaml` is `gpt-5.4`. If your profile expects the model to come from the profile itself, use `model: inherit` in `runners.yaml`, or simply launch with `--codex-profile <name>` and let that session inherit the profile-defined model.
 
 ## 3. Start the Local Runtime
 

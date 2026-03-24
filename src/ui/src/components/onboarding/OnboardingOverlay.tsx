@@ -683,7 +683,6 @@ export function OnboardingOverlay() {
     language,
     startedFrom,
     hydrate,
-    maybeOpenFirstRunChooser,
     startTutorial,
     nextStep,
     previousStep,
@@ -698,7 +697,6 @@ export function OnboardingOverlay() {
     language: state.language,
     startedFrom: state.startedFrom,
     hydrate: state.hydrate,
-    maybeOpenFirstRunChooser: state.maybeOpenFirstRunChooser,
     startTutorial: state.startTutorial,
     nextStep: state.nextStep,
     previousStep: state.previousStep,
@@ -775,12 +773,6 @@ export function OnboardingOverlay() {
       close()
     }
   }, [close, isMobileViewport, status])
-
-  React.useEffect(() => {
-    if (!hydrated) return
-    if (isMobileViewport) return
-    maybeOpenFirstRunChooser(location.pathname)
-  }, [hydrated, isMobileViewport, location.pathname, maybeOpenFirstRunChooser])
 
   React.useEffect(() => {
     if (status !== 'running' || !step) {

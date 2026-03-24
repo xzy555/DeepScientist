@@ -11,12 +11,13 @@ import sys
 import tempfile
 import threading
 import time
+from collections import deque
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from ..mcp.context import McpContext
-from ..shared import append_jsonl, ensure_dir, generate_id, read_json, read_jsonl, utc_now
+from ..shared import append_jsonl, ensure_dir, generate_id, iter_jsonl, read_json, read_jsonl, read_jsonl_tail, utc_now
 from .runtime import TerminalRuntimeManager
 
 BASH_STATUS_MARKER_PREFIX = "__DS_BASH_STATUS__"
@@ -24,6 +25,9 @@ BASH_CARRIAGE_RETURN_PREFIX = "__DS_BASH_CR__"
 BASH_PROGRESS_PREFIX = "__DS_PROGRESS__"
 BASH_TERMINAL_PROMPT_PREFIX = "__DS_TERMINAL_PROMPT__"
 DEFAULT_LOG_TAIL_LIMIT = 200
+DEFAULT_INLINE_BASH_LOG_LINE_LIMIT = 2000
+DEFAULT_INLINE_BASH_LOG_HEAD_LINES = 500
+DEFAULT_INLINE_BASH_LOG_TAIL_LINES = 1500
 DEFAULT_POLL_INTERVAL_SECONDS = 0.35
 TERMINAL_STATUSES = {"completed", "failed", "terminated"}
 DEFAULT_TERMINAL_SESSION_ID = "terminal-main"
@@ -44,6 +48,52 @@ def _atomic_write_json(path: Path, payload: Any) -> None:
         handle.write(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=False) + "\n")
         temp_path = Path(handle.name)
     temp_path.replace(path)
+
+
+def _count_jsonl_records(path: Path) -> int:
+    return sum(1 for _ in iter_jsonl(path))
+
+
+def _build_terminal_log_preview_payload(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {
+            "log": "",
+            "log_line_count": 0,
+            "log_truncated": False,
+        }
+
+    head_lines: list[str] = []
+    tail_lines: deque[str] = deque(maxlen=DEFAULT_INLINE_BASH_LOG_TAIL_LINES)
+    total = 0
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+        for raw_line in handle:
+            line = raw_line.rstrip("\n")
+            total += 1
+            if total <= DEFAULT_INLINE_BASH_LOG_HEAD_LINES:
+                head_lines.append(line)
+            tail_lines.append(line)
+
+    if total <= DEFAULT_INLINE_BASH_LOG_LINE_LIMIT:
+        return {
+            "log": "\n".join(list(tail_lines)),
+            "log_line_count": total,
+            "log_truncated": False,
+        }
+
+    omitted = max(0, total - DEFAULT_INLINE_BASH_LOG_HEAD_LINES - DEFAULT_INLINE_BASH_LOG_TAIL_LINES)
+    marker = (
+        "[... omitted "
+        f"{omitted} lines from the middle of this log. "
+        "Use bash_exec(mode='read', id=..., start=..., tail=...) for a specific window.]"
+    )
+    return {
+        "log": "\n".join(head_lines + [marker] + list(tail_lines)),
+        "log_line_count": total,
+        "log_truncated": True,
+        "log_preview_head_lines": DEFAULT_INLINE_BASH_LOG_HEAD_LINES,
+        "log_preview_tail_lines": DEFAULT_INLINE_BASH_LOG_TAIL_LINES,
+        "log_preview_omitted_lines": omitted,
+    }
 
 
 def _normalize_string(value: object) -> str:
@@ -568,7 +618,8 @@ class BashExecService:
         if not self.meta_path(quest_root, bash_id).exists():
             raise FileNotFoundError(f"Unknown bash session `{bash_id}`.")
         deadline = time.monotonic() + 0.6
-        entries = read_jsonl(self.log_path(quest_root, bash_id))
+        path = self.log_path(quest_root, bash_id)
+        entries = read_jsonl_tail(path, max(1, limit))
         while time.monotonic() < deadline:
             if any(str(entry.get("stream") or "") not in {"system", "prompt"} for entry in entries):
                 break
@@ -580,24 +631,33 @@ class BashExecService:
                 time.sleep(0.05)
             else:
                 time.sleep(0.03)
-            entries = read_jsonl(self.log_path(quest_root, bash_id))
+            entries = read_jsonl_tail(path, max(1, limit))
         latest_seq = int(entries[-1].get("seq") or 0) if entries else 0
         normalized_before = before_seq if isinstance(before_seq, int) and before_seq > 0 else None
         normalized_after = after_seq if isinstance(after_seq, int) and after_seq >= 0 else None
-        if normalized_after is not None:
-            entries = [entry for entry in entries if int(entry.get("seq") or 0) > normalized_after]
-        if normalized_before is not None:
-            entries = [entry for entry in entries if int(entry.get("seq") or 0) < normalized_before]
-        selection_pool = entries
-        if prefer_visible:
-            visible_entries = [
-                entry for entry in entries if str(entry.get("stream") or "") not in {"system", "prompt"}
-            ]
-            if visible_entries:
-                selection_pool = visible_entries
         normalized_limit = max(1, limit)
-        truncated = len(selection_pool) > normalized_limit
-        selected = selection_pool[-normalized_limit:]
+        selection_pool: deque[dict[str, Any]] = deque(maxlen=normalized_limit)
+        visible_pool: deque[dict[str, Any]] = deque(maxlen=normalized_limit)
+        total_filtered = 0
+        for entry in iter_jsonl(path):
+            seq = int(entry.get("seq") or 0)
+            latest_seq = max(latest_seq, seq)
+            if normalized_after is not None and seq <= normalized_after:
+                continue
+            if normalized_before is not None and seq >= normalized_before:
+                continue
+            total_filtered += 1
+            selection_pool.append(entry)
+            if str(entry.get("stream") or "") not in {"system", "prompt"}:
+                visible_pool.append(entry)
+        selected_source: list[dict[str, Any]]
+        if prefer_visible and visible_pool:
+            selected_source = list(visible_pool)
+            truncated = total_filtered > len(visible_pool)
+        else:
+            selected_source = list(selection_pool)
+            truncated = total_filtered > len(selection_pool)
+        selected = selected_source[-normalized_limit:]
         if order == "desc":
             selected = list(reversed(selected))
         tail_start_seq = int(selected[0].get("seq") or 0) if selected else None
@@ -868,7 +928,7 @@ class BashExecService:
             "last_input_at": None,
             "last_prompt_at": None,
             "last_command": None,
-            "history_count": len(read_jsonl(self.history_path(quest_root, bash_id))),
+            "history_count": _count_jsonl_records(self.history_path(quest_root, bash_id)),
         }
 
     def ensure_terminal_session(
@@ -918,7 +978,7 @@ class BashExecService:
         self.prompt_events_path(resolved_quest_root, bash_id).touch()
         _atomic_write_json(
             self.input_cursor_path(resolved_quest_root, bash_id),
-            {"offset": len(read_jsonl(self.input_path(resolved_quest_root, bash_id))), "updated_at": utc_now()},
+            {"offset": _count_jsonl_records(self.input_path(resolved_quest_root, bash_id)), "updated_at": utc_now()},
         )
         _atomic_write_json(
             self.line_buffer_path(resolved_quest_root, bash_id),
@@ -1072,7 +1132,7 @@ class BashExecService:
                 append_jsonl(self.history_path(quest_root, bash_id), item)
             meta = read_json(self.meta_path(quest_root, bash_id), {})
             meta["last_command"] = completed[-1]["command"]
-            meta["history_count"] = len(read_jsonl(self.history_path(quest_root, bash_id)))
+            meta["history_count"] = _count_jsonl_records(self.history_path(quest_root, bash_id))
             meta["updated_at"] = utc_now()
             meta["last_input_at"] = utc_now()
             self._write_meta(quest_root, bash_id, meta)
@@ -1138,7 +1198,7 @@ class BashExecService:
             before_seq=None,
             order="asc",
         )
-        history = read_jsonl(self.history_path(quest_root, bash_id))
+        history = read_jsonl_tail(self.history_path(quest_root, bash_id), max(1, command_limit))
         latest_commands = [
             {
                 "command_id": item.get("command_id"),
@@ -1208,7 +1268,7 @@ class BashExecService:
             "watchdog_overdue": session.get("watchdog_overdue"),
         }
         if include_log:
-            result["log"] = self.read_terminal_log(quest_root, str(session["bash_id"]))
+            result.update(self._log_preview_payload(quest_root, str(session["bash_id"])))
         if export_log or _normalize_string(export_log_to):
             cwd, _ = self.resolve_workdir(context, str(session.get("workdir") or ""))
             result.update(
@@ -1221,3 +1281,6 @@ class BashExecService:
                 )
             )
         return result
+
+    def _log_preview_payload(self, quest_root: Path, bash_id: str) -> dict[str, Any]:
+        return _build_terminal_log_preview_payload(self.terminal_log_path(quest_root, bash_id))

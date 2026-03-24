@@ -266,7 +266,9 @@ def test_shared_interaction_contract_covers_blocking_and_mailbox_rules() -> None
     assert "highest-priority user instruction bundle" in text
     assert "Immediately follow any non-empty mailbox poll" in text
     assert "real user-visible progress" in text
-    assert "roughly 20 tool calls or about 15 minutes" in text
+    assert "roughly 12 tool calls or about 8 minutes" in text
+    assert "first 3 tool calls of substantial work" in text
+    assert "5 consecutive tool calls on reading" in text or "5 consecutive tool calls on reading, searching" in text
 
 
 def test_stage_and_companion_skills_reference_shared_interaction_contract() -> None:
@@ -338,11 +340,14 @@ def test_write_skill_documents_reviewer_first_reader_first_contract_and_referenc
 
     assert "reviewer-first pass" in text
     assert "reader-centered" in text
+    assert "paper experiment matrix" in text
     assert "paper/reviewer_first_pass.md" in text
     assert "paper/section_contracts.md" in text
     assert "paper/figure_storyboard.md" in text
     assert "paper/related_work_map.md" in text
+    assert "paper/paper_experiment_matrix.md" in text
     assert "paper/proofing/language_issues.md" in text
+    assert (root / "references" / "paper-experiment-matrix-template.md").exists()
     assert (root / "references" / "reviewer-first-writing.md").exists()
     assert (root / "references" / "section-contracts.md").exists()
     assert (root / "references" / "sentence-level-proofing.md").exists()
@@ -414,7 +419,9 @@ def test_review_and_rebuttal_skills_route_extra_evidence_into_shared_campaign_pr
     assert "shared supplementary-experiment protocol" in review_text
     assert "one-slice campaign" in review_text
     assert "Do not invent a separate review-only experiment workflow." in review_text
+    assert "paper/paper_experiment_matrix.md" in review_text
 
     assert "shared supplementary-experiment protocol" in rebuttal_text
     assert "do not invent a rebuttal-only experiment system" in rebuttal_text
     assert "artifact.resolve_runtime_refs(...)" in rebuttal_text
+    assert "paper/paper_experiment_matrix.md" in rebuttal_text

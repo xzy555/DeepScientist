@@ -9,9 +9,12 @@ import { OpenQuestDialog } from '@/components/projects/OpenQuestDialog'
 import { Button } from '@/components/ui/button'
 import { FadeContent, GlareHover } from '@/components/react-bits'
 import { client } from '@/lib/api'
+import { useI18n } from '@/lib/i18n'
+import { useOnboardingStore } from '@/lib/stores/onboarding'
 import { runtimeVersion } from '@/lib/runtime/quest-runtime'
 import { HERO_COPY, HERO_STAGES } from './hero-content'
-import type { QuestSummary } from '@/types'
+import type { ConnectorAvailabilitySnapshot, QuestSummary } from '@/types'
+import { EntryCoachDialog } from './EntryCoachDialog'
 import HeroNav from './HeroNav'
 import HeroScene from './HeroScene'
 import HeroProgress from './HeroProgress'
@@ -30,6 +33,22 @@ function sortQuests(items: QuestSummary[]) {
 
 export default function Hero() {
   const navigate = useNavigate()
+  const { locale } = useI18n()
+  const {
+    hydrated: onboardingHydrated,
+    firstRunHandled,
+    neverRemind,
+    startTutorial,
+    skipFirstRun,
+    neverShowAgain,
+  } = useOnboardingStore((state) => ({
+    hydrated: state.hydrated,
+    firstRunHandled: state.firstRunHandled,
+    neverRemind: state.neverRemind,
+    startTutorial: state.startTutorial,
+    skipFirstRun: state.skipFirstRun,
+    neverShowAgain: state.neverShowAgain,
+  }))
   const heroRef = useRef<HTMLElement | null>(null)
   const prefersReducedMotion = useReducedMotion()
   const reducedMotion = prefersReducedMotion ?? false
@@ -53,12 +72,40 @@ export default function Hero() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [connectorAvailability, setConnectorAvailability] = useState<ConnectorAvailabilitySnapshot | null>(null)
+  const [connectorAvailabilityResolved, setConnectorAvailabilityResolved] = useState(false)
+  const [entryCoachDismissed, setEntryCoachDismissed] = useState(false)
   const currentVersion = useMemo(() => runtimeVersion(), [])
 
   useEffect(() => {
     document.body.classList.add('font-project')
     return () => document.body.classList.remove('font-project')
   }, [])
+
+  useEffect(() => {
+    if (!onboardingHydrated) {
+      return
+    }
+    let active = true
+    void client
+      .connectorsAvailability()
+      .then((payload) => {
+        if (!active) return
+        setConnectorAvailability(payload)
+      })
+      .catch(() => {
+        if (!active) return
+        setConnectorAvailability(null)
+      })
+      .finally(() => {
+        if (active) {
+          setConnectorAvailabilityResolved(true)
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [onboardingHydrated])
 
   useEffect(() => {
     const updateSize = () => {
@@ -325,6 +372,30 @@ export default function Hero() {
   const sceneStageIndex = scrollStage
   const barProgress = progress
 
+  const connectorCoachMode = useMemo(() => {
+    if (!connectorAvailability?.should_recommend_binding) {
+      return null
+    }
+    if (!connectorAvailability.has_enabled_external_connector) {
+      return 'no_enabled' as const
+    }
+    const hasDeliveryTarget = connectorAvailability.available_connectors.some(
+      (item) => item.enabled && item.has_delivery_target
+    )
+    if (!hasDeliveryTarget) {
+      return 'no_target' as const
+    }
+    return 'recommended' as const
+  }, [connectorAvailability])
+
+  const shouldShowConnectorCoach = connectorAvailabilityResolved && connectorCoachMode !== null
+  const shouldShowTutorialCoach = onboardingHydrated && !firstRunHandled && !neverRemind
+  const entryCoachOpen =
+    !entryCoachDismissed &&
+    !createDialogOpen &&
+    !questDialogOpen &&
+    (shouldShowConnectorCoach || shouldShowTutorialCoach)
+
   return (
     <>
       <div
@@ -461,6 +532,28 @@ export default function Hero() {
         deletingQuestId={deletingQuestId}
       />
       <UpdateReminderDialog />
+      <EntryCoachDialog
+        open={entryCoachOpen}
+        locale={locale}
+        connectorMode={connectorCoachMode || 'recommended'}
+        showConnectorStep={shouldShowConnectorCoach}
+        showTutorialStep={shouldShowTutorialCoach}
+        onClose={() => setEntryCoachDismissed(true)}
+        onOpenConnectorSettings={() => {
+          setEntryCoachDismissed(true)
+          navigate('/settings/connector', { state: { configName: 'connectors' } })
+        }}
+        onStartTutorial={(language) => {
+          setEntryCoachDismissed(true)
+          startTutorial(language, '/', 'auto')
+        }}
+        onSkipTutorial={() => {
+          skipFirstRun()
+        }}
+        onNeverShowTutorial={() => {
+          neverShowAgain()
+        }}
+      />
     </>
   )
 }

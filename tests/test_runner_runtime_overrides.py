@@ -41,6 +41,21 @@ def test_apply_codex_runtime_overrides_enables_yolo_mode(monkeypatch: pytest.Mon
     assert config["sandbox_mode"] == "danger-full-access"
 
 
+def test_apply_codex_runtime_overrides_accepts_profile_and_model_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DEEPSCIENTIST_CODEX_PROFILE", "m27")
+    monkeypatch.setenv("DEEPSCIENTIST_CODEX_MODEL", "inherit")
+
+    config = apply_codex_runtime_overrides(
+        {
+            "profile": "",
+            "model": "gpt-5.4",
+        }
+    )
+
+    assert config["profile"] == "m27"
+    assert config["model"] == "inherit"
+
+
 def test_daemon_app_applies_yolo_env_to_runners_config(temp_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     ensure_home_layout(temp_home)
     ConfigManager(temp_home).ensure_files()

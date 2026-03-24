@@ -115,13 +115,21 @@ type StartResearchTemplate = {
   baseline_variant_id: string
   baseline_urls: string
   paper_urls: string
+  review_materials: string
   runtime_constraints: string
   objectives: string
   need_research_paper: boolean
   research_intensity: 'light' | 'balanced' | 'sprint'
   decision_policy: 'autonomous' | 'user_gated'
   launch_mode: 'standard' | 'custom'
-  custom_profile: 'continue_existing_state' | 'revision_rebuttal' | 'freeform'
+  custom_profile: 'continue_existing_state' | 'review_audit' | 'revision_rebuttal' | 'freeform'
+  review_followup_policy: 'audit_only' | 'auto_execute_followups' | 'user_gated_followups'
+  baseline_execution_policy:
+    | 'auto'
+    | 'must_reproduce_or_verify'
+    | 'reuse_existing_only'
+    | 'skip_unless_blocking'
+  manuscript_edit_mode: 'none' | 'copy_ready_text' | 'latex_required'
   entry_state_summary: string
   review_summary: string
   custom_brief: string
@@ -179,6 +187,9 @@ The dialog submits:
     decision_policy,
     launch_mode,
     custom_profile,
+    review_followup_policy,
+    baseline_execution_policy,
+    manuscript_edit_mode,
     scope,
     baseline_mode,
     resource_policy,
@@ -188,6 +199,7 @@ The dialog submits:
     objectives: string[],
     baseline_urls: string[],
     paper_urls: string[],
+    review_materials: string[],
     entry_state_summary,
     review_summary,
     custom_brief,
@@ -256,12 +268,18 @@ The dialog submits:
 
 **`baseline_urls`**
 
-- Fallback source links when there is no registered reusable baseline.
+- Fallback source links or absolute local file/folder paths when there is no registered reusable baseline.
 - Submitted as `string[]`.
 
 **`paper_urls`**
 
-- Papers, repos, benchmarks, or leaderboards that shape early scouting.
+- Papers, repos, manuscripts, benchmarks, leaderboards, or absolute local file/folder paths that shape early scouting or writing work.
+- Submitted as `string[]`.
+
+**`review_materials`**
+
+- Only meaningful for `review_audit` or `revision_rebuttal`.
+- Use one URL or one absolute local file/folder path per line for reviewer comments, decision letters, meta-review notes, or revision packets.
 - Submitted as `string[]`.
 
 ### Constraints and objectives
@@ -317,11 +335,48 @@ Only meaningful when `launch_mode = custom`.
 - `continue_existing_state`
   - start by auditing existing baselines, results, drafts, or mixed project assets
   - prompt builder should steer the agent toward `intake-audit`
+- `review_audit`
+  - start from a substantial draft or paper package that needs an independent skeptical audit
+  - prompt builder should steer the agent toward `review`
 - `revision_rebuttal`
   - start from reviewer comments, revision packets, or a rebuttal task
   - prompt builder should steer the agent toward `rebuttal`
 - `freeform`
+  - use this as the “Other” path
   - follow a custom brief with minimal forced workflow assumptions
+
+**`baseline_execution_policy`**
+
+- Only meaningful when `launch_mode = custom`.
+- `auto`
+  - let the startup contract and current evidence decide
+- `must_reproduce_or_verify`
+  - verify or recover the rebuttal-critical baseline/comparator before reviewer-linked follow-up work
+- `reuse_existing_only`
+  - trust the current baseline/results unless they are inconsistent or unusable
+- `skip_unless_blocking`
+  - skip baseline reruns unless a named review/rebuttal item truly depends on a missing comparator
+
+**`review_followup_policy`**
+
+- Mainly meaningful for `review_audit`.
+- `audit_only`
+  - stop after the audit artifacts and route recommendation
+- `auto_execute_followups`
+  - continue automatically into the justified experiments and manuscript deltas after the audit
+- `user_gated_followups`
+  - finish the audit first, then ask for approval before expensive follow-up work
+
+**`manuscript_edit_mode`**
+
+- Mainly meaningful for `review_audit` and `revision_rebuttal`.
+- `none`
+  - planning artifacts only
+- `copy_ready_text`
+  - produce section-level revision text that is ready to paste into the manuscript
+- `latex_required`
+  - prefer the provided LaTeX tree as the writing surface and produce LaTeX-ready replacement text
+  - if you choose this mode, it is best to provide the LaTeX source tree via local path / folder input
 
 **`entry_state_summary`**
 
@@ -378,6 +433,9 @@ Custom launch behavior is explicit:
 - `custom + continue_existing_state`
   - tells the agent to audit and normalize existing assets first
   - explicitly prefers `intake-audit`
+- `custom + review_audit`
+  - tells the agent that the current draft/paper state is the active contract
+  - explicitly prefers `review`
 - `custom + revision_rebuttal`
   - tells the agent to interpret reviewer comments and current paper state first
   - explicitly prefers `rebuttal`
@@ -477,6 +535,9 @@ Custom launch behavior is explicit:
     "decision_policy": "user_gated",
     "launch_mode": "custom",
     "custom_profile": "revision_rebuttal",
+    "review_followup_policy": "audit_only",
+    "baseline_execution_policy": "skip_unless_blocking",
+    "manuscript_edit_mode": "latex_required",
     "scope": "baseline_plus_direction",
     "baseline_mode": "restore_from_url",
     "resource_policy": "balanced",
@@ -490,6 +551,9 @@ Custom launch behavior is explicit:
     ],
     "baseline_urls": [],
     "paper_urls": [],
+    "review_materials": [
+      "/absolute/path/to/review-comments.md"
+    ],
     "entry_state_summary": "A draft and previous experiment outputs already exist.",
     "review_summary": "Reviewers asked for one stronger ablation, one extra baseline, and a clearer limitation paragraph.",
     "custom_brief": "Treat the current manuscript and review packet as the active contract."
@@ -500,7 +564,7 @@ Custom launch behavior is explicit:
 ## Operational implications
 
 - The startup contract is durable project state, not only UI state.
-- Prompt building later reads `launch_mode`, `custom_profile`, and related summaries again.
+- Prompt building later reads `launch_mode`, `custom_profile`, `review_followup_policy`, `baseline_execution_policy`, `manuscript_edit_mode`, `entry_state_summary`, `review_summary`, `review_materials`, and `custom_brief` again.
 - This means `Start Research` shapes not just the first turn, but later routing decisions too.
 
 ## Validation checklist

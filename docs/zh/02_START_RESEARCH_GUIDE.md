@@ -115,13 +115,21 @@ type StartResearchTemplate = {
   baseline_variant_id: string
   baseline_urls: string
   paper_urls: string
+  review_materials: string
   runtime_constraints: string
   objectives: string
   need_research_paper: boolean
   research_intensity: 'light' | 'balanced' | 'sprint'
   decision_policy: 'autonomous' | 'user_gated'
   launch_mode: 'standard' | 'custom'
-  custom_profile: 'continue_existing_state' | 'revision_rebuttal' | 'freeform'
+  custom_profile: 'continue_existing_state' | 'review_audit' | 'revision_rebuttal' | 'freeform'
+  review_followup_policy: 'audit_only' | 'auto_execute_followups' | 'user_gated_followups'
+  baseline_execution_policy:
+    | 'auto'
+    | 'must_reproduce_or_verify'
+    | 'reuse_existing_only'
+    | 'skip_unless_blocking'
+  manuscript_edit_mode: 'none' | 'copy_ready_text' | 'latex_required'
   entry_state_summary: string
   review_summary: string
   custom_brief: string
@@ -187,6 +195,9 @@ type StartResearchContractFields = {
     decision_policy,
     launch_mode,
     custom_profile,
+    review_followup_policy,
+    baseline_execution_policy,
+    manuscript_edit_mode,
     scope,
     baseline_mode,
     resource_policy,
@@ -196,6 +207,7 @@ type StartResearchContractFields = {
     objectives: string[],
     baseline_urls: string[],
     paper_urls: string[],
+    review_materials: string[],
     entry_state_summary,
     review_summary,
     custom_brief,
@@ -265,11 +277,19 @@ type StartResearchContractFields = {
 **`baseline_urls`**
 
 - 当没有 registry baseline 时，作为恢复 baseline 的候选来源。
+- 可以填写网络链接，也可以直接填写绝对本地文件 / 文件夹路径。
 - 提交时转成 `string[]`。
 
 **`paper_urls`**
 
-- 论文、代码仓库、benchmark、leaderboard 等参考资料。
+- 论文、代码仓库、benchmark、leaderboard、manuscript 路径等参考资料。
+- 可以填写网络链接，也可以直接填写绝对本地文件 / 文件夹路径。
+- 提交时转成 `string[]`。
+
+**`review_materials`**
+
+- 主要用于 `review_audit` 或 `revision_rebuttal`。
+- 每行填写一个 URL，或一个绝对本地文件 / 文件夹路径，用于 reviewer comments、decision letter、meta-review 或 revision packet。
 - 提交时转成 `string[]`。
 
 ### 约束与目标
@@ -325,11 +345,48 @@ type StartResearchContractFields = {
 - `continue_existing_state`
   - 先审计已有 baseline、结果、草稿或混合资产
   - prompt builder 会显式引导 agent 优先打开 `intake-audit`
+- `review_audit`
+  - 这是一个对现有 draft / paper package 做独立 skeptical 审计的任务
+  - prompt builder 会显式引导 agent 优先打开 `review`
 - `revision_rebuttal`
   - 这是一个审稿回复、revision、rebuttal 类型任务
   - prompt builder 会显式引导 agent 优先打开 `rebuttal`
 - `freeform`
+  - 这是“其它”入口
   - 以自定义 brief 为主，尽量少做额外假设
+
+**`baseline_execution_policy`**
+
+- 仅在 `launch_mode = custom` 时有意义。
+- `auto`
+  - 让启动合同和当前证据自己决定
+- `must_reproduce_or_verify`
+  - 在 reviewer-linked 的后续工作之前，先验证或恢复 rebuttal 关键依赖的 baseline / comparator
+- `reuse_existing_only`
+  - 默认信任当前 baseline / 结果，除非它们明显不一致或不可用
+- `skip_unless_blocking`
+  - 默认跳过 baseline 重跑，只有当某个 review / rebuttal 条目明确依赖缺失 comparator 时才补跑
+
+**`review_followup_policy`**
+
+- 主要用于 `review_audit`。
+- `audit_only`
+  - 只完成审计产物和路由建议
+- `auto_execute_followups`
+  - 审计后自动继续进入合理的实验和论文修改
+- `user_gated_followups`
+  - 先完成审计，再在昂贵后续动作前等待你的批准
+
+**`manuscript_edit_mode`**
+
+- 主要用于 `review_audit` 和 `revision_rebuttal`。
+- `none`
+  - 只输出规划产物
+- `copy_ready_text`
+  - 输出 section-level 的可直接粘贴修改文本
+- `latex_required`
+  - 优先把提供的 LaTeX 树当作写作表面，并输出 LaTeX-ready 的替换文本
+  - 如果选择这个模式，最好同时通过本地路径 / 文件夹输入提供 LaTeX 源目录
 
 **`entry_state_summary`**
 
@@ -387,6 +444,9 @@ type StartResearchContractFields = {
 - `custom + continue_existing_state`
   - 告诉 agent 先整理和信任排序已有资产
   - 明确优先 `intake-audit`
+- `custom + review_audit`
+  - 告诉 agent 当前 draft / paper 状态就是主动合同
+  - 明确优先 `review`
 - `custom + revision_rebuttal`
   - 告诉 agent 先理解 reviewer comments 和当前论文状态
   - 明确优先 `rebuttal`
@@ -486,6 +546,9 @@ type StartResearchContractFields = {
     "decision_policy": "user_gated",
     "launch_mode": "custom",
     "custom_profile": "revision_rebuttal",
+    "review_followup_policy": "audit_only",
+    "baseline_execution_policy": "skip_unless_blocking",
+    "manuscript_edit_mode": "latex_required",
     "scope": "baseline_plus_direction",
     "baseline_mode": "restore_from_url",
     "resource_policy": "balanced",
@@ -499,6 +562,9 @@ type StartResearchContractFields = {
     ],
     "baseline_urls": [],
     "paper_urls": [],
+    "review_materials": [
+      "/absolute/path/to/review-comments.md"
+    ],
     "entry_state_summary": "A draft and previous experiment outputs already exist.",
     "review_summary": "Reviewers asked for one stronger ablation, one extra baseline, and a clearer limitation paragraph.",
     "custom_brief": "Treat the current manuscript and review packet as the active contract."
@@ -509,7 +575,7 @@ type StartResearchContractFields = {
 ## 运行时意义
 
 - `startup_contract` 是项目的持久状态，不只是 UI 临时字段。
-- 后续 prompt builder 还会继续读取 `launch_mode`、`custom_profile`、`entry_state_summary`、`review_summary`、`custom_brief`。
+- 后续 prompt builder 还会继续读取 `launch_mode`、`custom_profile`、`review_followup_policy`、`baseline_execution_policy`、`manuscript_edit_mode`、`entry_state_summary`、`review_summary`、`review_materials`、`custom_brief`。
 - 所以 `Start Research` 不只影响第一轮，还会影响后续路由判断。
 
 ## 修改检查清单

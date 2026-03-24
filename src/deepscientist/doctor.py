@@ -263,11 +263,7 @@ def _check_codex(config_manager: ConfigManager) -> dict[str, Any]:
             ok=False,
             summary="Codex CLI is not available to DeepScientist.",
             errors=[f"Runner binary `{binary}` could not be resolved."],
-            guidance=[
-                "Run `npm install -g @researai/deepscientist` again so the bundled Codex dependency is installed.",
-                "If `codex` is still missing, install it explicitly with `npm install -g @openai/codex`.",
-                "Then run `codex --login` (or `codex`) once and complete login.",
-            ],
+            guidance=config_manager._codex_missing_binary_guidance(codex_cfg),
             details={"binary": binary},
         )
 

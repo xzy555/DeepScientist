@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from ..shared import append_jsonl, ensure_dir, read_jsonl, utc_now
+from ..shared import append_jsonl, count_jsonl, ensure_dir, read_jsonl, utc_now
 from .base import BaseChannel
 
 
@@ -27,6 +27,6 @@ class LocalChannel(BaseChannel):
         return {
             "name": self.name,
             "display_mode": self.display_mode,
-            "inbox_count": len(read_jsonl(self.root / "inbox.jsonl")),
-            "outbox_count": len(read_jsonl(self.root / "outbox.jsonl")),
+            "inbox_count": count_jsonl(self.root / "inbox.jsonl"),
+            "outbox_count": count_jsonl(self.root / "outbox.jsonl"),
         }

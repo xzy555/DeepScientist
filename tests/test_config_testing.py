@@ -652,6 +652,69 @@ def test_codex_probe_missing_binary_includes_explicit_install_guidance(monkeypat
     assert "codex --login" in "\n".join(result["guidance"])
 
 
+def test_codex_probe_passes_profile_and_runner_env_to_subprocess(monkeypatch, temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    manager = ConfigManager(temp_home)
+    manager.ensure_files()
+
+    monkeypatch.setattr("deepscientist.config.service.resolve_runner_binary", lambda binary, runner_name=None: "/tmp/fake-codex")
+    captured: dict[str, object] = {}
+
+    def fake_run(command, **kwargs):  # noqa: ANN001
+        captured["command"] = list(command)
+        captured["env"] = dict(kwargs.get("env") or {})
+
+        class Result:
+            returncode = 0
+            stdout = '{"type":"item.completed","item":{"text":"HELLO"}}'
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr("deepscientist.config.service.subprocess.run", fake_run)
+
+    result = manager._probe_codex_runner(
+        {
+            "binary": "codex",
+            "profile": "m27",
+            "model": "inherit",
+            "env": {"MINIMAX_API_KEY": "secret-value"},
+        }
+    )
+
+    assert result["ok"] is True
+    assert result["details"]["profile"] == "m27"
+    assert captured["command"][:4] == ["/tmp/fake-codex", "--search", "--profile", "m27"]
+    assert captured["env"]["MINIMAX_API_KEY"] == "secret-value"
+
+
+def test_codex_probe_profile_guidance_avoids_login_language(monkeypatch, temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    manager = ConfigManager(temp_home)
+    manager.ensure_files()
+
+    monkeypatch.setattr("deepscientist.config.service.resolve_runner_binary", lambda binary, runner_name=None: "/tmp/fake-codex")
+
+    def fake_run(command, **kwargs):  # noqa: ANN001
+        class Result:
+            returncode = 1
+            stdout = ""
+            stderr = "MiniMax profile failed to initialize"
+
+        return Result()
+
+    monkeypatch.setattr("deepscientist.config.service.subprocess.run", fake_run)
+
+    result = manager._probe_codex_runner({"binary": "codex", "profile": "m27", "model": "inherit"})
+
+    assert result["ok"] is False
+    guidance_text = "\n".join(result["guidance"])
+    error_text = "\n".join(result["errors"])
+    assert "--profile m27" in guidance_text
+    assert "codex --login" not in guidance_text
+    assert "codex --login" not in error_text
+
+
 def test_codex_probe_failure_guidance_mentions_login_doctor_and_model(monkeypatch, temp_home: Path) -> None:
     ensure_home_layout(temp_home)
     manager = ConfigManager(temp_home)
@@ -838,3 +901,24 @@ def test_codex_bootstrap_probe_persists_failure_state(monkeypatch, temp_home: Pa
     assert result["ok"] is False
     assert state["codex_ready"] is False
     assert "Please login first" in state["codex_last_result"]["stderr_excerpt"]
+
+
+def test_saving_runners_profile_invalidates_cached_codex_bootstrap_state(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    manager = ConfigManager(temp_home)
+    manager.ensure_files()
+
+    config = manager.load_named("config")
+    config["bootstrap"]["codex_ready"] = True
+    config["bootstrap"]["codex_last_checked_at"] = "2026-03-24T00:00:00+00:00"
+    config["bootstrap"]["codex_last_result"] = {"ok": True, "summary": "ready"}
+    manager.save_named_payload("config", config)
+
+    runners = manager.load_named("runners")
+    runners["codex"]["profile"] = "m27"
+    result = manager.save_named_payload("runners", runners)
+    state = manager.codex_bootstrap_state()
+
+    assert result["ok"] is True
+    assert state["codex_ready"] is False
+    assert state["codex_last_result"]["summary"] == "Codex runner configuration changed. A new startup probe is required."

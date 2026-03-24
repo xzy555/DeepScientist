@@ -20,6 +20,8 @@ def _as_bool_env(name: str) -> bool:
 def codex_runtime_overrides() -> dict[str, str]:
     approval_policy = _as_text(os.environ.get("DEEPSCIENTIST_CODEX_APPROVAL_POLICY"))
     sandbox_mode = _as_text(os.environ.get("DEEPSCIENTIST_CODEX_SANDBOX_MODE"))
+    profile = _as_text(os.environ.get("DEEPSCIENTIST_CODEX_PROFILE"))
+    model = _as_text(os.environ.get("DEEPSCIENTIST_CODEX_MODEL"))
 
     if _as_bool_env("DEEPSCIENTIST_CODEX_YOLO"):
         approval_policy = approval_policy or "never"
@@ -30,6 +32,10 @@ def codex_runtime_overrides() -> dict[str, str]:
         overrides["approval_policy"] = approval_policy
     if sandbox_mode:
         overrides["sandbox_mode"] = sandbox_mode
+    if profile:
+        overrides["profile"] = profile
+    if model:
+        overrides["model"] = model
     return overrides
 
 

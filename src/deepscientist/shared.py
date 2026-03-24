@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 import hashlib
 import json
 import os
@@ -9,7 +10,7 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 from uuid import uuid4
 
 try:
@@ -90,21 +91,39 @@ def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
         handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
-def read_jsonl(path: Path) -> list[dict[str, Any]]:
+def iter_jsonl(path: Path | str) -> Iterator[dict[str, Any]]:
+    path = Path(path)
     if not path.exists():
+        return
+    with path.open("r", encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict):
+                yield payload
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    return list(iter_jsonl(path))
+
+
+def count_jsonl(path: Path | str) -> int:
+    return sum(1 for _ in iter_jsonl(path))
+
+
+def read_jsonl_tail(path: Path | str, limit: int) -> list[dict[str, Any]]:
+    normalized_limit = max(int(limit or 0), 0)
+    if normalized_limit <= 0:
         return []
-    items: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            payload = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(payload, dict):
-            items.append(payload)
-    return items
+    items: deque[dict[str, Any]] = deque(maxlen=normalized_limit)
+    for payload in iter_jsonl(path):
+        items.append(payload)
+    return list(items)
 
 
 def read_yaml(path: Path, default: Any = None) -> Any:

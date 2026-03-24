@@ -257,7 +257,7 @@ class PromptBuilder:
             f"- bound_external_connector_count: {surface_context['bound_external_connector_count']}",
             "- surface_rule: treat web, TUI, and connector threads as one continuous quest, but adapt the amount of detail to the active surface.",
             "- surface_reply_rule: use artifact.interact(...) for durable user-visible continuity; do not dump raw internal tool chatter into connector replies.",
-            "- connector_contract_rule: load connector-specific prompt fragments only for the active or bound external connector; do not load unused connector contracts.",
+            "- connector_contract_rule: choose the active connector surface from the latest inbound external user turn when one exists; otherwise fall back to the bound external connector; keep purely local web/TUI turns on the local surface even if the quest is externally bound.",
         ]
 
         if connector == "qq":
@@ -316,12 +316,23 @@ class PromptBuilder:
             if str(parsed.get("connector") or "").strip().lower() == "local":
                 continue
             bound_external.append(parsed)
-        active = bound_external[0] if bound_external else None
-        origin = "bound_external_binding" if active is not None else "latest_user_source"
-        if active is None and latest_user_parsed is not None:
-            latest_connector = str(latest_user_parsed.get("connector") or "").strip().lower()
-            if latest_connector and latest_connector != "local":
-                active = latest_user_parsed
+        latest_connector = str((latest_user_parsed or {}).get("connector") or "").strip().lower()
+        if latest_connector and latest_connector != "local":
+            active = latest_user_parsed
+            origin = "latest_user_source"
+        elif latest_user is not None:
+            return {
+                "latest_user_source": latest_user_source,
+                "active_surface": "local",
+                "active_connector": "local",
+                "active_chat_type": "local",
+                "active_chat_id": "default",
+                "active_connector_origin": "latest_user_source_local",
+                "bound_external_connector_count": len(bound_external),
+            }
+        else:
+            active = bound_external[0] if bound_external else None
+            origin = "bound_external_binding" if active is not None else "none"
         if active is None:
             return {
                 "latest_user_source": latest_user_source,
@@ -687,18 +698,51 @@ class PromptBuilder:
         startup_contract = snapshot.get("startup_contract")
         if isinstance(startup_contract, dict):
             value = str(startup_contract.get("custom_profile") or "").strip().lower()
-            if value in {"continue_existing_state", "revision_rebuttal", "freeform"}:
+            if value in {"continue_existing_state", "review_audit", "revision_rebuttal", "freeform"}:
                 return value
         return "freeform"
+
+    @staticmethod
+    def _baseline_execution_policy(snapshot: dict) -> str:
+        startup_contract = snapshot.get("startup_contract")
+        if isinstance(startup_contract, dict):
+            value = str(startup_contract.get("baseline_execution_policy") or "").strip().lower()
+            if value in {"auto", "must_reproduce_or_verify", "reuse_existing_only", "skip_unless_blocking"}:
+                return value
+        return "auto"
+
+    @staticmethod
+    def _review_followup_policy(snapshot: dict) -> str:
+        startup_contract = snapshot.get("startup_contract")
+        if isinstance(startup_contract, dict):
+            value = str(startup_contract.get("review_followup_policy") or "").strip().lower()
+            if value in {"audit_only", "auto_execute_followups", "user_gated_followups"}:
+                return value
+        return "audit_only"
+
+    @staticmethod
+    def _manuscript_edit_mode(snapshot: dict) -> str:
+        startup_contract = snapshot.get("startup_contract")
+        if isinstance(startup_contract, dict):
+            value = str(startup_contract.get("manuscript_edit_mode") or "").strip().lower()
+            if value in {"none", "copy_ready_text", "latex_required"}:
+                return value
+        return "none"
 
     def _research_delivery_policy_block(self, snapshot: dict) -> str:
         need_research_paper = self._need_research_paper(snapshot)
         launch_mode = self._launch_mode(snapshot)
         custom_profile = self._custom_profile(snapshot)
+        baseline_execution_policy = self._baseline_execution_policy(snapshot)
+        review_followup_policy = self._review_followup_policy(snapshot)
+        manuscript_edit_mode = self._manuscript_edit_mode(snapshot)
         lines = [
             f"- need_research_paper: {need_research_paper}",
             f"- launch_mode: {launch_mode}",
             f"- custom_profile: {custom_profile if launch_mode == 'custom' else 'n/a'}",
+            f"- review_followup_policy: {review_followup_policy if custom_profile == 'review_audit' else 'n/a'}",
+            f"- baseline_execution_policy: {baseline_execution_policy if launch_mode == 'custom' else 'n/a'}",
+            f"- manuscript_edit_mode: {manuscript_edit_mode if custom_profile in {'review_audit', 'revision_rebuttal'} else 'n/a'}",
             f"- delivery_mode: {'paper_required' if need_research_paper else 'algorithm_first'}",
             "- idea_stage_rule: every accepted idea submission should normally create a new branch/worktree and a new user-visible research node.",
             "- idea_draft_rule: before `artifact.submit_idea(...)`, first finish a concise durable Markdown draft for the chosen route; keep `idea.md` compact and `draft.md` richer.",
@@ -713,7 +757,7 @@ class PromptBuilder:
             lines.extend(
                 [
                     "- custom_launch_rule: do not force the canonical full-research path when the custom startup contract is narrower.",
-                    "- custom_context_rule: treat `entry_state_summary`, `review_summary`, and `custom_brief` as active runtime context rather than decorative metadata.",
+                    "- custom_context_rule: treat `entry_state_summary`, `review_summary`, `review_materials`, and `custom_brief` as active runtime context rather than decorative metadata.",
                 ]
             )
             if custom_profile == "continue_existing_state":
@@ -723,6 +767,31 @@ class PromptBuilder:
                         "- reuse_first_rule: trust-rank and reconcile existing assets before deciding to rerun anything costly.",
                     ]
                 )
+            elif custom_profile == "review_audit":
+                lines.extend(
+                    [
+                        "- review_entry_rule: treat the current draft/paper state as the active contract; open `review` before more writing or finalization.",
+                        "- review_routing_rule: if that audit finds real evidence gaps, route to `analysis-campaign`, `baseline`, `scout`, or `write` instead of polishing blindly.",
+                    ]
+                )
+                if review_followup_policy == "auto_execute_followups":
+                    lines.extend(
+                        [
+                            "- review_followup_rule: after the audit artifacts are durable, continue automatically into the required experiments, manuscript deltas, and review-closure work instead of stopping at the audit report.",
+                        ]
+                    )
+                elif review_followup_policy == "user_gated_followups":
+                    lines.extend(
+                        [
+                            "- review_followup_rule: after the audit artifacts are durable, package the next expensive follow-up step into one structured decision instead of continuing silently.",
+                        ]
+                    )
+                else:
+                    lines.extend(
+                        [
+                            "- review_followup_rule: stop after the durable audit artifacts and route recommendation unless the user later asks for execution follow-up.",
+                        ]
+                    )
             elif custom_profile == "revision_rebuttal":
                 lines.extend(
                     [
@@ -734,6 +803,36 @@ class PromptBuilder:
                 lines.extend(
                     [
                         "- freeform_entry_rule: prefer the custom brief over the default stage order and open only the skills actually needed.",
+                    ]
+                )
+            if baseline_execution_policy == "must_reproduce_or_verify":
+                lines.extend(
+                    [
+                        "- baseline_execution_rule: before reviewer-linked follow-up work, explicitly verify or recover the rebuttal-critical baseline/comparator instead of assuming the stored evidence is still trustworthy.",
+                    ]
+                )
+            elif baseline_execution_policy == "reuse_existing_only":
+                lines.extend(
+                    [
+                        "- baseline_execution_rule: prefer the existing trusted baseline/results and do not rerun them unless you find concrete inconsistency, corruption, or missing-evidence problems.",
+                    ]
+                )
+            elif baseline_execution_policy == "skip_unless_blocking":
+                lines.extend(
+                    [
+                        "- baseline_execution_rule: do not spend time on baseline reruns by default; only open `baseline` if a named review/rebuttal issue truly depends on a missing comparator or unusable prior evidence.",
+                    ]
+                )
+            if manuscript_edit_mode == "latex_required":
+                lines.extend(
+                    [
+                        "- manuscript_edit_rule: when manuscript revision is needed, treat the provided LaTeX tree or `paper/latex/` as the authoritative writing surface; if LaTeX source is unavailable, produce LaTeX-ready replacement text and make that blocker explicit instead of pretending the manuscript was edited.",
+                    ]
+                )
+            elif manuscript_edit_mode == "copy_ready_text":
+                lines.extend(
+                    [
+                        "- manuscript_edit_rule: when manuscript revision is needed, provide section-level copy-ready replacement text and explicit deltas even if no LaTeX source is available.",
                     ]
                 )
         if need_research_paper:
@@ -783,7 +882,10 @@ class PromptBuilder:
             "- interaction_protocol: first message may be plain conversation; after that, treat artifact.interact threads and mailbox polls as the main continuity spine across TUI, web, and connectors",
             "- mailbox_protocol: artifact.interact(include_recent_inbound_messages=True) is the queued human-message mailbox; when it returns user text, treat that input as higher priority than background subtasks until it has been acknowledged",
             "- acknowledgment_protocol: after artifact.interact returns any human message, immediately send one substantive artifact.interact(...) follow-up; if the active connector runtime already emitted a transport-level receipt acknowledgement, do not send a redundant receipt-only message; if answerable, answer directly, otherwise state the short plan, nearest checkpoint, and that the current background subtask is paused",
-            "- progress_protocol: emit artifact.interact(kind='progress', reply_mode='threaded', ...) at real human-meaningful checkpoints; if no natural checkpoint appears during active user-relevant work, prefer a concise keepalive once work has crossed roughly 10 tool calls with a human-meaningful delta, and do not drift beyond roughly 20 tool calls or about 15 minutes without a user-visible update",
+            "- progress_protocol: emit artifact.interact(kind='progress', reply_mode='threaded', ...) at real human-meaningful checkpoints; if no natural checkpoint appears during active user-relevant work, prefer a concise keepalive once work has crossed roughly 6 tool calls with a human-meaningful delta, and do not drift beyond roughly 12 tool calls or about 8 minutes without a user-visible update",
+            "- stage_kickoff_protocol: after entering any stage or companion skill, send one user-visible artifact.interact progress update within the first 3 tool calls of substantial work",
+            "- read_plan_keepalive_protocol: if work is still mostly reading, searching, comparison, or planning, do not wait too long for a 'big result'; send one concise user-visible checkpoint after about 5 consecutive tool calls if the user would otherwise see silence",
+            "- subtask_boundary_protocol: send a user-visible update whenever the active subtask changes materially, especially across intake -> audit, audit -> experiment planning, experiment planning -> run launch, run result -> drafting, or drafting -> review/rebuttal",
             "- smoke_then_detach_protocol: for baseline reproduction, main experiments, and analysis experiments, first validate the command path with a bounded smoke test; once the smoke test passes, launch the real long run with bash_exec(mode='detach', ...) and usually leave timeout_seconds unset rather than guessing a fake deadline",
             "- progress_first_monitoring_protocol: when supervising a long-running bash_exec session, judge health by forward progress rather than by whether the final artifact has already appeared within a short window",
             "- delta_monitoring_protocol: compare deltas such as new sample counters, new task counters, new saved files, new last_output_seq values, or changed last_progress payloads; if any of these move forward, treat the run as alive and keep observing",
@@ -804,7 +906,7 @@ class PromptBuilder:
             "- respect_protocol: write user-facing updates as natural, respectful, easy-to-follow chat; do not sound like a formal status report or internal tool log",
             "- omission_protocol: for ordinary user-facing updates, omit file paths, artifact ids, branch/worktree ids, session ids, raw commands, raw logs, and internal tool names unless the user asked for them or needs them to act",
             "- compaction_protocol: ordinary artifact.interact progress updates should usually fit in 2 to 4 short sentences and should not read like a monitoring transcript or execution diary",
-            "- tool_call_keepalive_protocol: for active multi-step work outside long detached experiment waits, prefer sending one concise artifact.interact progress update after roughly 10 tool calls when there is already a human-meaningful delta, and do not exceed roughly 20 tool calls or about 15 minutes without a user-visible checkpoint",
+            "- tool_call_keepalive_protocol: for active multi-step work outside long detached experiment waits, prefer sending one concise artifact.interact progress update after roughly 6 tool calls when there is already a human-meaningful delta, and do not exceed roughly 12 tool calls or about 8 minutes without a user-visible checkpoint",
             "- human_progress_shape_protocol: ordinary progress updates should usually make three things explicit in human language: the current task, the main difficulty or latest real progress, and the concrete next measure you will take",
             "- milestone_graduation_protocol: keep ordinary subtask completions concise; upgrade to a richer milestone report only when a stage-significant deliverable or route-changing checkpoint becomes durably true",
             "- eta_visibility_protocol: for baseline reproduction, main experiments, analysis experiments, and other important long-running phases, progress updates should also make the expected time to the next meaningful result, next milestone, or next user-visible update explicit; use roughly 10 to 30 minutes as the normal update window, and if the ETA is unreliable, say that and give a realistic next check-in window instead",

@@ -10,7 +10,7 @@ Use this skill when the quest does not yet have a stable research frame.
 ## Interaction discipline
 
 - Follow the shared interaction contract injected by the system prompt.
-- For ordinary active work, prefer a concise progress update once work has crossed roughly 10 tool calls with a human-meaningful delta, and do not drift beyond roughly 20 tool calls or about 15 minutes without a user-visible update.
+- For ordinary active work, prefer a concise progress update once work has crossed roughly 6 tool calls with a human-meaningful delta, and do not drift beyond roughly 12 tool calls or about 8 minutes without a user-visible update.
 - Message templates are references only. Adapt to the actual context and vary wording so updates feel natural and non-robotic.
 - If a threaded user reply arrives, interpret it relative to the latest scout progress update before assuming the task changed completely.
 - When scouting actually resolves the framing ambiguity, locks the evaluation contract, or makes the next anchor obvious, send one richer `artifact.interact(kind='milestone', reply_mode='threaded', ...)` update that says what is now clear, why it matters, and which stage should come next.

@@ -44,6 +44,7 @@ def test_init_creates_required_files(temp_home: Path) -> None:
     assert config["connectors"]["system_enabled"]["feishu"] is False
     assert config["connectors"]["system_enabled"]["whatsapp"] is False
     assert config["connectors"]["system_enabled"]["lingzhu"] is True
+    assert runners["codex"]["profile"] == ""
     assert runners["codex"]["model"] == "gpt-5.4"
     assert runners["codex"]["model_reasoning_effort"] == "xhigh"
     assert runners["codex"]["retry_initial_backoff_sec"] == 10.0
@@ -112,6 +113,41 @@ def test_auto_generated_quest_ids_are_sequential(temp_home: Path) -> None:
     third = service.create("third quest")
 
     assert [first["quest_id"], second["quest_id"], third["quest_id"]] == ["001", "002", "003"]
+
+
+def test_events_slice_uses_placeholder_for_oversized_event_lines(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    service = QuestService(temp_home)
+    snapshot = service.create("oversized event slice quest")
+    quest_root = Path(snapshot["quest_root"])
+    events_path = quest_root / ".ds" / "events.jsonl"
+    huge_output = "x" * (9 * 1024 * 1024)
+    oversized_event = {
+        "event_id": "evt-huge",
+        "type": "runner.tool_result",
+        "quest_id": snapshot["quest_id"],
+        "run_id": "run-huge",
+        "tool_name": "bash_exec.bash_exec",
+        "output": huge_output,
+    }
+    small_event = {
+        "event_id": "evt-small",
+        "type": "runner.agent_message",
+        "quest_id": snapshot["quest_id"],
+        "text": "small tail event",
+    }
+    events_path.write_text(
+        json.dumps(oversized_event, ensure_ascii=False) + "\n" + json.dumps(small_event, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    payload = service.events(snapshot["quest_id"], tail=True, limit=2)
+
+    assert payload["events"][0]["type"] == "runner.tool_result"
+    assert payload["events"][0]["oversized_event"] is True
+    assert payload["events"][0]["oversized_bytes"] > 8 * 1024 * 1024
+    assert payload["events"][1]["type"] == "runner.agent_message"
 
 
 def test_deleted_quest_ids_are_not_reused(temp_home: Path) -> None:

@@ -36,7 +36,9 @@
 建议你先准备好这些：
 
 - 安装好 Node.js `>=18.18` 和 npm `>=9`；请优先参考官方页面安装：https://nodejs.org/en/download
-- 一个已经完成认证的 Codex CLI；第一次运行 `ds` 前，请先执行 `codex --login`（或 `codex`）并完成认证
+- 一条已经可用的 Codex 路径：
+  - 默认 OpenAI 登录路径：`codex --login`（或 `codex`）
+  - provider-backed 路径：一个已经可用的 Codex profile，例如 `minimax`、`glm`、`ark`、`bailian`
 - 模型或 API 凭证
 - 如果任务比较重，准备好 GPU 或远程服务器
 - 如果你要长期运行，优先准备 Docker 或其他隔离环境，并准备一个非 root 账号专门启动 DeepScientist
@@ -51,6 +53,10 @@
 - GLM Coding Plan：https://docs.bigmodel.cn/cn/coding-plan/overview
 - 阿里百炼 Coding Plan：https://help.aliyun.com/zh/model-studio/coding-plan
 - 火山引擎 Ark Coding Plan：https://www.volcengine.com/docs/82379/1925115?lang=zh
+
+如果你准备使用 provider-backed 的 Codex profile，而不是默认 OpenAI 登录流，请继续看：
+
+- [15 Codex Provider 配置](./15_CODEX_PROVIDER_SETUP.md)
 
 ## 1. 先安装 Node.js，再安装 DeepScientist
 
@@ -89,6 +95,10 @@ ds latex install-runtime
 
 ## 2. 第一次运行 `ds` 前，先完成 Codex 配置
 
+这里有两条路径，二选一即可。
+
+### 2.1 默认 OpenAI 登录路径
+
 运行：
 
 ```bash
@@ -109,7 +119,29 @@ codex
 ds doctor
 ```
 
-DeepScientist 会在启动前强制做一次真实的 Codex hello 探测。当前版本里，这个探测会先尝试 `~/DeepScientist/config/runners.yaml` 中配置的 runner 模型，默认是 `gpt-5.4`。如果你的 Codex 账号或本地 CLI 配置不能访问它，DeepScientist 会自动回退到当前 Codex 默认模型，并把后续运行持久化为 `model: inherit`。
+### 2.2 provider-backed 的 Codex profile 路径
+
+如果你已经在 MiniMax、GLM、火山方舟、阿里百炼或其他 provider 上配置了一个命名的 Codex profile，请先在终端里确认这个 profile 本身可用：
+
+```bash
+codex --profile minimax
+```
+
+然后用同一个 profile 去跑 DeepScientist：
+
+```bash
+ds doctor --codex-profile minimax
+```
+
+之后启动：
+
+```bash
+ds --codex-profile minimax
+```
+
+把这里的 `minimax` 替换成你真实的 profile 名，例如 `m27`、`glm`、`ark`、`bailian`。
+
+DeepScientist 会在启动前强制做一次真实的 Codex hello 探测。默认情况下，`~/DeepScientist/config/runners.yaml` 里的 runner 模型还是 `gpt-5.4`。如果你的 profile 希望模型由 profile 自己决定，请把 `runners.yaml` 里的 `model` 改成 `inherit`；或者直接使用 `--codex-profile <name>`，让这一轮启动自动继承 profile 对应的模型。
 
 ## 3. 启动本地运行时
 

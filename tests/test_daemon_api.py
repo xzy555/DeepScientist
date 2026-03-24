@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import threading
 import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.error import HTTPError, URLError
@@ -29,7 +30,7 @@ from deepscientist.connector.lingzhu_support import generate_lingzhu_auth_ak, li
 from deepscientist.mcp.context import McpContext
 from deepscientist.connector.qq_profiles import list_qq_profiles
 from deepscientist.runners import RunResult
-from deepscientist.shared import append_jsonl, ensure_dir, generate_id, read_jsonl, read_yaml, utc_now, write_yaml
+from deepscientist.shared import append_jsonl, ensure_dir, generate_id, read_json, read_jsonl, read_yaml, utc_now, write_json, write_yaml
 
 
 def _get_json(url: str):
@@ -2662,6 +2663,51 @@ def test_chat_endpoint_schedules_background_runner(temp_home: Path) -> None:
     assert quest_root.exists()
 
 
+def test_quest_events_stream_large_jsonl_without_full_cache(
+    temp_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    app = DaemonApp(temp_home)
+    quest = app.quest_service.create("large events quest")
+    quest_id = quest["quest_id"]
+    events_path = Path(quest["quest_root"]) / ".ds" / "events.jsonl"
+    events_path.write_text("", encoding="utf-8")
+    monkeypatch.setattr("deepscientist.quest.service._JSONL_CACHE_MAX_BYTES", 512)
+
+    for index in range(30):
+        append_jsonl(
+            events_path,
+            {
+                "event_id": f"evt-large-{index}",
+                "type": "runner.delta",
+                "quest_id": quest_id,
+                "run_id": f"run-{index // 5}",
+                "text": f"payload-{index}-" + ("x" * 300),
+                "created_at": utc_now(),
+            },
+        )
+
+    tail_payload = app.quest_service.events(quest_id, tail=True, limit=5)
+    assert [item["event_id"] for item in tail_payload["events"]] == [
+        "evt-large-25",
+        "evt-large-26",
+        "evt-large-27",
+        "evt-large-28",
+        "evt-large-29",
+    ]
+
+    after_payload = app.quest_service.events(quest_id, after=27, limit=2)
+    assert [item["event_id"] for item in after_payload["events"]] == [
+        "evt-large-27",
+        "evt-large-28",
+    ]
+
+    cache_key = str(events_path.resolve())
+    assert cache_key not in app.quest_service._jsonl_cache
+
+
 def test_quest_create_with_requested_baseline_attaches_materializes_and_confirms(temp_home: Path) -> None:
     ensure_home_layout(temp_home)
     ConfigManager(temp_home).ensure_files()
@@ -3377,6 +3423,11 @@ def test_daemon_startup_reconciles_stale_running_quest(temp_home: Path) -> None:
     quest_yaml["status"] = "running"
     quest_yaml["active_run_id"] = "run-crashed-001"
     write_yaml(quest_root / "quest.yaml", quest_yaml)
+    runtime_state = read_json(quest_root / ".ds" / "runtime_state.json", {})
+    runtime_state["status"] = "running"
+    runtime_state["active_run_id"] = "run-crashed-001"
+    runtime_state["last_transition_at"] = utc_now()
+    write_json(quest_root / ".ds" / "runtime_state.json", runtime_state)
 
     app = DaemonApp(temp_home)
 
@@ -3384,12 +3435,252 @@ def test_daemon_startup_reconciles_stale_running_quest(temp_home: Path) -> None:
     assert snapshot["status"] == "stopped"
     assert snapshot["active_run_id"] is None
     assert any(item["quest_id"] == quest_id for item in app.reconciled_quests)
+    assert any(item["quest_id"] == quest_id and item.get("recoverable") is True for item in app.reconciled_quests)
 
     events = app.quest_service.events(quest_id)["events"]
     assert any(
         item.get("type") == "quest.runtime_reconciled"
         and item.get("abandoned_run_id") == "run-crashed-001"
         for item in events
+    )
+
+
+def test_daemon_auto_resumes_recent_reconciled_quest(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    first_app = DaemonApp(temp_home)
+    quest = first_app.quest_service.create("auto recover recent quest")
+    quest_id = quest["quest_id"]
+    quest_root = Path(quest["quest_root"])
+
+    quest_yaml = read_yaml(quest_root / "quest.yaml", {})
+    quest_yaml["status"] = "running"
+    quest_yaml["active_run_id"] = "run-crashed-002"
+    quest_yaml["updated_at"] = utc_now()
+    write_yaml(quest_root / "quest.yaml", quest_yaml)
+    runtime_state = read_json(quest_root / ".ds" / "runtime_state.json", {})
+    runtime_state["status"] = "running"
+    runtime_state["active_run_id"] = "run-crashed-002"
+    runtime_state["last_transition_at"] = utc_now()
+    write_json(quest_root / ".ds" / "runtime_state.json", runtime_state)
+
+    app = DaemonApp(temp_home)
+
+    class RecoveryRunner:
+        binary = ""
+
+        def __init__(self) -> None:
+            self.requests: list[dict[str, str]] = []
+
+        def run(self, request):
+            self.requests.append(
+                {
+                    "run_id": request.run_id,
+                    "message": request.message,
+                    "turn_reason": request.turn_reason,
+                }
+            )
+            history_root = ensure_dir(request.quest_root / ".ds" / "codex_history" / request.run_id)
+            run_root = ensure_dir(request.quest_root / ".ds" / "runs" / request.run_id)
+            app.quest_service.mark_completed(request.quest_id)
+            return RunResult(
+                ok=True,
+                run_id=request.run_id,
+                model=request.model,
+                output_text="recovered",
+                exit_code=0,
+                history_root=history_root,
+                run_root=run_root,
+                stderr_text="",
+            )
+
+    runner = RecoveryRunner()
+    app.runners["codex"] = runner
+
+    recovered = app._resume_reconciled_quests()
+    assert any(item["quest_id"] == quest_id for item in recovered)
+
+    deadline = time.time() + 3
+    while time.time() < deadline:
+        snapshot = app.quest_service.snapshot(quest_id)
+        if snapshot["status"] == "completed" and runner.requests:
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("auto recovery did not resume the stale quest")
+
+    assert runner.requests[0]["turn_reason"] == "auto_continue"
+    assert runner.requests[0]["message"] == ""
+
+    history = app.quest_service.history(quest_id)
+    assert any(
+        "自动恢复" in str(item.get("content") or "")
+        or "recovered automatically" in str(item.get("content") or "").lower()
+        for item in history
+        if str(item.get("source") or "") == "system-control"
+    )
+    events = app.quest_service.events(quest_id)["events"]
+    assert any(item.get("type") == "quest.runtime_auto_resumed" for item in events)
+
+
+def test_daemon_auto_resume_notifies_bound_connector(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    first_app = DaemonApp(temp_home)
+    quest = first_app.quest_service.create("auto recover bound connector quest")
+    quest_id = quest["quest_id"]
+    quest_root = Path(quest["quest_root"])
+    first_app.quest_service.bind_source(quest_id, "qq:direct:RECOVER-USER-001")
+
+    quest_yaml = read_yaml(quest_root / "quest.yaml", {})
+    quest_yaml["status"] = "running"
+    quest_yaml["active_run_id"] = "run-crashed-004"
+    quest_yaml["updated_at"] = utc_now()
+    write_yaml(quest_root / "quest.yaml", quest_yaml)
+    runtime_state = read_json(quest_root / ".ds" / "runtime_state.json", {})
+    runtime_state["status"] = "running"
+    runtime_state["active_run_id"] = "run-crashed-004"
+    runtime_state["last_transition_at"] = utc_now()
+    write_json(quest_root / ".ds" / "runtime_state.json", runtime_state)
+
+    app = DaemonApp(temp_home)
+
+    class RecoveryRunner:
+        binary = ""
+
+        def run(self, request):
+            history_root = ensure_dir(request.quest_root / ".ds" / "codex_history" / request.run_id)
+            run_root = ensure_dir(request.quest_root / ".ds" / "runs" / request.run_id)
+            app.quest_service.mark_completed(request.quest_id)
+            return RunResult(
+                ok=True,
+                run_id=request.run_id,
+                model=request.model,
+                output_text="connector recovered",
+                exit_code=0,
+                history_root=history_root,
+                run_root=run_root,
+                stderr_text="",
+            )
+
+    app.runners["codex"] = RecoveryRunner()
+
+    sent: list[tuple[str, dict]] = []
+
+    def fake_send_to_channel(channel_name, payload, *, connectors=None):  # noqa: ANN001
+        sent.append((channel_name, dict(payload)))
+        return True
+
+    app.artifact_service._send_to_channel = fake_send_to_channel  # type: ignore[method-assign]
+
+    recovered = app._resume_reconciled_quests()
+    assert any(item["quest_id"] == quest_id for item in recovered)
+
+    deadline = time.time() + 3
+    while time.time() < deadline:
+        qq_payloads = [item for item in sent if item[0] == "qq"]
+        if qq_payloads:
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("auto recovery did not notify the bound connector")
+
+    _, outbound = qq_payloads[0]
+    assert outbound["conversation_id"] == "qq:direct:RECOVER-USER-001"
+    assert outbound["response_phase"] == "control"
+    assert outbound["kind"] == "progress"
+    assert "自动恢复" in str(outbound["message"] or "") or "recovered automatically" in str(outbound["message"] or "").lower()
+
+
+def test_daemon_does_not_auto_resume_old_reconciled_quest(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    first_app = DaemonApp(temp_home)
+    quest = first_app.quest_service.create("auto recover old quest")
+    quest_id = quest["quest_id"]
+    quest_root = Path(quest["quest_root"])
+
+    quest_yaml = read_yaml(quest_root / "quest.yaml", {})
+    quest_yaml["status"] = "running"
+    quest_yaml["active_run_id"] = "run-crashed-003"
+    quest_yaml["updated_at"] = (datetime.now(UTC) - timedelta(days=2)).isoformat()
+    write_yaml(quest_root / "quest.yaml", quest_yaml)
+    runtime_state = read_json(quest_root / ".ds" / "runtime_state.json", {})
+    runtime_state["status"] = "running"
+    runtime_state["active_run_id"] = "run-crashed-003"
+    runtime_state["last_transition_at"] = (datetime.now(UTC) - timedelta(days=2)).isoformat()
+    write_json(quest_root / ".ds" / "runtime_state.json", runtime_state)
+
+    app = DaemonApp(temp_home)
+
+    assert any(item["quest_id"] == quest_id and item.get("recoverable") is False for item in app.reconciled_quests)
+    assert app._resume_reconciled_quests() == []
+
+    snapshot = app.quest_service.snapshot(quest_id)
+    assert snapshot["status"] == "stopped"
+    assert snapshot["active_run_id"] is None
+
+
+def test_daemon_suppresses_auto_resume_after_repeated_crash_loop(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    first_app = DaemonApp(temp_home)
+    quest = first_app.quest_service.create("auto recover suppression quest")
+    quest_id = quest["quest_id"]
+    quest_root = Path(quest["quest_root"])
+    first_app.quest_service.bind_source(quest_id, "qq:direct:RECOVER-SUPPRESS-001")
+
+    quest_yaml = read_yaml(quest_root / "quest.yaml", {})
+    quest_yaml["status"] = "running"
+    quest_yaml["active_run_id"] = "run-crashed-005"
+    quest_yaml["updated_at"] = utc_now()
+    write_yaml(quest_root / "quest.yaml", quest_yaml)
+    runtime_state = read_json(quest_root / ".ds" / "runtime_state.json", {})
+    runtime_state["status"] = "running"
+    runtime_state["active_run_id"] = "run-crashed-005"
+    runtime_state["last_transition_at"] = utc_now()
+    write_json(quest_root / ".ds" / "runtime_state.json", runtime_state)
+
+    app = DaemonApp(temp_home)
+
+    recent_auto_resume = {
+        "event_id": "evt-recent-auto-resume",
+        "type": "quest.runtime_auto_resumed",
+        "quest_id": quest_id,
+        "previous_status": "running",
+        "abandoned_run_id": "run-old-auto-resume",
+        "last_transition_at": utc_now(),
+        "reason": "auto_continue",
+        "scheduled": True,
+        "started": True,
+        "queued": False,
+        "created_at": utc_now(),
+    }
+    append_jsonl(quest_root / ".ds" / "events.jsonl", recent_auto_resume)
+    append_jsonl(quest_root / ".ds" / "events.jsonl", {**recent_auto_resume, "event_id": "evt-recent-auto-resume-2"})
+
+    sent: list[tuple[str, dict]] = []
+
+    def fake_send_to_channel(channel_name, payload, *, connectors=None):  # noqa: ANN001
+        sent.append((channel_name, dict(payload)))
+        return True
+
+    app.artifact_service._send_to_channel = fake_send_to_channel  # type: ignore[method-assign]
+
+    recovered = app._resume_reconciled_quests()
+    assert recovered == []
+
+    snapshot = app.quest_service.snapshot(quest_id)
+    assert snapshot["status"] == "stopped"
+    assert snapshot["active_run_id"] is None
+
+    events = app.quest_service.events(quest_id)["events"]
+    assert any(item.get("type") == "quest.runtime_auto_resume_suppressed" for item in events)
+    assert any(channel == "qq" for channel, _payload in sent)
+    assert any(
+        "crash loop" in str(payload.get("message") or "").lower()
+        or "重复崩溃" in str(payload.get("message") or "")
+        for _channel, payload in sent
     )
 
 

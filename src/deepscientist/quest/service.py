@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import copy
+from collections import deque
 from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 import hashlib
 import subprocess
 import json
@@ -23,7 +25,7 @@ from ..connector_runtime import conversation_identity_key, normalize_conversatio
 from ..gitops import current_branch, export_git_graph, head_commit, init_repo
 from ..home import repo_root
 from ..registries import BaselineRegistry
-from ..shared import append_jsonl, ensure_dir, generate_id, read_json, read_jsonl, read_text, read_yaml, resolve_within, run_command, sha256_text, slugify, utc_now, write_json, write_text, write_yaml
+from ..shared import append_jsonl, ensure_dir, generate_id, iter_jsonl, read_json, read_jsonl, read_jsonl_tail, read_text, read_yaml, resolve_within, run_command, sha256_text, slugify, utc_now, write_json, write_text, write_yaml
 from ..skills import SkillInstaller
 from ..web_search import extract_web_search_payload
 from .layout import (
@@ -42,6 +44,126 @@ _UNSET = object()
 _NUMERIC_QUEST_ID_PATTERN = re.compile(r"^\d{1,10}$")
 _MAX_NUMERIC_QUEST_ID_VALUE = 9_999_999_999
 _NUMERIC_QUEST_ID_PAD_WIDTH = 3
+_CRASH_AUTO_RESUME_WINDOW = timedelta(hours=24)
+_JSONL_CACHE_MAX_BYTES = 4 * 1024 * 1024
+_CODEX_HISTORY_TAIL_LIMIT = 400
+_JSONL_STREAM_CHUNK_BYTES = 64 * 1024
+_EVENTS_OVERSIZED_LINE_BYTES = 8 * 1024 * 1024
+_OVERSIZED_EVENT_PREFIX_BYTES = 4096
+_EVENT_TYPE_BYTES_RE = re.compile(rb'"(?:type|event_type)"\s*:\s*"([^"]+)"')
+_EVENT_TOOL_NAME_BYTES_RE = re.compile(rb'"tool_name"\s*:\s*"([^"]+)"')
+_EVENT_RUN_ID_BYTES_RE = re.compile(rb'"run_id"\s*:\s*"([^"]+)"')
+
+
+def _oversized_event_placeholder(*, prefix: bytes, line_bytes: int) -> dict[str, Any]:
+    def _extract(pattern: re.Pattern[bytes]) -> str | None:
+        match = pattern.search(prefix)
+        if match is None:
+            return None
+        try:
+            return match.group(1).decode("utf-8", errors="ignore").strip() or None
+        except Exception:
+            return None
+
+    event_type = _extract(_EVENT_TYPE_BYTES_RE) or "runner.tool_result"
+    tool_name = _extract(_EVENT_TOOL_NAME_BYTES_RE)
+    run_id = _extract(_EVENT_RUN_ID_BYTES_RE)
+    summary = f"Omitted oversized quest event payload ({line_bytes} bytes) while reading event history."
+    payload: dict[str, Any] = {
+        "type": event_type,
+        "status": "omitted",
+        "summary": summary,
+        "oversized_event": True,
+        "oversized_bytes": line_bytes,
+    }
+    if tool_name:
+        payload["tool_name"] = tool_name
+    if run_id:
+        payload["run_id"] = run_id
+    return payload
+
+
+def _iter_jsonl_records_safely(
+    path: Path,
+    *,
+    oversized_line_bytes: int = _EVENTS_OVERSIZED_LINE_BYTES,
+):
+    if not path.exists():
+        return
+    with path.open("rb") as handle:
+        buffer = bytearray()
+        prefix = bytearray()
+        current_bytes = 0
+        oversized = False
+        while True:
+            chunk = handle.read(_JSONL_STREAM_CHUNK_BYTES)
+            if not chunk:
+                break
+            start = 0
+            while start <= len(chunk):
+                newline_index = chunk.find(b"\n", start)
+                has_newline = newline_index >= 0
+                segment = chunk[start:newline_index] if has_newline else chunk[start:]
+
+                if oversized:
+                    current_bytes += len(segment)
+                    if has_newline:
+                        yield _oversized_event_placeholder(prefix=bytes(prefix), line_bytes=current_bytes)
+                        prefix = bytearray()
+                        current_bytes = 0
+                        oversized = False
+                        start = newline_index + 1
+                        continue
+                    break
+
+                next_bytes = current_bytes + len(segment)
+                if next_bytes > oversized_line_bytes:
+                    combined_prefix = bytes(buffer)
+                    remaining = max(0, _OVERSIZED_EVENT_PREFIX_BYTES - len(combined_prefix))
+                    if remaining:
+                        combined_prefix += segment[:remaining]
+                    prefix = bytearray(combined_prefix)
+                    buffer.clear()
+                    current_bytes = next_bytes
+                    oversized = True
+                    if has_newline:
+                        yield _oversized_event_placeholder(prefix=bytes(prefix), line_bytes=current_bytes)
+                        prefix = bytearray()
+                        current_bytes = 0
+                        oversized = False
+                        start = newline_index + 1
+                        continue
+                    break
+
+                buffer.extend(segment)
+                current_bytes = next_bytes
+                if has_newline:
+                    raw = bytes(buffer).strip()
+                    buffer.clear()
+                    line_bytes = current_bytes
+                    current_bytes = 0
+                    if raw:
+                        try:
+                            payload = json.loads(raw)
+                        except json.JSONDecodeError:
+                            payload = None
+                        if isinstance(payload, dict):
+                            yield payload
+                    start = newline_index + 1
+                    continue
+                break
+
+        if oversized:
+            yield _oversized_event_placeholder(prefix=bytes(prefix), line_bytes=current_bytes)
+        elif buffer:
+            raw = bytes(buffer).strip()
+            if raw:
+                try:
+                    payload = json.loads(raw)
+                except json.JSONDecodeError:
+                    payload = None
+                if isinstance(payload, dict):
+                    yield payload
 
 
 class QuestService:
@@ -808,27 +930,72 @@ class QuestService:
             getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000)),
             stat.st_size,
         )
+        if stat.st_size > _JSONL_CACHE_MAX_BYTES:
+            with self._jsonl_cache_lock:
+                self._jsonl_cache.pop(cache_key, None)
+            return read_jsonl(path)
         with self._jsonl_cache_lock:
             cached = self._jsonl_cache.get(cache_key)
             if cached and cached.get("state") == state:
                 return cached.get("records") or []
-        items: list[dict[str, Any]] = []
-        for line in path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                payload = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(payload, dict):
-                items.append(payload)
+        items = read_jsonl(path)
         with self._jsonl_cache_lock:
             self._jsonl_cache[cache_key] = {
                 "state": state,
                 "records": items,
             }
         return items
+
+    @staticmethod
+    def _read_jsonl_cursor_slice(
+        path: Path,
+        *,
+        after: int = 0,
+        before: int | None = None,
+        limit: int = 200,
+        tail: bool = False,
+    ) -> tuple[list[tuple[int, dict[str, Any]]], int, bool]:
+        normalized_limit = max(int(limit or 0), 0)
+        if not path.exists():
+            return [], 0, False
+        if normalized_limit <= 0:
+            total = sum(1 for _ in _iter_jsonl_records_safely(path))
+            return [], total, False
+
+        if before is not None:
+            stop_cursor = max(int(before) - 1, 0)
+            window: deque[tuple[int, dict[str, Any]]] = deque(maxlen=normalized_limit)
+            total = 0
+            for payload in _iter_jsonl_records_safely(path):
+                total += 1
+                if total >= before:
+                    break
+                window.append((total, payload))
+            has_more = bool(window and window[0][0] > 1)
+            return list(window), total, has_more
+
+        if tail:
+            window = deque(maxlen=normalized_limit)
+            total = 0
+            for payload in _iter_jsonl_records_safely(path):
+                total += 1
+                window.append((total, payload))
+            has_more = total > len(window)
+            return list(window), total, has_more
+
+        collected: list[tuple[int, dict[str, Any]]] = []
+        total = 0
+        saw_more = False
+        normalized_after = max(int(after or 0), 0)
+        for payload in _iter_jsonl_records_safely(path):
+            total += 1
+            if total <= normalized_after:
+                continue
+            if len(collected) < normalized_limit:
+                collected.append((total, payload))
+                continue
+            saw_more = True
+        return collected, total, saw_more
 
     @staticmethod
     def _path_state(path: Path) -> tuple[int, int, int] | None:
@@ -1592,6 +1759,12 @@ class QuestService:
             if not active_run_id and status != "running":
                 continue
             previous_status = status or "running"
+            last_transition_at = self._runtime_recovery_timestamp(runtime_state, quest_data)
+            recoverable = self._runtime_recovery_eligible(
+                previous_status=previous_status,
+                active_run_id=active_run_id or None,
+                last_transition_at=last_transition_at,
+            )
             self.update_runtime_state(
                 quest_root=quest_root,
                 status="stopped",
@@ -1602,6 +1775,8 @@ class QuestService:
                 f"Recovered quest from stale runtime state; previous status `{previous_status}`"
                 + (f", abandoned run `{active_run_id}`." if active_run_id else ".")
             )
+            if recoverable:
+                summary = f"{summary} Auto-resume is eligible within the 24-hour recovery window."
             append_jsonl(
                 quest_root / ".ds" / "events.jsonl",
                 {
@@ -1610,6 +1785,8 @@ class QuestService:
                     "quest_id": quest_root.name,
                     "previous_status": previous_status,
                     "abandoned_run_id": active_run_id or None,
+                    "last_transition_at": last_transition_at,
+                    "recoverable": recoverable,
                     "status": "stopped",
                     "summary": summary,
                     "created_at": utc_now(),
@@ -1620,10 +1797,52 @@ class QuestService:
                     "quest_id": quest_root.name,
                     "previous_status": previous_status,
                     "abandoned_run_id": active_run_id or None,
+                    "last_transition_at": last_transition_at,
+                    "recoverable": recoverable,
                     "status": "stopped",
                 }
             )
         return reconciled
+
+    @staticmethod
+    def _parse_runtime_timestamp(value: Any) -> datetime | None:
+        normalized = str(value or "").strip()
+        if not normalized:
+            return None
+        candidate = normalized.replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(candidate)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
+
+    def _runtime_recovery_timestamp(self, runtime_state: dict[str, Any], quest_data: dict[str, Any]) -> str | None:
+        for candidate in (
+            runtime_state.get("last_transition_at"),
+            quest_data.get("updated_at"),
+            quest_data.get("created_at"),
+        ):
+            parsed = self._parse_runtime_timestamp(candidate)
+            if parsed is None:
+                continue
+            return parsed.isoformat()
+        return None
+
+    def _runtime_recovery_eligible(
+        self,
+        *,
+        previous_status: str,
+        active_run_id: str | None,
+        last_transition_at: str | None,
+    ) -> bool:
+        if previous_status != "running" and not str(active_run_id or "").strip():
+            return False
+        parsed = self._parse_runtime_timestamp(last_transition_at)
+        if parsed is None:
+            return False
+        return datetime.now(UTC) - parsed <= _CRASH_AUTO_RESUME_WINDOW
 
     def history(self, quest_id: str, limit: int = 100) -> list[dict]:
         return self._read_cached_jsonl(self._quest_root(quest_id) / ".ds" / "conversations" / "main.jsonl")[-limit:]
@@ -1730,40 +1949,37 @@ class QuestService:
         limit: int = 200,
         tail: bool = False,
     ) -> dict:
-        records = self._read_cached_jsonl(self._quest_root(quest_id) / ".ds" / "events.jsonl")
+        event_path = self._quest_root(quest_id) / ".ds" / "events.jsonl"
         normalized_limit = max(limit, 0)
         direction = "after"
         if before is not None:
             direction = "before"
-            end = max(int(before) - 1, 0)
-            start = max(end - normalized_limit, 0)
-            sliced = records[start:end]
         elif tail and normalized_limit > 0:
             direction = "tail"
-            start = max(len(records) - normalized_limit, 0)
-            sliced = records[start : start + normalized_limit]
-        else:
-            start = max(after, 0)
-            sliced = records[start : start + normalized_limit]
+        sliced_records, total_records, has_more = self._read_jsonl_cursor_slice(
+            event_path,
+            after=after,
+            before=before,
+            limit=normalized_limit,
+            tail=tail,
+        )
         enriched = []
-        for index, item in enumerate(sliced, start=start + 1):
+        for cursor, item in sliced_records:
             enriched.append(
                 {
-                    "cursor": index,
-                    "event_id": item.get("event_id") or f"evt-{quest_id}-{index}",
+                    "cursor": cursor,
+                    "event_id": item.get("event_id") or f"evt-{quest_id}-{cursor}",
                     **item,
                 }
             )
         if before is not None:
-            next_cursor = start + len(sliced)
+            next_cursor = enriched[-1]["cursor"] if enriched else max(min(int(before or 0) - 1, total_records), 0)
+        elif tail:
+            next_cursor = total_records
         else:
-            next_cursor = len(records) if tail else start + len(sliced)
+            next_cursor = enriched[-1]["cursor"] if enriched else max(int(after or 0), 0)
         oldest_cursor = enriched[0]["cursor"] if enriched else None
         newest_cursor = enriched[-1]["cursor"] if enriched else None
-        if before is not None:
-            has_more = start > 0
-        else:
-            has_more = start > 0 if tail else next_cursor < len(records)
         return {
             "quest_id": quest_id,
             "cursor": next_cursor,
@@ -3705,7 +3921,7 @@ def _parse_codex_history(history_root: Path, *, quest_id: str, run_id: str, skil
     entries: list[dict] = []
     known_tool_names: dict[str, str] = {}
 
-    for raw in read_jsonl(history_path):
+    for raw in read_jsonl_tail(history_path, _CODEX_HISTORY_TAIL_LIMIT):
         timestamp = raw.get("timestamp")
         event = raw.get("event")
         if not isinstance(event, dict):

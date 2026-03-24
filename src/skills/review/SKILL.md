@@ -17,7 +17,7 @@ It is also not the same as `rebuttal`.
 ## Interaction discipline
 
 - Follow the shared interaction contract injected by the system prompt.
-- For ordinary active work, prefer a concise progress update once work has crossed roughly 10 tool calls with a human-meaningful delta, and do not drift beyond roughly 20 tool calls or about 15 minutes without a user-visible update.
+- For ordinary active work, prefer a concise progress update once work has crossed roughly 6 tool calls with a human-meaningful delta, and do not drift beyond roughly 12 tool calls or about 8 minutes without a user-visible update.
 - When the review report, revision plan, or follow-up experiment TODO list becomes durable, send a richer `artifact.interact(kind='milestone', reply_mode='threaded', ...)` update that says what the main risks are, what should be fixed next, and whether the next route is writing, experiment, or claim downgrade.
 
 ## Purpose
@@ -63,6 +63,16 @@ Do not treat “looks polished” as “is defensible”.
 - Do not recommend rhetoric when the real problem is missing evidence.
 - If novelty or positioning is uncertain, treat that as a literature-audit question first, not an automatic experiment request.
 - If a claim is too broad for the evidence, prefer narrowing or downgrading the claim over defending it with style.
+- If `startup_contract.review_followup_policy` is present, honor it:
+  - `audit_only`
+    - stop after durable review artifacts and a clear route recommendation
+  - `auto_execute_followups`
+    - do not stop at the audit if the next route is already clear; continue into the required experiments and manuscript deltas
+  - `user_gated_followups`
+    - finish the audit first, then package the next expensive follow-up step into one structured decision
+- If `startup_contract.manuscript_edit_mode = latex_required`, treat the provided LaTeX tree or `paper/latex/` as the writing surface when manuscript revision is needed.
+- If LaTeX source is unavailable while `latex_required` is requested, do not pretend the manuscript was edited; produce LaTeX-ready replacement text and an explicit blocker note instead.
+- Accept manuscript and review inputs from URLs, local file paths, local directories, or current-turn attachments; do not assume the draft is already perfectly normalized.
 
 ## Primary inputs
 
@@ -74,11 +84,13 @@ Use, in roughly this order:
 - the six-field `evaluation_summary` blocks from recent main experiments and analysis slices
 - recent main and analysis experiment results
 - figures, tables, and captions
+- current-turn attachments and user-provided local paths / directories / URLs for the manuscript bundle or review packet
 - prior self-review or reviewer-first notes as low-trust auxiliary input
 - nearby papers when novelty or comparison is unclear
 
 If the draft/result state is still unclear, open `intake-audit` first before continuing the review workflow.
 Before proposing extra experiments, read those structured `evaluation_summary` blocks first so you do not request work that the recorded evidence already resolved.
+If the user provided draft files or manuscript bundles directly, first normalize them into durable quest-visible paths before planning experiments or section-level revisions.
 
 ## Core outputs
 
@@ -87,6 +99,8 @@ The review pass should usually leave behind:
 - `paper/review/review.md`
 - `paper/review/revision_log.md`
 - `paper/review/experiment_todo.md`
+- `paper/paper_experiment_matrix.md` when more evidence is still needed
+- `paper/paper_experiment_matrix.json` when more evidence is still needed
 
 Use the templates in `references/` when needed:
 
@@ -175,14 +189,25 @@ For each serious issue, record:
 - what should change
 - whether the fix is writing-only, evidence-only, or experiment-dependent
 - whether the issue blocks `finalize`
+- one copy-ready replacement sentence / paragraph when feasible
+- one LaTeX-ready replacement block when `startup_contract.manuscript_edit_mode = latex_required`
 
 ### 5. Produce the follow-up experiment TODO list
 
 Only if more evidence is truly needed, write `paper/review/experiment_todo.md` using `references/experiment-todo-template.md`.
 
+When the paper still lacks experimental support, also create or revise:
+
+- `paper/paper_experiment_matrix.md`
+- `paper/paper_experiment_matrix.json`
+
+Treat the matrix as the paper-facing master plan and `paper/review/experiment_todo.md` as only the current execution frontier or review-facing subset.
+
 Each TODO item should include:
 
 - the review issue it answers
+- the matrix exp id
+- the corresponding `exp_id` in the paper experiment matrix
 - why existing evidence is still insufficient
 - the minimum experiment or analysis needed
 - required metric(s)
@@ -195,6 +220,50 @@ Each TODO item should include:
 
 Do not write a vague “run more ablations” list.
 Each TODO item should be concrete enough to turn into `analysis-campaign` slices or a `baseline` recovery task.
+The matrix should be broader than the TODO list and should classify the full paper-facing experiment space, not just analysis work.
+When building or revising that matrix, explicitly consider:
+
+- main comparison packaging or extension
+- component ablations
+- sensitivity / hyperparameter checks
+- robustness checks
+- efficiency / cost / latency / token-overhead checks when relevant
+- highlight-validation experiments that test the likely strengths of the method
+- limitation-boundary analyses
+- case study rows as optional rather than mandatory evidence
+
+Do not assume the paper only needs “analysis experiments”.
+Do not assume case studies belong in the required set.
+If efficiency or cost could become a reviewer-facing strength or concern, put that into the matrix explicitly.
+
+For the matrix, each row should usually record:
+
+- `exp_id`
+- `tier`
+- `experiment_type`
+- `status`
+- `feasibility_now`
+- `claim_ids`
+- `highlight_ids`
+- `research_question`
+- `hypothesis`
+- `comparators`
+- `metrics`
+- `minimal_success_criterion`
+- `paper_placement`
+- `promotion_rule`
+- `next_action`
+
+The matrix should also keep a short `highlight hypotheses` block.
+Do not rely on prose intuition for the method's best selling point; if a likely highlight matters, it should have a corresponding validation row in the matrix.
+
+Before treating the experiments section as stable, require that every currently feasible matrix row that is not merely `optional` or `dropped` is either:
+
+- completed
+- analyzed
+- excluded with a real reason
+- or blocked with a real reason
+
 When extra evidence is truly needed, use the shared supplementary-experiment protocol:
 
 - recover ids / refs first if needed
@@ -215,6 +284,54 @@ After the review artifacts are durable:
 - if the route is costly or non-obvious, record a `decision`
 
 Do not stop immediately after writing the review if the next route is already clear.
+
+### 7. Auto follow-up execution contract
+
+When `startup_contract.review_followup_policy = auto_execute_followups`:
+
+- treat the review as a gate, not as the endpoint
+- immediately turn the accepted follow-up route into action:
+  - `analysis-campaign`
+    - when new evidence is truly required
+  - `baseline`
+    - when a missing comparator baseline blocks fair review
+  - `write`
+    - when the issues are mostly text, outline, claim-scope, figure, or framing revisions
+- after each completed follow-up step, update:
+  - `paper/review/revision_log.md`
+  - `paper/review/experiment_todo.md`
+  - the draft or manuscript-facing revision package
+- only treat the review line as truly closed after the follow-up route has either completed or been downgraded / blocked explicitly
+
+When `startup_contract.review_followup_policy = user_gated_followups`:
+
+- stop after the durable audit artifacts
+- turn the next expensive follow-up package into one structured decision instead of continuing silently
+
+When `startup_contract.review_followup_policy = audit_only`:
+
+- stop after the durable audit artifacts and route recommendation
+
+### 8. Manuscript revision delivery contract
+
+If manuscript revision is required, make the delta explicit:
+
+- section
+- old claim / weakness
+- new wording
+- evidence basis
+- remaining limitation
+
+If `startup_contract.manuscript_edit_mode = copy_ready_text`:
+
+- provide copy-ready replacement wording in `paper/review/revision_log.md` or a nearby revision note
+- keep the wording directly usable by the user or downstream `write`
+
+If `startup_contract.manuscript_edit_mode = latex_required`:
+
+- prefer editing the actual LaTeX sources when they are available
+- otherwise provide LaTeX-ready replacement text blocks with explicit insertion targets
+- preserve labels, citations, figure/table refs, and section structure in the suggested replacements
 
 ## Companion skill routing
 

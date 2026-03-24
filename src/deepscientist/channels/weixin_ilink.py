@@ -19,7 +19,10 @@ from ..connector.weixin_support import (
     save_weixin_get_updates_buf,
 )
 
-_SESSION_PAUSE_SECONDS = 60 * 60
+_SESSION_RETRY_INITIAL_SECONDS = 5.0
+_SESSION_RETRY_MAX_SECONDS = 60.0
+_POLL_RETRY_INITIAL_SECONDS = 2.0
+_POLL_RETRY_MAX_SECONDS = 30.0
 
 
 class WeixinIlinkService:
@@ -89,7 +92,8 @@ class WeixinIlinkService:
 
     def _run(self) -> None:
         timeout_ms = DEFAULT_WEIXIN_LONG_POLL_TIMEOUT_MS
-        pause_until = 0.0
+        retry_until = 0.0
+        retry_reason: str | None = None
         sync_buf = load_weixin_get_updates_buf(self._root)
         base_url = normalize_weixin_base_url(self.config.get("base_url"))
         cdn_base_url = normalize_weixin_cdn_base_url(self.config.get("cdn_base_url"))
@@ -97,6 +101,10 @@ class WeixinIlinkService:
         login_user_id = str(self.config.get("login_user_id") or "").strip() or None
         token = self._secret("bot_token", "bot_token_env")
         route_tag = str(self.config.get("route_tag") or "").strip() or None
+        session_retry_seconds = _SESSION_RETRY_INITIAL_SECONDS
+        poll_retry_seconds = _POLL_RETRY_INITIAL_SECONDS
+        session_expired_count = 0
+        session_expired_since: str | None = None
 
         self._write_state(
             enabled=True,
@@ -108,20 +116,31 @@ class WeixinIlinkService:
             login_user_id=login_user_id,
             base_url=base_url,
             cdn_base_url=cdn_base_url,
+            retry_reason=None,
+            retry_after_seconds=None,
+            pause_until=None,
             updated_at=utc_now(),
         )
 
         while not self._stop_event.is_set():
             now = time.time()
-            if pause_until > now:
-                self._write_state(
-                    connected=False,
-                    connection_state="paused",
-                    auth_state="error",
-                    pause_until=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(pause_until)),
-                    updated_at=utc_now(),
-                )
-                self._stop_event.wait(min(max(pause_until - now, 1.0), 5.0))
+            if retry_until > now:
+                retry_after_seconds = max(int(retry_until - now + 0.999), 1)
+                state_patch: dict[str, Any] = {
+                    "connected": False,
+                    "connection_state": "connecting" if retry_reason == "session_expired" else "error",
+                    "auth_state": "ready" if token and account_id else "missing_credentials",
+                    "retry_reason": retry_reason,
+                    "retry_after_seconds": retry_after_seconds,
+                    "session_expired_count": session_expired_count or None,
+                    "session_expired_since": session_expired_since,
+                    "pause_until": None,
+                    "updated_at": utc_now(),
+                }
+                if retry_reason == "session_expired":
+                    state_patch["last_error"] = f"session expired ({SESSION_EXPIRED_ERRCODE}); retrying automatically"
+                self._write_state(**state_patch)
+                self._stop_event.wait(min(max(retry_until - now, 0.5), 5.0))
                 continue
             try:
                 response = get_weixin_updates(
@@ -137,14 +156,35 @@ class WeixinIlinkService:
                 errcode = int(response.get("errcode") or 0)
                 retcode = int(response.get("ret") or 0)
                 if errcode == SESSION_EXPIRED_ERRCODE or retcode == SESSION_EXPIRED_ERRCODE:
-                    pause_until = time.time() + _SESSION_PAUSE_SECONDS
-                    self.log("warning", "weixin.ilink: session expired; pausing for one hour")
+                    session_expired_count += 1
+                    if session_expired_since is None:
+                        session_expired_since = utc_now()
+                    if sync_buf:
+                        sync_buf = ""
+                        save_weixin_get_updates_buf(self._root, "")
+                    retry_delay_seconds = session_retry_seconds
+                    retry_after_seconds = max(int(retry_delay_seconds + 0.999), 1)
+                    session_retry_seconds = min(session_retry_seconds * 2.0, _SESSION_RETRY_MAX_SECONDS)
+                    retry_reason = "session_expired"
+                    retry_until = time.time() + retry_delay_seconds
+                    timeout_ms = DEFAULT_WEIXIN_LONG_POLL_TIMEOUT_MS
+                    self.log(
+                        "warning",
+                        (
+                            "weixin.ilink: session expired; cleared sync state and "
+                            f"retrying in {retry_after_seconds}s"
+                        ),
+                    )
                     self._write_state(
                         connected=False,
-                        connection_state="paused",
-                        auth_state="error",
-                        last_error=f"session expired ({SESSION_EXPIRED_ERRCODE})",
-                        pause_until=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(pause_until)),
+                        connection_state="connecting",
+                        auth_state="ready" if token and account_id else "missing_credentials",
+                        last_error=f"session expired ({SESSION_EXPIRED_ERRCODE}); retrying automatically",
+                        retry_reason=retry_reason,
+                        retry_after_seconds=retry_after_seconds,
+                        session_expired_count=session_expired_count,
+                        session_expired_since=session_expired_since,
+                        pause_until=None,
                         updated_at=utc_now(),
                     )
                     continue
@@ -156,11 +196,26 @@ class WeixinIlinkService:
                 if next_sync_buf:
                     sync_buf = next_sync_buf
                     save_weixin_get_updates_buf(self._root, sync_buf)
+                if session_expired_count > 0:
+                    self.log(
+                        "info",
+                        f"weixin.ilink: session recovered after {session_expired_count} retry attempt(s)",
+                    )
+                retry_reason = None
+                retry_until = 0.0
+                session_retry_seconds = _SESSION_RETRY_INITIAL_SECONDS
+                poll_retry_seconds = _POLL_RETRY_INITIAL_SECONDS
+                session_expired_count = 0
+                session_expired_since = None
                 self._write_state(
                     connected=True,
                     connection_state="connected",
                     auth_state="ready",
                     last_error=None,
+                    retry_reason=None,
+                    retry_after_seconds=None,
+                    session_expired_count=None,
+                    session_expired_since=None,
                     pause_until=None,
                     updated_at=utc_now(),
                 )
@@ -182,18 +237,34 @@ class WeixinIlinkService:
             except Exception as exc:
                 if self._stop_event.is_set():
                     break
-                self.log("warning", f"weixin.ilink: polling failed: {exc}")
+                retry_reason = "poll_error"
+                retry_delay_seconds = poll_retry_seconds
+                retry_after_seconds = max(int(retry_delay_seconds + 0.999), 1)
+                retry_until = time.time() + retry_delay_seconds
+                poll_retry_seconds = min(poll_retry_seconds * 2.0, _POLL_RETRY_MAX_SECONDS)
+                self.log(
+                    "warning",
+                    f"weixin.ilink: polling failed: {exc}; retrying in {retry_after_seconds}s",
+                )
                 self._write_state(
                     connected=False,
                     connection_state="error",
                     auth_state="ready" if token and account_id else "missing_credentials",
                     last_error=str(exc),
+                    retry_reason=retry_reason,
+                    retry_after_seconds=retry_after_seconds,
+                    session_expired_count=session_expired_count or None,
+                    session_expired_since=session_expired_since,
+                    pause_until=None,
                     updated_at=utc_now(),
                 )
-                self._stop_event.wait(2.0)
+                self._stop_event.wait(retry_delay_seconds)
         self._write_state(
             connected=False,
             connection_state="stopped",
+            retry_reason=None,
+            retry_after_seconds=None,
+            pause_until=None,
             updated_at=utc_now(),
         )
 

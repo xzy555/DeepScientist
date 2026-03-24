@@ -920,11 +920,13 @@ function QuestCanvasSurface({
   error,
   onRefresh,
   onOpenStageSelection,
+  snapshot,
 }: {
   questId: string
   error?: string | null
   onRefresh: () => Promise<void>
   onOpenStageSelection?: (selection: QuestStageSelection) => void
+  snapshot?: QuestWorkspaceState['snapshot']
 }) {
   const queryClient = useQueryClient()
   const clearGraphSelection = useLabGraphSelectionStore((state) => state.clear)
@@ -959,6 +961,18 @@ function QuestCanvasSurface({
       className="relative h-full min-h-0 overflow-hidden bg-[var(--lab-surface-muted)]"
       data-onboarding-id="quest-canvas-surface"
     >
+      <div className="absolute left-4 top-4 z-20 flex max-w-[32rem] flex-wrap items-center gap-2">
+        {snapshot?.branch ? (
+          <div className="rounded-full border border-black/[0.08] bg-white/[0.88] px-3 py-1.5 text-[11px] font-medium text-foreground shadow-sm backdrop-blur dark:border-white/[0.10] dark:bg-[rgba(18,18,18,0.78)]">
+            Current path: <span className="font-semibold">{snapshot.branch}</span>
+          </div>
+        ) : null}
+        {snapshot?.active_anchor ? (
+          <div className="rounded-full border border-black/[0.08] bg-white/[0.82] px-3 py-1.5 text-[11px] text-muted-foreground shadow-sm backdrop-blur dark:border-white/[0.10] dark:bg-[rgba(18,18,18,0.72)]">
+            Stage: <span className="font-medium text-foreground">{snapshot.active_anchor}</span>
+          </div>
+        ) : null}
+      </div>
       <div className="absolute right-4 top-4 z-20 flex max-w-[28rem] flex-col items-end gap-2">
         {error ? (
           <div className="max-w-full rounded-full border border-black/[0.08] bg-white/[0.86] px-3 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur dark:border-white/[0.10] dark:bg-[rgba(18,18,18,0.76)]">
@@ -987,6 +1001,8 @@ function QuestCanvasSurface({
           questId={questId}
           readOnly
           preferredViewMode="branch"
+          activeBranch={snapshot?.branch || null}
+          highlightBranch={selection?.branch_name || null}
           showFloatingPanels={false}
           onStageOpen={onOpenStageSelection}
         />
@@ -3366,6 +3382,7 @@ export function QuestWorkspaceSurfaceInner({
             error={error}
             onRefresh={refreshWorkspace}
             onOpenStageSelection={onOpenStageSelection}
+            snapshot={snapshot}
           />
         ) : view === 'memory' ? (
           <QuestMemorySurface
