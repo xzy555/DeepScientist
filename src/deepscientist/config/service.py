@@ -3,11 +3,14 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import tempfile
+from shutil import copy2
 from copy import deepcopy
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request
 
+from ..codex_cli_compat import adapt_profile_only_provider_config, normalize_codex_reasoning_effort
 from ..connector.connector_profiles import PROFILEABLE_CONNECTOR_NAMES, list_connector_profiles, normalize_connector_config
 from ..connector_runtime import build_discovered_target, infer_connector_transport
 from ..home import repo_root
@@ -486,6 +489,7 @@ This page edits `{home_text}/config/runners.yaml`.
 - `claude` remains TODO / reserved in the current open-source release and is not runnable yet
 - set `codex.profile` only when your Codex CLI uses a named provider profile such as `m27`
 - when you launch DeepScientist ad hoc with a provider profile, you can also use `ds --codex-profile <name>`
+- when you want a one-off Codex binary override, you can also use `ds --codex /absolute/path/to/codex`
 - keep `codex.model_reasoning_effort: xhigh` unless you explicitly want a lighter default
 - keep `codex.retry_on_failure: true` so transient Codex failures can resume automatically
 - keep retry timing near `10s / 6x / 1800s max` so Codex backs off exponentially and the last retry waits about 30 minutes
@@ -1206,6 +1210,31 @@ Use **Test** when the file exposes runtime dependencies.
             resolved[env_key] = str(value)
         return resolved
 
+    def _prepare_codex_probe_home(
+        self,
+        *,
+        config_dir: str,
+        profile: str,
+    ) -> tuple[str, str | None, tempfile.TemporaryDirectory[str] | None]:
+        expanded = Path(config_dir).expanduser()
+        config_path = expanded / "config.toml"
+        if not config_path.exists():
+            return str(expanded), None, None
+
+        original_text = read_text(config_path)
+        adapted_text, warning = adapt_profile_only_provider_config(original_text, profile=profile)
+        if warning is None:
+            return str(expanded), None, None
+
+        temp_home = tempfile.TemporaryDirectory(prefix="ds-codex-probe-")
+        temp_root = Path(temp_home.name)
+        for filename in ("auth.json",):
+            source_path = expanded / filename
+            if source_path.exists():
+                copy2(source_path, temp_root / filename)
+        write_text(temp_root / "config.toml", adapted_text)
+        return str(temp_root), warning, temp_home
+
     def _codex_missing_binary_guidance(self, config: dict) -> list[str]:
         profile = self._codex_profile_name(config)
         guidance = [
@@ -1221,7 +1250,9 @@ Use **Test** when the file exposes runtime dependencies.
             )
         else:
             guidance.append("Run `codex --login` (or `codex`) once and finish authentication before starting DeepScientist.")
-        guidance.append("If you use a custom Codex path, set `runners.codex.binary` to that absolute executable path.")
+        guidance.append(
+            "If you use a custom Codex path, either set `runners.codex.binary` or launch with `ds --codex /absolute/path/to/codex`."
+        )
         return guidance
 
     def _codex_probe_failure_guidance(self, config: dict) -> tuple[list[str], list[str]]:
@@ -1326,10 +1357,14 @@ Use **Test** when the file exposes runtime dependencies.
         profile = self._codex_profile_name(config)
         requested_model = self._codex_requested_model(config)
         raw_reasoning_effort = config.get("model_reasoning_effort")
-        reasoning_effort = (
+        requested_reasoning_effort = (
             str(raw_reasoning_effort).strip()
             if raw_reasoning_effort is not None and str(raw_reasoning_effort).strip()
             else ("xhigh" if raw_reasoning_effort is None else None)
+        )
+        reasoning_effort, reasoning_effort_warning = normalize_codex_reasoning_effort(
+            requested_reasoning_effort,
+            resolved_binary=resolved_binary,
         )
         details: dict[str, object] = {
             "binary": binary,
@@ -1342,6 +1377,7 @@ Use **Test** when the file exposes runtime dependencies.
             "approval_policy": str(config.get("approval_policy") or "on-request"),
             "sandbox_mode": str(config.get("sandbox_mode") or "workspace-write"),
             "reasoning_effort": reasoning_effort,
+            "requested_reasoning_effort": requested_reasoning_effort,
             "model_fallback_attempted": False,
             "model_fallback_used": False,
             "checked_at": checked_at,
@@ -1365,9 +1401,20 @@ Use **Test** when the file exposes runtime dependencies.
         env = os.environ.copy()
         env.update(self._codex_runner_env(config))
         config_dir = str(config.get("config_dir") or "~/.codex").strip()
+        probe_home_handle: tempfile.TemporaryDirectory[str] | None = None
+        compatibility_warnings: list[str] = []
         if config_dir:
-            env["CODEX_HOME"] = str(Path(config_dir).expanduser())
+            prepared_home, profile_config_warning, probe_home_handle = self._prepare_codex_probe_home(
+                config_dir=config_dir,
+                profile=profile,
+            )
+            env["CODEX_HOME"] = prepared_home
+            if profile_config_warning:
+                compatibility_warnings.append(profile_config_warning)
         prompt = "Reply with exactly HELLO."
+        if reasoning_effort_warning:
+            compatibility_warnings.append(reasoning_effort_warning)
+        base_warnings: list[str] = list(compatibility_warnings)
 
         def run_probe_once(model_for_command: str) -> tuple[list[str], subprocess.CompletedProcess[str] | None, subprocess.TimeoutExpired | None]:
             command = self._build_codex_probe_command(
@@ -1406,7 +1453,7 @@ Use **Test** when the file exposes runtime dependencies.
             return {
                 "ok": False,
                 "summary": "Codex startup probe timed out.",
-                "warnings": [],
+                "warnings": base_warnings,
                 "errors": [
                     "Codex did not answer the startup hello probe within 90 seconds.",
                     *self._codex_probe_failure_guidance(config)[0],
@@ -1463,7 +1510,7 @@ Use **Test** when the file exposes runtime dependencies.
                     return {
                         "ok": True,
                         "summary": "Codex startup probe completed with Codex default model fallback.",
-                        "warnings": [fallback_warning],
+                        "warnings": [*base_warnings, fallback_warning],
                         "errors": [],
                         "details": details,
                         "guidance": [
@@ -1483,7 +1530,7 @@ Use **Test** when the file exposes runtime dependencies.
                 "probe_command": command,
             }
         )
-        warnings: list[str] = []
+        warnings: list[str] = list(base_warnings)
         errors: list[str] = []
         if not ok:
             errors.append("Codex did not complete the startup hello probe successfully.")

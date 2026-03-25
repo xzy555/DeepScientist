@@ -638,6 +638,41 @@ def test_codex_probe_omits_reasoning_effort_flag_when_runner_sets_none(monkeypat
     assert not any("model_reasoning_effort=" in part for part in command)
 
 
+def test_codex_probe_downgrades_xhigh_for_legacy_codex_cli(monkeypatch, temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    manager = ConfigManager(temp_home)
+    manager.ensure_files()
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr("deepscientist.config.service.resolve_runner_binary", lambda binary, runner_name=None: "/tmp/fake-codex")
+    monkeypatch.setattr(
+        "deepscientist.config.service.normalize_codex_reasoning_effort",
+        lambda reasoning_effort, *, resolved_binary: ("high", "downgraded to high"),
+    )
+
+    def fake_run(command, **kwargs):  # noqa: ANN001
+        captured["command"] = list(command)
+
+        class Result:
+            returncode = 0
+            stdout = '{"type":"item.completed","item":{"text":"HELLO"}}'
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr("deepscientist.config.service.subprocess.run", fake_run)
+
+    result = manager._probe_codex_runner({"binary": "codex", "model": "inherit"})
+
+    command = [str(part) for part in captured["command"]]
+    assert result["ok"] is True
+    assert result["details"]["requested_reasoning_effort"] == "xhigh"
+    assert result["details"]["reasoning_effort"] == "high"
+    assert "downgraded to high" in "\n".join(result["warnings"])
+    assert any('model_reasoning_effort="high"' in part for part in command)
+    assert not any('model_reasoning_effort="xhigh"' in part for part in command)
+
+
 def test_codex_probe_missing_binary_includes_explicit_install_guidance(monkeypatch, temp_home: Path) -> None:
     ensure_home_layout(temp_home)
     manager = ConfigManager(temp_home)
@@ -661,6 +696,13 @@ def test_codex_probe_passes_profile_and_runner_env_to_subprocess(monkeypatch, te
     captured: dict[str, object] = {}
 
     def fake_run(command, **kwargs):  # noqa: ANN001
+        if list(command) == ["/tmp/fake-codex", "--version"]:
+            class VersionResult:
+                returncode = 0
+                stdout = "codex-cli 0.116.0"
+                stderr = ""
+
+            return VersionResult()
         captured["command"] = list(command)
         captured["env"] = dict(kwargs.get("env") or {})
 
@@ -686,6 +728,69 @@ def test_codex_probe_passes_profile_and_runner_env_to_subprocess(monkeypatch, te
     assert result["details"]["profile"] == "m27"
     assert captured["command"][:4] == ["/tmp/fake-codex", "--search", "--profile", "m27"]
     assert captured["env"]["MINIMAX_API_KEY"] == "secret-value"
+
+
+def test_codex_probe_adapts_profile_only_provider_config_for_legacy_minimax_shape(monkeypatch, temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    manager = ConfigManager(temp_home)
+    manager.ensure_files()
+
+    source_codex_home = temp_home / "provider-codex-home"
+    source_codex_home.mkdir(parents=True, exist_ok=True)
+    (source_codex_home / "config.toml").write_text(
+        """[model_providers.minimax]
+name = "MiniMax Chat Completions API"
+base_url = "https://api.minimaxi.com/v1"
+env_key = "MINIMAX_API_KEY"
+wire_api = "chat"
+requires_openai_auth = false
+
+[profiles.m27]
+model = "MiniMax-M2.7"
+model_provider = "minimax"
+""",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("deepscientist.config.service.resolve_runner_binary", lambda binary, runner_name=None: "/tmp/fake-codex")
+    captured: dict[str, object] = {}
+
+    def fake_run(command, **kwargs):  # noqa: ANN001
+        if list(command) == ["/tmp/fake-codex", "--version"]:
+            class VersionResult:
+                returncode = 0
+                stdout = "codex-cli 0.116.0"
+                stderr = ""
+
+            return VersionResult()
+        captured["command"] = list(command)
+        captured["env"] = dict(kwargs.get("env") or {})
+        prepared_home = Path(str(captured["env"]["CODEX_HOME"]))
+        captured["prepared_config"] = (prepared_home / "config.toml").read_text(encoding="utf-8")
+
+        class Result:
+            returncode = 0
+            stdout = '{"type":"item.completed","item":{"text":"HELLO"}}'
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr("deepscientist.config.service.subprocess.run", fake_run)
+
+    result = manager._probe_codex_runner(
+        {
+            "binary": "codex",
+            "profile": "m27",
+            "model": "inherit",
+            "config_dir": str(source_codex_home),
+        }
+    )
+
+    assert result["ok"] is True
+    assert Path(str(captured["env"]["CODEX_HOME"])) != source_codex_home
+    assert 'model_provider = "minimax"' in str(captured["prepared_config"])
+    assert 'model = "MiniMax-M2.7"' in str(captured["prepared_config"])
+    assert "promoted `m27` profile" in "\n".join(result["warnings"])
 
 
 def test_codex_probe_profile_guidance_avoids_login_language(monkeypatch, temp_home: Path) -> None:

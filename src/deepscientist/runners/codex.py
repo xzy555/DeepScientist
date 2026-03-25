@@ -11,11 +11,12 @@ from pathlib import Path
 from typing import Any
 
 from ..artifact import ArtifactService
+from ..codex_cli_compat import adapt_profile_only_provider_config, normalize_codex_reasoning_effort
 from ..config import ConfigManager
 from ..gitops import export_git_graph
 from ..prompts import PromptBuilder
 from ..runtime_logs import JsonlLogger
-from ..shared import append_jsonl, ensure_dir, generate_id, read_yaml, resolve_runner_binary, utc_now, write_json, write_text
+from ..shared import append_jsonl, ensure_dir, generate_id, read_text, read_yaml, resolve_runner_binary, utc_now, write_json, write_text
 from ..web_search import extract_web_search_payload
 from .base import RunRequest, RunResult
 
@@ -920,7 +921,10 @@ class CodexRunner:
             command.extend(["--model", normalized_model])
         if request.approval_policy:
             command.extend(["-c", f'approval_policy="{request.approval_policy}"'])
-        reasoning_effort = request.reasoning_effort
+        reasoning_effort, _ = normalize_codex_reasoning_effort(
+            request.reasoning_effort,
+            resolved_binary=resolved_binary or self.binary,
+        )
         if reasoning_effort:
             command.extend(["-c", f'model_reasoning_effort="{reasoning_effort}"'])
         tool_timeout_sec = self._positive_timeout_seconds(resolved_runner_config.get("mcp_tool_timeout_sec"))
@@ -945,6 +949,7 @@ class CodexRunner:
         target = ensure_dir(workspace_root / ".codex")
         resolved_runner_config = runner_config if isinstance(runner_config, dict) else self._load_runner_config()
         configured_home = str(resolved_runner_config.get("config_dir") or os.environ.get("CODEX_HOME") or str(Path.home() / ".codex"))
+        profile = str(resolved_runner_config.get("profile") or "").strip()
         source = Path(configured_home).expanduser()
         for filename in ("config.toml", "auth.json"):
             source_path = source / filename
@@ -953,6 +958,10 @@ class CodexRunner:
                 if source_path.resolve() == target_path.resolve():
                     continue
                 shutil.copy2(source_path, target_path)
+        config_path = target / "config.toml"
+        if profile and config_path.exists():
+            adapted_text, _ = adapt_profile_only_provider_config(read_text(config_path), profile=profile)
+            write_text(config_path, adapted_text)
         ensure_dir(target / "skills")
         quest_skills_root = quest_root / ".codex" / "skills"
         if quest_skills_root.exists():

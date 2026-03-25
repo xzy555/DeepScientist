@@ -21,7 +21,7 @@
    provider-backed profile 路径：
 
    ```bash
-   codex --profile minimax
+   codex --profile m27
    ```
 
    如果 `codex` 缺失，请显式修复：
@@ -65,7 +65,7 @@
 
 ### 没有安装 Codex
 
-重新安装 DeepScientist，让随包的 Codex 依赖一起装好：
+DeepScientist 会优先使用你机器上已有的 `codex`，只有本机不可用时才回退到随包依赖。如果两者都不可用，就重新安装 DeepScientist，让随包的 Codex 依赖一起装好：
 
 ```bash
 npm install -g @researai/deepscientist
@@ -94,17 +94,36 @@ codex --login
 请显式让 DeepScientist 使用同一个 profile：
 
 ```bash
-ds doctor --codex-profile minimax
-ds --codex-profile minimax
+ds doctor --codex-profile m27
+ds --codex-profile m27
 ```
 
-把这里的 `minimax` 换成你的真实 profile 名，例如 `m27`、`glm`、`ark`、`bailian`。
+如果你当前能用的是另一个不在 `PATH` 上的 Codex，可执行文件路径也可以一起显式传给 DeepScientist：
+
+```bash
+ds doctor --codex /absolute/path/to/codex --codex-profile m27
+ds --codex /absolute/path/to/codex --codex-profile m27
+```
+
+这里的 `m27` 是本仓库统一使用的 MiniMax profile 示例名。MiniMax 官方页面当前示例名是 `m21`，但 profile 名只是本地别名；如果你自己用了别的名字，就把命令里的名字一起改掉。
 
 同时检查：
 
 - 启动 DeepScientist 的这个 shell 中，provider API key 仍然可见
 - 该 profile 指向的是 provider 的 Coding Plan endpoint，而不是普通通用 API endpoint
 - 如果模型应该由 profile 自己决定，请在 `~/DeepScientist/config/runners.yaml` 中使用 `model: inherit`
+
+MiniMax 补充说明：
+
+- 如果 MiniMax 在当前最新版 `@openai/codex` 上失败，直接安装 `npm install -g @openai/codex@0.57.0`
+- 先创建 MiniMax `Coding Plan Key`
+- 在当前 shell 里先执行 `unset OPENAI_API_KEY` 和 `unset OPENAI_BASE_URL`
+- 使用 `https://api.minimaxi.com/v1`
+- MiniMax 官方 Codex CLI 页面当前给出的 `codex-MiniMax-*` 模型名，在本地用提供的 key 实测并不能稳定通过 Codex CLI
+- 当前本地实测可用的模型名是 `MiniMax-M2.7`
+- DeepScientist 现在可以在 probe 和运行时自动适配 MiniMax profile-only 的 `model_provider` / `model` 配置形态
+- 如果你还希望终端里的 `codex --profile <name>` 也直接可用，再在 `~/.codex/config.toml` 顶层补上 `model_provider = "minimax"` 和 `model = "MiniMax-M2.7"`
+- 当 DeepScientist 检测到 Codex CLI 版本低于 `0.63.0` 时，会自动把 `xhigh` 降级成 `high`
 
 ### 当前配置的 Codex 模型不可用
 

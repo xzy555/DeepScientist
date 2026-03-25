@@ -48,3 +48,5 @@ dist.bak.*/
 /src/ui/vendor/novel-headless/.turbo/
 /ui/
 /test-results/
+/src/ui/test-results/
+/runtime/

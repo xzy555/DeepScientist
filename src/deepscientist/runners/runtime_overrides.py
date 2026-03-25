@@ -18,6 +18,7 @@ def _as_bool_env(name: str) -> bool:
 
 
 def codex_runtime_overrides() -> dict[str, str]:
+    binary = _as_text(os.environ.get("DEEPSCIENTIST_CODEX_BINARY") or os.environ.get("DS_CODEX_BINARY"))
     approval_policy = _as_text(os.environ.get("DEEPSCIENTIST_CODEX_APPROVAL_POLICY"))
     sandbox_mode = _as_text(os.environ.get("DEEPSCIENTIST_CODEX_SANDBOX_MODE"))
     profile = _as_text(os.environ.get("DEEPSCIENTIST_CODEX_PROFILE"))
@@ -28,6 +29,8 @@ def codex_runtime_overrides() -> dict[str, str]:
         sandbox_mode = sandbox_mode or "danger-full-access"
 
     overrides: dict[str, str] = {}
+    if binary:
+        overrides["binary"] = binary
     if approval_policy:
         overrides["approval_policy"] = approval_policy
     if sandbox_mode:

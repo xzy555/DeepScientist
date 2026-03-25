@@ -25,12 +25,19 @@ ds
 
 ### 2. One-off provider profile
 
-Use this when you already have a named Codex profile such as `minimax`, `glm`, `ark`, or `bailian`.
+Use this when you already have a named Codex profile such as `m27`, `glm`, `ark`, or `bailian`.
 
 ```bash
-codex --profile minimax
-ds doctor --codex-profile minimax
-ds --codex-profile minimax
+codex --profile m27
+ds doctor --codex-profile m27
+ds --codex-profile m27
+```
+
+If you need one specific Codex binary for this run, use:
+
+```bash
+ds doctor --codex /absolute/path/to/codex --codex-profile m27
+ds --codex /absolute/path/to/codex --codex-profile m27
 ```
 
 This is the simplest path. You do not need to edit `runners.yaml` just to try one provider-backed session.
@@ -61,7 +68,7 @@ Important:
 | Provider | Official docs | Codex login needed | What DeepScientist should use |
 |---|---|---|---|
 | OpenAI | use the normal Codex setup | Yes | no profile; run `ds` |
-| MiniMax | [MiniMax Codex CLI](https://platform.minimaxi.com/docs/coding-plan/codex-cli) | No | your Codex profile, for example `ds --codex-profile minimax` |
+| MiniMax | [MiniMax Codex CLI](https://platform.minimaxi.com/docs/coding-plan/codex-cli) | No | your Codex profile, for example `ds --codex-profile m27` |
 | GLM | [GLM Coding Plan: Other Tools](https://docs.bigmodel.cn/cn/coding-plan/tool/others) | No | a Codex profile that targets the GLM coding endpoint |
 | Volcengine Ark | [Ark Coding Plan Overview](https://www.volcengine.com/docs/82379/1925114?lang=zh) | No | a Codex profile that targets the Ark coding endpoint |
 | Alibaba Bailian | [Bailian Coding Plan: Other Tools](https://help.aliyun.com/zh/model-studio/other-tools-coding-plan) | No | a Codex profile that targets the Bailian coding endpoint |
@@ -99,15 +106,65 @@ Official doc:
 
 - <https://platform.minimaxi.com/docs/coding-plan/codex-cli>
 
+### Verified compatibility note
+
+Checked against MiniMax's current Codex CLI doc and local compatibility validation on 2026-03-25:
+
+- MiniMax's Codex CLI page currently recommends `@openai/codex@0.57.0`
+- the Coding Plan endpoint to use is `https://api.minimaxi.com/v1`
+- MiniMax's official page uses `m21` as the profile name, but that profile name is only a local alias; this repo uses `m27` consistently in examples
+- the `codex-MiniMax-*` model names shown on MiniMax's page did not pass reliably through Codex CLI in local testing with the provided key
+- the locally verified working path was `MiniMax-M2.7` + `m27` + `model: inherit` + Codex CLI `0.57.0`
+- the current `@openai/codex` latest release still does not line up cleanly with MiniMax's current guide
+
+If you want the most reproducible DeepScientist + MiniMax path today, use Codex CLI `0.57.0`.
+
 ### What to prepare
 
-- Codex CLI installed
+- Codex CLI `0.57.0`
+- a MiniMax `Coding Plan Key`
 - `MINIMAX_API_KEY` available in the shell that starts Codex and DeepScientist
+- the current shell cleared of `OPENAI_API_KEY` and `OPENAI_BASE_URL`
 - a working Codex profile in `~/.codex/config.toml`
+
+### Install Codex CLI `0.57.0`
+
+The simplest path is to pin the global Codex install:
+
+```bash
+npm install -g @openai/codex@0.57.0
+codex --version
+```
+
+Expected output:
+
+```text
+codex-cli 0.57.0
+```
+
+If you want to keep another Codex version elsewhere, create a small wrapper script and point `runners.codex.binary` at that absolute path.
 
 ### Codex-side setup
 
-MiniMax's official page provides a real Codex custom-provider example. The profile name is yours to choose. Use `minimax` below as an example; if you already created `m27`, keep using `m27`.
+Use `https://api.minimaxi.com/v1`, not `https://api.minimax.io/v1`.
+
+MiniMax's doc requires clearing the OpenAI environment variables first:
+
+```bash
+unset OPENAI_API_KEY
+unset OPENAI_BASE_URL
+export MINIMAX_API_KEY="..."
+```
+
+MiniMax's official page uses `m21` as the example profile name. Since the profile name is only a local alias, this repo rewrites that example to `m27`.
+
+The important difference is the model name:
+
+- MiniMax's page currently shows `codex-MiniMax-M2.5`
+- in local testing, direct MiniMax API calls worked with `MiniMax-M2.7`
+- with the same key, `codex-MiniMax-M2.5` and `codex-MiniMax-M2.7` both failed through Codex CLI
+
+So the config below is the currently recommended DeepScientist working configuration:
 
 ```toml
 [model_providers.minimax]
@@ -120,23 +177,50 @@ request_max_retries = 4
 stream_max_retries = 10
 stream_idle_timeout_ms = 300000
 
-[profiles.minimax]
-model = "codex-MiniMax-M2.5"
+[profiles.m27]
+model = "MiniMax-M2.7"
+model_provider = "minimax"
+```
+
+What DeepScientist supports now:
+
+- if you use this profile-only MiniMax config with Codex CLI `0.57.0`, DeepScientist automatically promotes the selected profile's `model_provider` and `model` to the top level inside its probe/runtime copy of `.codex/config.toml`
+- this means DeepScientist can start even when plain terminal `codex --profile m27` still fails on that exact profile-only shape
+
+If you want plain terminal `codex --profile <name>` to work too, use the explicit top-level compatibility form instead:
+
+```toml
+model = "MiniMax-M2.7"
+model_provider = "minimax"
+approval_policy = "never"
+sandbox_mode = "workspace-write"
+
+[model_providers.minimax]
+name = "MiniMax Chat Completions API"
+base_url = "https://api.minimaxi.com/v1"
+env_key = "MINIMAX_API_KEY"
+wire_api = "chat"
+requires_openai_auth = false
+request_max_retries = 4
+stream_max_retries = 10
+stream_idle_timeout_ms = 300000
+
+[profiles.m27]
+model = "MiniMax-M2.7"
 model_provider = "minimax"
 ```
 
 Then:
 
 ```bash
-export MINIMAX_API_KEY="..."
-codex --profile minimax
+codex --profile m27
 ```
 
 ### DeepScientist commands
 
 ```bash
-ds doctor --codex-profile minimax
-ds --codex-profile minimax
+ds doctor --codex-profile m27
+ds --codex-profile m27
 ```
 
 ### Persistent runner config
@@ -144,11 +228,25 @@ ds --codex-profile minimax
 ```yaml
 codex:
   enabled: true
-  binary: codex
+  binary: /tmp/codex057-wrapper
   config_dir: ~/.codex
-  profile: minimax
+  profile: m27
   model: inherit
+  model_reasoning_effort: high
 ```
+
+If you already pinned your global `codex` binary to `0.57.0`, you can set `binary: codex` instead. The absolute wrapper path here is only to make the version choice explicit.
+
+If you do not want to persist that path in `runners.yaml`, you can keep `binary: codex` there and launch ad hoc with:
+
+```bash
+ds --codex /absolute/path/to/codex --codex-profile m27
+```
+
+DeepScientist now does two MiniMax-specific compatibility steps for the `0.57.0` path:
+
+- it downgrades `xhigh` to `high` automatically when the Codex CLI does not support `xhigh`
+- it auto-adapts MiniMax's profile-only `model_provider` / `model` shape inside the temporary DeepScientist Codex home when needed
 
 ## GLM
 

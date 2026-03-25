@@ -1,6 +1,6 @@
 {
   "name": "@researai/deepscientist",
-  "version": "1.5.12",
+  "version": "1.5.13",
   "description": "DeepScientist is not just a fully open-source autonomous scientific discovery system. It is also a research map that keeps growing from every round.",
   "license": "Apache-2.0",
   "files": [
@@ -38,6 +38,7 @@
     "@openai/codex": "^0.114.0",
     "ink": "npm:@jrichman/ink@6.4.6",
     "ink-gradient": "^3.0.0",
+    "qrcode": "^1.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "string-width": "^8.1.0"

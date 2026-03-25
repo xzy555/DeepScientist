@@ -36,11 +36,15 @@ const pythonCommands = new Set([
 const UPDATE_PACKAGE_NAME = String(packageJson.name || '@researai/deepscientist').trim() || '@researai/deepscientist';
 const UPDATE_CHECK_TTL_MS = 12 * 60 * 60 * 1000;
 
-const optionsWithValues = new Set(['--home', '--host', '--port', '--quest-id', '--mode', '--proxy', '--codex-profile']);
+const optionsWithValues = new Set(['--home', '--host', '--port', '--quest-id', '--mode', '--proxy', '--codex-profile', '--codex']);
 
-function buildCodexOverrideEnv({ yolo = false, profile = null } = {}) {
+function buildCodexOverrideEnv({ yolo = false, profile = null, binary = null } = {}) {
   const normalizedProfile = typeof profile === 'string' ? profile.trim() : '';
+  const normalizedBinary = typeof binary === 'string' ? binary.trim() : '';
   const overrides = {};
+  if (normalizedBinary) {
+    overrides.DEEPSCIENTIST_CODEX_BINARY = normalizedBinary;
+  }
   if (!yolo) {
     if (normalizedProfile) {
       overrides.DEEPSCIENTIST_CODEX_PROFILE = normalizedProfile;
@@ -103,6 +107,7 @@ Launcher flags:
   --proxy <url>         Use an outbound HTTP/WS proxy for npm and Python runtime traffic
   --yolo                Run Codex in YOLO mode: approval_policy=never and sandbox_mode=danger-full-access
   --codex-profile <id>  Run DeepScientist with a specific Codex profile, for example \`m27\`
+  --codex <path>        Run DeepScientist with a specific Codex executable path for this launch
   --quest-id <id>       Open the TUI on one quest directly
 
 Update:
@@ -981,6 +986,7 @@ function parseLauncherArgs(argv) {
   let skipUpdateCheck = false;
   let yolo = false;
   let codexProfile = null;
+  let codexBinary = null;
 
   if (args[0] === 'ui') {
     args.shift();
@@ -1001,6 +1007,7 @@ function parseLauncherArgs(argv) {
     else if (arg === '--skip-update-check') skipUpdateCheck = true;
     else if (arg === '--yolo') yolo = true;
     else if (arg === '--codex-profile' && args[index + 1]) codexProfile = args[++index];
+    else if (arg === '--codex' && args[index + 1]) codexBinary = args[++index];
     else if (arg === '--host' && args[index + 1]) host = args[++index];
     else if (arg === '--port' && args[index + 1]) port = Number(args[++index]);
     else if (arg === '--home' && args[index + 1]) home = path.resolve(args[++index]);
@@ -1027,6 +1034,7 @@ function parseLauncherArgs(argv) {
     skipUpdateCheck,
     yolo,
     codexProfile,
+    codexBinary,
   };
 }
 
@@ -2318,6 +2326,10 @@ function normalizePythonCliArgs(args, home) {
       continue;
     }
     if (arg === '--codex-profile') {
+      index += 1;
+      continue;
+    }
+    if (arg === '--codex') {
       index += 1;
       continue;
     }
@@ -4002,7 +4014,11 @@ async function launcherMain(rawArgs) {
 
   const pythonRuntime = ensurePythonRuntime(home);
   const runtimePython = pythonRuntime.runtimePython;
-  const codexOverrideEnv = buildCodexOverrideEnv({ yolo: options.yolo, profile: options.codexProfile });
+  const codexOverrideEnv = buildCodexOverrideEnv({
+    yolo: options.yolo,
+    profile: options.codexProfile,
+    binary: options.codexBinary,
+  });
   ensureInitialized(home, runtimePython);
   if (await maybeHandleStartupUpdate(home, rawArgs, options)) {
     return true;
@@ -4083,6 +4099,7 @@ async function main() {
     const codexOverrideEnv = buildCodexOverrideEnv({
       yolo: args.includes('--yolo'),
       profile: readOptionValue(args, '--codex-profile'),
+      binary: readOptionValue(args, '--codex'),
     });
     if (positional.value === 'run' || positional.value === 'daemon') {
       maybePrintOptionalLatexNotice(home);

@@ -430,6 +430,8 @@ claude:
 - UI label: `Binary`
 - Meaning: command name or absolute path used to launch the runner.
 - `Test` behavior: checks whether the binary is on `PATH`.
+- Resolution order for `codex`: env override, explicit path, local `PATH`, then bundled fallback.
+- One-off note: you can temporarily override this with `ds --codex /absolute/path/to/codex`.
 - First-run note: DeepScientist does not finish Codex authentication for you. Before the first `ds`, make sure `codex --login` (or `codex`) has completed successfully.
 - Repair note: if the bundled dependency is missing after `npm install -g @researai/deepscientist`, install Codex explicitly with `npm install -g @openai/codex`.
 
@@ -448,6 +450,7 @@ claude:
 - Meaning: optional Codex profile name passed through as `codex --profile <name>`.
 - Use this when your Codex CLI is already configured for a provider-backed setup such as MiniMax, GLM, Volcengine Ark, or Alibaba Bailian.
 - One-off note: you can also leave this field empty and launch with `ds --codex-profile <name>`.
+- Combined note: one-off profile and binary overrides can be combined as `ds --codex /absolute/path/to/codex --codex-profile <name>`.
 
 **`model`**
 
@@ -465,6 +468,7 @@ claude:
 - UI label: `Reasoning effort`
 - Allowed values: `""`, `minimal`, `low`, `medium`, `high`, `xhigh`
 - Meaning: default reasoning intensity.
+- Compatibility note: when DeepScientist detects a Codex CLI older than `0.63.0`, it automatically downgrades `xhigh` to `high` for the startup probe and runner command. This covers MiniMax's currently recommended `@openai/codex@0.57.0` path.
 
 **`approval_policy`**
 

@@ -444,6 +444,8 @@ claude:
 - 页面标签：`Binary`
 - 作用：启动 runner 时使用的命令名或绝对路径。
 - `Test` 行为：检查该二进制是否在 `PATH` 上。
+- `codex` 的解析顺序：环境变量覆盖、显式路径、本机 `PATH`、最后才是 bundled fallback。
+- 临时使用说明：你也可以直接用 `ds --codex /absolute/path/to/codex` 临时覆盖这里的设置。
 - 首次使用说明：DeepScientist 不会替你完成 Codex 认证。第一次运行 `ds` 前，必须先确保 `codex --login`（或 `codex`）已经成功完成。
 - 修复说明：如果执行 `npm install -g @researai/deepscientist` 之后 bundled Codex 依赖仍然缺失，请显式安装 `npm install -g @openai/codex`。
 
@@ -462,6 +464,7 @@ claude:
 - 作用：可选的 Codex profile 名称，会直接透传为 `codex --profile <name>`。
 - 当你的 Codex CLI 已经配置成 MiniMax、GLM、火山方舟、阿里百炼或其他 provider-backed 路径时，就在这里填写。
 - 临时使用说明：如果你不想持久化写配置，也可以保持这里为空，直接使用 `ds --codex-profile <name>` 启动。
+- 组合使用说明：如果你还想临时指定 Codex 可执行文件，也可以组合成 `ds --codex /absolute/path/to/codex --codex-profile <name>`。
 
 **`model`**
 
@@ -480,6 +483,7 @@ claude:
 - 允许值：`""`、`minimal`、`low`、`medium`、`high`、`xhigh`
 - 作用：默认推理强度。
 - 推荐：当前仓库的 Codex 默认就是 `xhigh`。
+- 兼容性说明：当 DeepScientist 检测到 Codex CLI 低于 `0.63.0` 时，会在启动探测和实际 runner 命令里自动把 `xhigh` 降级成 `high`。这也覆盖了 MiniMax 当前推荐的 `@openai/codex@0.57.0` 路径。
 
 **`approval_policy`**
 

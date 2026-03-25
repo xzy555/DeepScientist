@@ -79,7 +79,7 @@ npm install -g @researai/deepscientist
 
 这一步会把 `ds` 命令安装到你的机器上。
 
-DeepScientist 依赖一个可用的 Codex CLI。npm 包会尽量把随包的 Codex 依赖一起装好，但如果安装完成后 `codex` 仍然不可用，请显式修复：
+DeepScientist 依赖一个可用的 Codex CLI。它会优先使用你机器上已经可用的 `codex`，只有在本机找不到时才回退到 npm 包内置的依赖。如果安装完成后 `codex` 仍然不可用，请显式修复：
 
 ```bash
 npm install -g @openai/codex
@@ -124,24 +124,43 @@ ds doctor
 如果你已经在 MiniMax、GLM、火山方舟、阿里百炼或其他 provider 上配置了一个命名的 Codex profile，请先在终端里确认这个 profile 本身可用：
 
 ```bash
-codex --profile minimax
+codex --profile m27
 ```
 
 然后用同一个 profile 去跑 DeepScientist：
 
 ```bash
-ds doctor --codex-profile minimax
+ds doctor --codex-profile m27
 ```
 
 之后启动：
 
 ```bash
-ds --codex-profile minimax
+ds --codex-profile m27
 ```
 
-把这里的 `minimax` 替换成你真实的 profile 名，例如 `m27`、`glm`、`ark`、`bailian`。
+如果你这一轮还想强制指定某一个 Codex 可执行文件，也可以一起加上 `--codex`：
+
+```bash
+ds doctor --codex /absolute/path/to/codex --codex-profile m27
+ds --codex /absolute/path/to/codex --codex-profile m27
+```
+
+这里的 `m27` 是本仓库统一使用的 MiniMax profile 示例名。MiniMax 官方页面当前示例名是 `m21`，但 profile 名只是本地别名；如果你自己用了别的名字，就把命令里的名字一起改掉。
 
 DeepScientist 会在启动前强制做一次真实的 Codex hello 探测。默认情况下，`~/DeepScientist/config/runners.yaml` 里的 runner 模型还是 `gpt-5.4`。如果你的 profile 希望模型由 profile 自己决定，请把 `runners.yaml` 里的 `model` 改成 `inherit`；或者直接使用 `--codex-profile <name>`，让这一轮启动自动继承 profile 对应的模型。
+
+MiniMax 额外说明：
+
+- 如果当前最新版 `@openai/codex` 和 MiniMax 走不通，直接安装 `npm install -g @openai/codex@0.57.0`
+- 先创建 MiniMax `Coding Plan Key`
+- 在当前 shell 里先执行 `unset OPENAI_API_KEY` 和 `unset OPENAI_BASE_URL`
+- 使用 `https://api.minimaxi.com/v1`
+- MiniMax 官方 Codex CLI 页面当前给出的 `codex-MiniMax-*` 模型名，在本地用提供的 key 实测并不能稳定通过 Codex CLI
+- 当前本地实测可用的模型名是 `MiniMax-M2.7`
+- DeepScientist 现在可以在 probe 和运行时自动适配 MiniMax profile-only 的 `model_provider` / `model` 配置形态
+- 如果你还希望终端里的 `codex --profile <name>` 也直接可用，再在 `~/.codex/config.toml` 顶层补上 `model_provider = "minimax"` 和 `model = "MiniMax-M2.7"`
+- 当 DeepScientist 检测到旧版 Codex CLI 不支持 `xhigh` 时，会自动把它降级成 `high`
 
 ## 3. 启动本地运行时
 

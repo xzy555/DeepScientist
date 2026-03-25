@@ -264,6 +264,18 @@ test('parseLauncherArgs accepts --codex-profile for provider-backed Codex setups
   assert.equal(parsed.codexProfile, 'm27');
 });
 
+test('parseLauncherArgs accepts --codex for a one-off Codex binary override', () => {
+  const parsed = __internal.parseLauncherArgs([
+    '--codex',
+    '/tmp/codex057-wrapper',
+    '--port',
+    '8890',
+  ]);
+
+  assert.equal(parsed.port, 8890);
+  assert.equal(parsed.codexBinary, '/tmp/codex057-wrapper');
+});
+
 test('repairLegacyPathWrappers rewrites old install wrappers to the current npm launcher', () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-wrapper-repair-'));
   const launcherPath = path.join(tempDir, 'global-ds.js');

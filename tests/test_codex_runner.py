@@ -213,6 +213,41 @@ def test_codex_runner_includes_profile_when_runner_config_requests_it(temp_home)
     assert command[1:4] == ["--search", "--profile", "m27"]
 
 
+def test_codex_runner_downgrades_xhigh_for_legacy_codex_cli(monkeypatch, temp_home) -> None:  # type: ignore[no-untyped-def]
+    runner = CodexRunner(
+        home=temp_home,
+        repo_root=temp_home,
+        binary="codex",
+        logger=object(),  # type: ignore[arg-type]
+        prompt_builder=object(),  # type: ignore[arg-type]
+        artifact_service=object(),  # type: ignore[arg-type]
+    )
+    request = RunRequest(
+        quest_id="q-001",
+        quest_root=temp_home,
+        worktree_root=None,
+        run_id="run-001",
+        skill_id="baseline",
+        message="hello",
+        model="inherit",
+        approval_policy="on-request",
+        sandbox_mode="workspace-write",
+        reasoning_effort="xhigh",
+    )
+
+    monkeypatch.setattr("deepscientist.runners.codex.resolve_runner_binary", lambda binary, runner_name=None: "/tmp/fake-codex")
+    monkeypatch.setattr(
+        "deepscientist.runners.codex.normalize_codex_reasoning_effort",
+        lambda reasoning_effort, *, resolved_binary: ("high", "downgraded"),
+    )
+
+    command = runner._build_command(request, "prompt", runner_config={"profile": "m27"})
+
+    assert '-c' in command
+    assert 'model_reasoning_effort="high"' in command
+    assert 'model_reasoning_effort="xhigh"' not in command
+
+
 def test_codex_runner_prepares_project_home_from_runner_config_dir(temp_home) -> None:  # type: ignore[no-untyped-def]
     source_home = temp_home / "provider-codex-home"
     source_home.mkdir(parents=True, exist_ok=True)
@@ -245,3 +280,48 @@ def test_codex_runner_prepares_project_home_from_runner_config_dir(temp_home) ->
     assert config_text.startswith("[profiles.m27]\n")
     assert "# BEGIN DEEPSCIENTIST BUILTINS" in config_text
     assert (Path(target) / "auth.json").read_text(encoding="utf-8") == '{"provider":"custom"}'
+
+
+def test_codex_runner_prepares_project_home_adapting_profile_only_provider_config(temp_home) -> None:  # type: ignore[no-untyped-def]
+    source_home = temp_home / "provider-codex-home"
+    source_home.mkdir(parents=True, exist_ok=True)
+    (source_home / "config.toml").write_text(
+        """[model_providers.minimax]
+name = "MiniMax Chat Completions API"
+base_url = "https://api.minimaxi.com/v1"
+env_key = "MINIMAX_API_KEY"
+wire_api = "chat"
+requires_openai_auth = false
+
+[profiles.m27]
+model = "MiniMax-M2.7"
+model_provider = "minimax"
+""",
+        encoding="utf-8",
+    )
+
+    quest_root = temp_home / "quest"
+    quest_root.mkdir(parents=True, exist_ok=True)
+    workspace_root = quest_root / "workspace"
+    workspace_root.mkdir(parents=True, exist_ok=True)
+
+    runner = CodexRunner(
+        home=temp_home,
+        repo_root=temp_home,
+        binary="codex",
+        logger=object(),  # type: ignore[arg-type]
+        prompt_builder=object(),  # type: ignore[arg-type]
+        artifact_service=object(),  # type: ignore[arg-type]
+    )
+
+    target = runner._prepare_project_codex_home(
+        workspace_root,
+        quest_root=quest_root,
+        quest_id="q-001",
+        run_id="run-001",
+        runner_config={"config_dir": str(source_home), "profile": "m27"},
+    )
+
+    config_text = (Path(target) / "config.toml").read_text(encoding="utf-8")
+    assert 'model_provider = "minimax"' in config_text
+    assert 'model = "MiniMax-M2.7"' in config_text

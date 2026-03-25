@@ -21,7 +21,7 @@ Use `ds doctor` when DeepScientist does not start cleanly after installation.
    Provider-backed profile path:
 
    ```bash
-   codex --profile minimax
+   codex --profile m27
    ```
 
    If `codex` is missing, repair it explicitly with:
@@ -63,7 +63,7 @@ Use `ds doctor` when DeepScientist does not start cleanly after installation.
 
 ### Codex is missing
 
-Run the package install again so the bundled Codex dependency is present:
+DeepScientist prefers the `codex` already available on your machine and only uses the bundled dependency as fallback. If neither is present, run the package install again so the bundled Codex dependency is present:
 
 ```bash
 npm install -g @researai/deepscientist
@@ -92,17 +92,36 @@ Finish login once, then rerun `ds doctor`.
 Run DeepScientist with the same profile explicitly:
 
 ```bash
-ds doctor --codex-profile minimax
-ds --codex-profile minimax
+ds doctor --codex-profile m27
+ds --codex-profile m27
 ```
 
-Replace `minimax` with your real profile name such as `m27`, `glm`, `ark`, or `bailian`.
+If your working Codex CLI is not the one on `PATH`, point DeepScientist at it explicitly:
+
+```bash
+ds doctor --codex /absolute/path/to/codex --codex-profile m27
+ds --codex /absolute/path/to/codex --codex-profile m27
+```
+
+`m27` is the MiniMax profile name used consistently in this repo. MiniMax's own page currently uses `m21`, but the profile name is only a local alias; if you created a different name, use that same name in both commands.
 
 Also check:
 
 - the same shell still exports the provider API key
 - the profile points at the provider's Coding Plan endpoint, not the generic API endpoint
 - `~/DeepScientist/config/runners.yaml` uses `model: inherit` if the provider expects the model to come from the profile itself
+
+MiniMax-specific note:
+
+- if MiniMax fails on the current `@openai/codex` latest, install `npm install -g @openai/codex@0.57.0`
+- create a MiniMax `Coding Plan Key` first
+- clear `OPENAI_API_KEY` and `OPENAI_BASE_URL` in the current shell before exporting `MINIMAX_API_KEY`
+- use `https://api.minimaxi.com/v1`
+- the `codex-MiniMax-*` model names shown on MiniMax's current Codex CLI page did not pass reliably through Codex CLI in local testing with the provided key
+- the locally verified working model name is `MiniMax-M2.7`
+- DeepScientist can auto-adapt MiniMax's profile-only `model_provider` / `model` config shape during probe and runtime
+- if you also want plain terminal `codex --profile <name>` to work directly, put `model_provider = "minimax"` and `model = "MiniMax-M2.7"` at the top level of `~/.codex/config.toml`
+- DeepScientist automatically downgrades `xhigh` to `high` when it detects a Codex CLI older than `0.63.0`
 
 ### The configured Codex model is unavailable
 

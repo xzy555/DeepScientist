@@ -56,6 +56,18 @@ def test_apply_codex_runtime_overrides_accepts_profile_and_model_env(monkeypatch
     assert config["model"] == "inherit"
 
 
+def test_apply_codex_runtime_overrides_accepts_binary_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DEEPSCIENTIST_CODEX_BINARY", "/tmp/codex057-wrapper")
+
+    config = apply_codex_runtime_overrides(
+        {
+            "binary": "codex",
+        }
+    )
+
+    assert config["binary"] == "/tmp/codex057-wrapper"
+
+
 def test_daemon_app_applies_yolo_env_to_runners_config(temp_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     ensure_home_layout(temp_home)
     ConfigManager(temp_home).ensure_files()

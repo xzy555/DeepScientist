@@ -1,6 +1,6 @@
 {
   "name": "deepscientist-tui",
-  "version": "1.5.12",
+  "version": "1.5.13",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
@@ -12,6 +12,7 @@
   "dependencies": {
     "ink": "npm:@jrichman/ink@6.4.6",
     "ink-gradient": "^3.0.0",
+    "qrcode": "^1.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "string-width": "^8.1.0"

@@ -39,6 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ds", description="DeepScientist Core skeleton")
     parser.add_argument("--home", default=None, help="Override DeepScientist home")
     parser.add_argument("--proxy", default=None, help="Explicit outbound HTTP/WS proxy, for example `http://127.0.0.1:7890`.")
+    parser.add_argument("--codex", default=None, help="Override the Codex executable path for this invocation.")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -475,6 +476,8 @@ def migrate_command(home: Path, target: str) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.codex:
+        os.environ["DEEPSCIENTIST_CODEX_BINARY"] = str(args.codex)
     configure_runtime_proxy(args.proxy)
     home = resolve_home(args)
 
