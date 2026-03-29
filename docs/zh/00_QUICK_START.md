@@ -13,7 +13,7 @@
 
 本文中的截图直接使用当前在线页面 `deepscientist.cc:20999` 作为示例。你本地运行后的页面 `127.0.0.1:20999` 通常会与它保持一致或非常接近。
 
-当前平台支持：DeepScientist 目前仅支持 Linux 和 macOS，当前版本暂不支持 Windows。
+当前平台支持：DeepScientist 目前完整支持 Linux 和 macOS。原生 Windows 支持目前仍处于实验阶段；如果你希望获得最接近 Linux 的终端行为，仍然建议优先使用 WSL2。
 
 ## 安全建议：先隔离，再启动
 
@@ -60,7 +60,7 @@
 
 ## 1. 先安装 Node.js，再安装 DeepScientist
 
-DeepScientist 目前仅支持 Linux 和 macOS。
+DeepScientist 目前完整支持 Linux 和 macOS。原生 Windows 支持目前仍处于实验阶段；如果你希望获得更接近 Linux 的 shell 行为，仍然建议优先使用 WSL2。
 
 在安装 DeepScientist 本身之前，请先从 Node.js 官方页面安装 Node.js：
 

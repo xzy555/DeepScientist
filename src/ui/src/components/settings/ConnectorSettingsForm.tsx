@@ -29,6 +29,7 @@ import { useToast } from '@/components/ui/toast'
 import { client } from '@/lib/api'
 import { connectorTargetLabel, conversationIdentityKey, normalizeConnectorTargets } from '@/lib/connectors'
 import { getDocAssetUrl } from '@/lib/docs'
+import { normalizeZhUiCopy } from '@/lib/i18n/normalizeZhUiCopy'
 import { copyToClipboard } from '@/lib/clipboard'
 import { cn } from '@/lib/utils'
 import type {
@@ -473,6 +474,11 @@ function fieldValue(config: Record<string, unknown>, field: ConnectorField) {
   return typeof raw === 'string' || typeof raw === 'number' ? String(raw) : ''
 }
 
+const normalizedCopy = {
+  en: copy.en,
+  zh: normalizeZhUiCopy(copy.zh),
+} as const
+
 function normalizeFieldValue(field: ConnectorField, value: string | boolean) {
   if (field.kind === 'boolean') {
     return Boolean(value)
@@ -521,7 +527,7 @@ function connectorEventTime(value: string | null | undefined) {
 }
 
 function connectorEventStatus(event: ConnectorRecentEvent, locale: Locale) {
-  const t = copy[locale]
+  const t = normalizedCopy[locale]
   if (event.event_type !== 'outbound') {
     return ''
   }
@@ -705,7 +711,7 @@ function routingConfig(value: ConnectorConfigMap): Record<string, unknown> {
 }
 
 function fieldHint(field: ConnectorField, locale: Locale) {
-  const t = copy[locale]
+  const t = normalizedCopy[locale]
   const pieces = [
     translateSettingsCatalogText(locale, field.description),
     `${t.fieldHintPrefix} ${translateSettingsCatalogText(locale, field.whereToGet)}`,
@@ -714,7 +720,7 @@ function fieldHint(field: ConnectorField, locale: Locale) {
 }
 
 function FieldHelp({ field, locale }: { field: ConnectorField; locale: Locale }) {
-  const t = copy[locale]
+  const t = normalizedCopy[locale]
   return (
     <div className="space-y-1 text-xs leading-5 text-muted-foreground">
       <div>{translateSettingsCatalogText(locale, field.description)}</div>
@@ -955,7 +961,7 @@ function StepStateBadge({
   state: 'done' | 'current' | 'pending'
   locale: Locale
 }) {
-  const t = copy[locale]
+  const t = normalizedCopy[locale]
   const label = state === 'done' ? t.qqStepDone : state === 'current' ? t.qqStepCurrent : t.qqStepPending
   return (
     <span
@@ -980,7 +986,7 @@ function StepBlockerNotice({
   description: string
   fields?: ConnectorField[]
 }) {
-  const t = copy[locale]
+  const t = normalizedCopy[locale]
 
   return (
     <div className="mt-5 rounded-[22px] border border-amber-500/25 bg-amber-500/8 px-4 py-4 dark:border-amber-300/20 dark:bg-amber-300/8">
@@ -1328,7 +1334,7 @@ function ConnectorTargetList({
   emptyText: string
   showBindingDetails?: boolean
 }) {
-  const t = copy[locale]
+  const t = normalizedCopy[locale]
 
   if (targets.length === 0) {
     return (
@@ -1394,7 +1400,7 @@ function ConnectorOverviewCard({
   config: Record<string, unknown>
   onOpenConnector: (connectorName: ConnectorName) => void
 }) {
-  const t = copy[locale]
+  const t = normalizedCopy[locale]
   const Icon = entry.icon
   const enabled = connectorConfigAutoEnabled(entry.name, config)
   const needsPublicNetwork = entry.name === 'lingzhu'
@@ -1740,13 +1746,13 @@ function ConnectorCard({
   bindingProfileKey?: string
   onUpdateField: (connectorName: ConnectorName, key: string, value: unknown) => void
   onUpdateConnector: (connectorName: ConnectorName, patch: Record<string, unknown>) => void
-  onSave: () => Promise<boolean> | boolean
+  onSave: (draftOverride?: Record<string, unknown>) => Promise<boolean> | boolean
   onRefresh: () => Promise<void> | void
   onDeleteProfile: (connectorName: ConnectorName, profileId: string) => Promise<void> | void
   onManageProfileBinding: (payload: ConnectorProfileBindingAction) => Promise<void> | void
   onJumpToAnchor?: (anchorId: string) => void
 }) {
-  const t = copy[locale]
+  const t = normalizedCopy[locale]
   const { toast } = useToast()
   const Icon = entry.icon
   const enabled = connectorConfigAutoEnabled(entry.name, config)
@@ -2905,13 +2911,21 @@ function ConnectorCard({
             : fallbackValue
         nextProfile[key] = typeof rawValue === 'boolean' ? rawValue : String(rawValue ?? fallback ?? '').trim()
       }
+      const nextStructuredDraft = {
+        ...value,
+        [entry.name]: {
+          ...config,
+          enabled: true,
+          profiles: [...profiles, nextProfile],
+        },
+      }
       onUpdateConnector(entry.name, {
         enabled: true,
         profiles: [...profiles, nextProfile],
       })
       setProfileWizardDraft(nextProfile)
       setProfileWizardProfileId(profileId)
-      onSave()
+      onSave(nextStructuredDraft)
     }
 
     return (
@@ -3885,7 +3899,7 @@ export function ConnectorSettingsForm({
   visibleConnectorNames: ConnectorName[]
   selectedConnectorName?: ConnectorName | null
   onChange: (next: ConnectorConfigMap) => void
-  onSave: () => Promise<boolean> | boolean
+  onSave: (draftOverride?: Record<string, unknown>) => Promise<boolean> | boolean
   onRefresh: () => Promise<void> | void
   onDeleteProfile: (connectorName: ConnectorName, profileId: string) => Promise<void> | void
   onManageProfileBinding: (payload: ConnectorProfileBindingAction) => Promise<void> | void
@@ -3893,7 +3907,7 @@ export function ConnectorSettingsForm({
   onBackToConnectorCatalog: () => void
   onJumpToAnchor?: (anchorId: string) => void
 }) {
-  const t = copy[locale]
+  const t = normalizedCopy[locale]
   const snapshots = useMemo(() => snapshotByName(connectors), [connectors])
   const routing = useMemo(() => routingConfig(value), [value])
   const visibleEntries = useMemo(

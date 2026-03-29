@@ -88,7 +88,7 @@ export function ProjectsAppBar({
 
           <Button variant="secondary" size="sm" onClick={toggleLocale} className="rounded-full">
             <Languages className="h-4 w-4" />
-            {locale === 'zh' ? 'EN' : '中文'}
+            {locale === 'zh' ? '英文' : 'Chinese'}
           </Button>
         </div>
       </div>

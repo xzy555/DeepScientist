@@ -103,7 +103,6 @@ For each serious candidate idea, state:
 - closest prior art
 - overlap with our mechanism
 - what still appears missing
-- baseline relation the idea is trying to establish
 - verdict:
   - `novel`
   - `incremental but valuable`
@@ -148,7 +147,6 @@ For each such paper, include:
 - standard citation entry in the format you plan to use later
 - what part of the idea it supports:
   - problem motivation
-  - baseline limitation
   - closest prior work
   - mechanism inspiration
   - claim boundary

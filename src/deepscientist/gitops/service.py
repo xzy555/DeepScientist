@@ -5,39 +5,9 @@ from pathlib import Path
 from ..shared import ensure_dir, run_command, slugify
 
 
-_FALLBACK_GIT_USER_NAME = "DeepScientist"
-_FALLBACK_GIT_USER_EMAIL = "deepscientist@local"
-
-
-def _git_config_value(repo: Path, key: str) -> str:
-    result = run_command(["git", "config", "--get", key], cwd=repo, check=False)
-    return result.stdout.strip()
-
-
-def ensure_repo_identity(
-    repo: Path,
-    *,
-    user_name: str = _FALLBACK_GIT_USER_NAME,
-    user_email: str = _FALLBACK_GIT_USER_EMAIL,
-) -> dict[str, str]:
-    resolved_name = _git_config_value(repo, "user.name")
-    resolved_email = _git_config_value(repo, "user.email")
-    if not resolved_name:
-        run_command(["git", "config", "user.name", user_name], cwd=repo, check=False)
-        resolved_name = _git_config_value(repo, "user.name") or user_name
-    if not resolved_email:
-        run_command(["git", "config", "user.email", user_email], cwd=repo, check=False)
-        resolved_email = _git_config_value(repo, "user.email") or user_email
-    return {
-        "user_name": resolved_name,
-        "user_email": resolved_email,
-    }
-
-
 def init_repo(repo: Path) -> None:
     run_command(["git", "init"], cwd=repo)
     run_command(["git", "branch", "-M", "main"], cwd=repo, check=False)
-    ensure_repo_identity(repo)
 
 
 def current_branch(repo: Path) -> str:
@@ -130,7 +100,6 @@ def checkpoint_repo(repo: Path, message: str, allow_empty: bool = False) -> dict
             "branch": current_branch(repo),
             "head": head_commit(repo),
         }
-    ensure_repo_identity(repo)
     result = run_command(["git", "commit", "-m", message], cwd=repo, check=False)
     return {
         "committed": result.returncode == 0,

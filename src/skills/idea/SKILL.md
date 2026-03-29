@@ -103,11 +103,6 @@ Break ties primarily through careful reasoning over:
 - Do not select an idea before checking whether close prior work already did it.
 - Do not confuse "I can implement this" with "this is a publishable or useful research direction".
 - Do not treat a weak literature search as sufficient because the idea sounds elegant.
-- Do not submit a selected idea if the writeup is still ambiguous about:
-  - what exact limitation relative to the accepted baseline it targets
-  - what the mechanism actually changes
-  - what result would count as failure
-  - what the idea explicitly does not claim or solve
 - Do not write, promote, or submit a final idea until the durable survey covers at least `5` and usually `5-10` task-modeling-related, mechanism-relevant, or otherwise directly usable papers.
 - Treat that literature floor as a hard gate, not a suggestion.
   If the direct task-modeling neighborhood truly contains fewer than `5` usable papers, record that evidence explicitly and fill the remaining slots with the closest adjacent papers whose mechanism can be translated into the current task and codebase.
@@ -144,7 +139,6 @@ Break ties primarily through careful reasoning over:
   - what limitation it targets
   - why prior methods do not already solve it
   - what evidence would later be needed to defend the claim
-- Do not treat a submitted idea as complete until the selected-idea package is explicit enough that another agent could implement and critique it without replaying chat context.
 - If the idea is not novel but still worth doing, state that honestly as:
   - replication value
   - transfer-to-new-setting value
@@ -284,52 +278,9 @@ The idea stage should usually leave behind:
 - `2-5` candidate ideas, with the final serious frontier usually narrowed to `2-3`
 - a selected idea or explicit rejection of the current line
 - a durable Markdown idea draft that is finalized before the accepted idea is submitted
-- a durable route-selection decision that says why the winner beat the other serious candidates
 - one or more memory cards for reusable rationale
 - one or more quest `papers` cards for the strongest papers or search clusters
 - an idea artifact and a decision artifact
-
-## Selected idea package contract
-
-Before `artifact.submit_idea(...)`, the selected idea package should make these fields explicit in durable files or the submitted metadata:
-
-- `problem`:
-  - the concrete limitation relative to the accepted baseline
-- `baseline_relation`:
-  - whether this is expected to beat, complement, stress-test, or reinterpret the current baseline
-- `claim`:
-  - one falsifiable sentence with metric direction and boundary condition
-- `mechanism`:
-  - the causal change, not just the implementation container
-- `expected_gain`:
-  - what paper-facing value or reader-facing insight this would create if it works
-- `minimal_experiment`:
-  - the cheapest credible validation path
-- `abandon_condition`:
-  - what result would make you stop pushing this line
-- `strongest_objection`:
-  - the best reason this idea may fail or be redundant
-- `non_goals`:
-  - what this idea does not try to solve
-- `closest_prior_work`:
-  - the nearest overlapping papers and why they are still insufficient
-
-If any of these are still fuzzy, the idea is not ready to promote.
-
-For the final selected idea writeup, prefer a reader-facing order:
-
-1. one-sentence contribution claim
-2. what baseline limitation it targets
-3. why prior work does not already close that gap
-4. the mechanism in plain language
-5. the minimal falsification plan
-6. the strongest objection and non-goals
-
-The selected idea package should be understandable by:
-
-- the next `experiment` pass
-- a skeptical reviewer
-- a future resume turn that no longer has the original chat context
 
 Recommended durable intermediate outputs:
 
@@ -555,15 +506,9 @@ Before promotion, force the winner to answer:
 - what exact limitation it targets
 - why current methods still fail here
 - what changed or why this is timely now
-- what explicit relation it has to the accepted baseline:
-  - beat
-  - match but simplify
-  - complement
-  - reinterpret or stress-test
 - what the smallest credible implementation is
 - what the cheapest falsification path is
 - what the strongest likely objection is
-- what the idea explicitly does not try to solve
 - what the two-sentence pitch is
 
 Only then move into the normal selection gate and `artifact.submit_idea(...)` flow.
@@ -608,11 +553,6 @@ Before generating ideas, state:
 
 - the primary metric and whether higher or lower is better
 - the strongest baseline number with source path
-- the expected baseline relation:
-  - `beat`
-  - `match but simplify`
-  - `complement`
-  - `reinterpret / stress-test`
 - the expected contribution type:
   - `Insight`
   - `Performance`
@@ -916,12 +856,10 @@ For every candidate that survives initial triage, make sure you can state:
 
 - target limitation
 - why current methods still fail here
-- explicit baseline relation and expected metric direction
 - the smallest credible implementation surface in the current repo
 - the primary metric that would matter first
 - the cheapest falsification path
 - the abandonment condition
-- the strongest non-goals or excluded scope
 - the reader-facing payoff if it works
 - the exact reason it is still worth trying despite the closest prior work
 
@@ -1028,23 +966,13 @@ At minimum, preserve:
 - a stable idea id
 - a two-sentence pitch
 - a falsifiable claim tied to metric and direction
-- a one-line baseline relation statement
 - a `why now` statement
 - the code-level plan and minimal experiment
-- the abandonment condition
-- the explicit non-goals
 - the literature relation and evidence pointers
 - inline citations or citation markers tied to the papers actually used in the idea rationale
 - a `References` or `Bibliography` section in a standard citation format
 - the strongest alternative hypothesis
 - the strongest likely objection
-
-When the shortlist involved more than one serious candidate, also preserve one durable decision that states:
-
-- why the winner beat the others
-- why the loser ideas were rejected or deferred
-- what remaining uncertainty still exists
-- why this is still the right child of the confirmed baseline foundation
 
 The selected idea draft must cite the survey papers that actually shaped the mechanism, motivation, novelty check, or claim boundary.
 Use one consistent standard citation format throughout the draft, such as numbered references or author-year style.

@@ -1,22 +1,25 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import { HERO_STAGES } from './hero-content'
+import type { Locale } from '@/types'
+import { getHeroBundle } from './hero-content'
 import { PngIcon } from '@/components/ui/png-icon'
 import { ArrowRight } from 'lucide-react'
 
 type HeroProgressProps = {
   progress: number
   stageIndex: number
+  locale: Locale
   className?: string
 }
 
-export default function HeroProgress({ progress, stageIndex, className }: HeroProgressProps) {
+export default function HeroProgress({ progress, stageIndex, locale, className }: HeroProgressProps) {
+  const hero = getHeroBundle(locale)
   return (
     <div className={cn('pointer-events-none', className)}>
       <div className="mx-auto w-full max-w-[90vw] px-6 pb-[env(safe-area-inset-bottom)]">
         <div className="grid grid-cols-4 items-center gap-2 text-[10px] text-[#6F6B66] sm:text-[11px]">
-          {HERO_STAGES.map((stage, index) => (
+          {hero.stages.map((stage, index) => (
             <div key={stage.key} className="flex min-w-0 items-center justify-center gap-2 sm:justify-start">
               <span
                 className={cn(
@@ -48,7 +51,7 @@ export default function HeroProgress({ progress, stageIndex, className }: HeroPr
             className="h-3 w-3 opacity-70"
             fallback={<ArrowRight className="h-3 w-3" />}
           />
-          Scroll to explore
+          {locale === 'zh' ? '滚动继续探索' : 'Scroll to explore'}
         </div>
       </div>
     </div>

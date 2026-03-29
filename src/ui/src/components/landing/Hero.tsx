@@ -13,7 +13,7 @@ import { useI18n } from '@/lib/i18n'
 import { useOnboardingStore } from '@/lib/stores/onboarding'
 import { useUILanguageStore } from '@/lib/stores/ui-language'
 import { runtimeVersion } from '@/lib/runtime/quest-runtime'
-import { HERO_COPY, HERO_STAGES } from './hero-content'
+import { getHeroBundle } from './hero-content'
 import type { ConnectorAvailabilitySnapshot, QuestSummary } from '@/types'
 import { EntryCoachDialog } from './EntryCoachDialog'
 import HeroNav from './HeroNav'
@@ -46,6 +46,7 @@ function sortQuests(items: QuestSummary[]) {
 export default function Hero() {
   const navigate = useNavigate()
   const { locale } = useI18n()
+  const hero = useMemo(() => getHeroBundle(locale), [locale])
   const saveLanguagePreference = useUILanguageStore((state) => state.saveLanguagePreference)
   const {
     hydrated: onboardingHydrated,
@@ -390,18 +391,18 @@ export default function Hero() {
                 <FadeContent duration={0.6} y={18} blur={false} className="min-w-0">
                   <div className="space-y-6" data-onboarding-id="landing-hero">
                     <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/60 px-3 py-1 text-xs uppercase tracking-[0.2em] text-[#7E8B97]">
-                      Automated Research
+                      {locale === 'zh' ? '自动化科研' : 'Automated Research'}
                     </div>
                     <h1 className="text-4xl font-semibold leading-tight md:text-5xl">
-                      {HERO_COPY.headline}
+                      {hero.copy.headline}
                     </h1>
-                    {HERO_COPY.subhead ? (
+                    {hero.copy.subhead ? (
                       <p className="max-w-xl text-base text-[#5D5A55] md:text-lg">
-                        {HERO_COPY.subhead}
+                        {hero.copy.subhead}
                       </p>
                     ) : null}
                     <div className="text-sm uppercase tracking-[0.22em] text-[#9FB1C2]">
-                      {HERO_COPY.tagline}
+                      {hero.copy.tagline}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
@@ -416,7 +417,7 @@ export default function Hero() {
                           }}
                           data-onboarding-id="landing-start-research"
                         >
-                          {HERO_COPY.primaryCta}
+                          {hero.copy.primaryCta}
                         </Button>
                       </GlareHover>
                       <Button
@@ -428,21 +429,21 @@ export default function Hero() {
                         }}
                       >
                         <FolderOpen className="mr-2 h-4 w-4" />
-                        {HERO_COPY.secondaryCta}
+                        {hero.copy.secondaryCta}
                       </Button>
                     </div>
 
                     <div className="space-y-1 text-xs text-[#7E8B97]">
-                      <div>{HERO_COPY.supportLine}</div>
+                      <div>{hero.copy.supportLine}</div>
                       <div>
-                        {HERO_COPY.moreContentLine}{' '}
+                        {hero.copy.moreContentLine}{' '}
                         <a
-                          href={HERO_COPY.moreContentUrl}
+                          href={hero.copy.moreContentUrl}
                           target="_blank"
                           rel="noreferrer"
                           className="underline decoration-[#9FB1C2] underline-offset-4 transition-colors hover:text-[#5D5A55]"
                         >
-                          {HERO_COPY.moreContentUrl}
+                          {hero.copy.moreContentUrl}
                         </a>
                         .
                       </div>
@@ -467,6 +468,7 @@ export default function Hero() {
               <HeroProgress
                 progress={barProgress}
                 stageIndex={scrollStage}
+                locale={locale}
                 className={`relative mt-8 w-full transition-opacity duration-300 lg:fixed lg:bottom-4 lg:left-0 lg:right-0 lg:mt-0 lg:z-[60] ${
                   showProgress ? 'opacity-100' : 'opacity-0'
                 }`}

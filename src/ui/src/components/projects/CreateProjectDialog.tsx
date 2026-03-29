@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { client } from '@/lib/api'
 import { connectorInstanceMode, connectorTargetLabel, normalizeConnectorTargets, parseConversationId, recentConversationLabel } from '@/lib/connectors'
 import { useI18n } from '@/lib/i18n'
+import { normalizeZhUiCopy } from '@/lib/i18n/normalizeZhUiCopy'
 import { useOnboardingStore } from '@/lib/stores/onboarding'
 import { resetDemoRuntime } from '@/demo/runtime'
 import {
@@ -673,6 +674,11 @@ type StartConnectorChoice = {
   }>
 }
 
+const normalizedCopy = {
+  en: copy.en,
+  zh: normalizeZhUiCopy(copy.zh),
+} as const
+
 function titleCaseConnector(name: string) {
   const normalized = String(name || '').trim()
   if (!normalized) return 'Connector'
@@ -1231,7 +1237,7 @@ export function CreateProjectDialog({
   const navigate = useNavigate()
   const { locale } = useI18n()
   const onboardingStatus = useOnboardingStore((state) => state.status)
-  const t = copy[locale]
+  const t = normalizedCopy[locale]
   const [form, setForm] = useState<StartResearchTemplate>(defaultStartResearchTemplate(locale))
   const [promptDraft, setPromptDraft] = useState('')
   const [manualOverride, setManualOverride] = useState(false)

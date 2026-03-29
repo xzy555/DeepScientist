@@ -11,6 +11,7 @@ from typing import Any
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
+from .bash_exec.shells import build_exec_shell_launch, build_terminal_shell_launch
 from .config import ConfigManager
 from .home import ensure_home_layout
 from .runtime_tools import RuntimeToolService
@@ -321,6 +322,55 @@ def _check_bundles(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_shell_backend() -> dict[str, Any]:
+    exec_launch = build_exec_shell_launch("echo ok")
+    terminal_launch = build_terminal_shell_launch(Path("doctor-terminal-probe"))
+
+    def resolve_binary(binary: str) -> str | None:
+        candidate = str(binary or "").strip()
+        if not candidate:
+            return None
+        if os.path.isabs(candidate) or os.path.sep in candidate or (os.path.altsep and os.path.altsep in candidate):
+            return candidate if Path(candidate).exists() else None
+        return which(candidate)
+
+    details = {
+        "exec_shell": exec_launch.shell_name,
+        "exec_shell_family": exec_launch.family,
+        "exec_argv": exec_launch.argv,
+        "terminal_shell": terminal_launch.shell_name,
+        "terminal_shell_family": terminal_launch.family,
+        "terminal_argv": terminal_launch.argv,
+    }
+    warnings: list[str] = []
+    guidance: list[str] = []
+    errors: list[str] = []
+
+    exec_binary = resolve_binary(exec_launch.argv[0])
+    terminal_binary = resolve_binary(terminal_launch.argv[0])
+    details["exec_resolved_binary"] = exec_binary
+    details["terminal_resolved_binary"] = terminal_binary
+
+    if sys.platform == "win32":
+        warnings.append("Native Windows support is currently experimental; WSL2 remains the most battle-tested path.")
+        if not exec_binary:
+            errors.append("DeepScientist could not resolve a Windows command shell for bash_exec.")
+            guidance.append("Install PowerShell (`pwsh`) or ensure `powershell.exe` is available on PATH.")
+        if not terminal_binary:
+            errors.append("DeepScientist could not resolve a Windows interactive shell backend.")
+            guidance.append("Ensure `powershell.exe` is available on PATH for the interactive terminal surface.")
+    return _make_check(
+        check_id="shell_backend",
+        label="Shell backend",
+        ok=len(errors) == 0,
+        summary="DeepScientist resolved platform shell backends for command and terminal sessions." if len(errors) == 0 else "DeepScientist could not resolve a required shell backend.",
+        warnings=warnings,
+        errors=errors,
+        guidance=guidance,
+        details=details,
+    )
+
+
 def _check_latex_runtime(home: Path) -> dict[str, Any]:
     runtime = RuntimeToolService(home).status("tinytex")
     pdflatex = runtime.get("binaries", {}).get("pdflatex") or {}
@@ -436,6 +486,7 @@ def run_doctor(home: Path, *, repo_root: Path) -> dict[str, Any]:
         _check_python_runtime(),
         _check_home_writable(home),
         _check_uv(home),
+        _check_shell_backend(),
         _check_git(config_manager),
         _check_config_validation(config_manager),
         _check_runner_support(config_manager),

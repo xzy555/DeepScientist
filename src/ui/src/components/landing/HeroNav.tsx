@@ -54,7 +54,7 @@ export default function HeroNav() {
             onClick={toggleLocale}
           >
             <Languages className="mr-2 h-4 w-4" />
-            {locale === 'zh' ? 'EN' : '中文'}
+            {locale === 'zh' ? '英文' : 'Chinese'}
           </Button>
           <Button
             variant="outline"

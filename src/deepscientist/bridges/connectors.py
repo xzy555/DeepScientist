@@ -414,19 +414,6 @@ class QQConnectorBridge(BaseConnectorBridge):
     _token_cache: dict[str, dict[str, float | str]] = {}
     _IMAGE_FILE_TYPE = 1
     _FILE_FILE_TYPE = 4
-    _RETRY_DELAYS_SECONDS = (0.4, 1.0, 2.0)
-    _RETRYABLE_STATUS_CODES = {408, 409, 425, 429, 500, 502, 503, 504}
-    _RETRYABLE_ERROR_FRAGMENTS = (
-        "temporary failure in name resolution",
-        "name or service not known",
-        "connection reset",
-        "connection refused",
-        "timed out",
-        "timeout",
-        "eof",
-        "ssl",
-        "network is unreachable",
-    )
 
     def parse_webhook(self, *, method: str, headers: dict[str, str], query: dict[str, list[str]], raw_body: bytes, body: dict[str, Any] | None, config: dict[str, Any]) -> BridgeWebhookResult:
         return BridgeWebhookResult(
@@ -719,56 +706,41 @@ class QQConnectorBridge(BaseConnectorBridge):
         return payload, path.name
 
     def _post_json(self, *, endpoint: str, access_token: str, body: dict[str, Any]) -> dict[str, Any]:
-        last_failure: dict[str, Any] | None = None
-        for attempt_index in range(len(self._RETRY_DELAYS_SECONDS) + 1):
-            request = Request(endpoint, data=json.dumps(body, ensure_ascii=False).encode("utf-8"), method="POST")
-            request.add_header("Content-Type", "application/json; charset=utf-8")
-            request.add_header("Authorization", f"QQBot {access_token}")
-            try:
-                with urlopen(request, timeout=8) as response:  # noqa: S310
-                    response_text = response.read().decode("utf-8", errors="replace")
-                    payload = json.loads(response_text) if response_text else {}
-                    return {
-                        "ok": 200 <= response.status < 300,
-                        "status_code": response.status,
-                        "response": response_text[:500],
-                        "payload": payload if isinstance(payload, dict) else {},
-                        "message_id": str((payload or {}).get("id") or "").strip() or None,
-                    }
-            except HTTPError as exc:
-                response_text = exc.read().decode("utf-8", errors="replace")
-                try:
-                    payload = json.loads(response_text) if response_text else {}
-                except json.JSONDecodeError:
-                    payload = {}
-                last_failure = {
-                    "ok": False,
-                    "status_code": exc.code,
+        request = Request(endpoint, data=json.dumps(body, ensure_ascii=False).encode("utf-8"), method="POST")
+        request.add_header("Content-Type", "application/json; charset=utf-8")
+        request.add_header("Authorization", f"QQBot {access_token}")
+        try:
+            with urlopen(request, timeout=8) as response:  # noqa: S310
+                response_text = response.read().decode("utf-8", errors="replace")
+                payload = json.loads(response_text) if response_text else {}
+                return {
+                    "ok": 200 <= response.status < 300,
+                    "status_code": response.status,
                     "response": response_text[:500],
                     "payload": payload if isinstance(payload, dict) else {},
-                    "error": str((payload or {}).get("message") or response_text or exc.reason).strip() or "QQ HTTP error",
+                    "message_id": str((payload or {}).get("id") or "").strip() or None,
                 }
-                if not self._should_retry_failure(last_failure) or attempt_index >= len(self._RETRY_DELAYS_SECONDS):
-                    return last_failure
-                time.sleep(self._RETRY_DELAYS_SECONDS[attempt_index])
-            except Exception as exc:  # pragma: no cover - defensive network transport guard
-                last_failure = {
-                    "ok": False,
-                    "status_code": None,
-                    "response": None,
-                    "payload": {},
-                    "error": str(exc),
-                }
-                if not self._should_retry_failure(last_failure) or attempt_index >= len(self._RETRY_DELAYS_SECONDS):
-                    return last_failure
-                time.sleep(self._RETRY_DELAYS_SECONDS[attempt_index])
-        return last_failure or {
-            "ok": False,
-            "status_code": None,
-            "response": None,
-            "payload": {},
-            "error": "QQ HTTP request failed.",
-        }
+        except HTTPError as exc:
+            response_text = exc.read().decode("utf-8", errors="replace")
+            try:
+                payload = json.loads(response_text) if response_text else {}
+            except json.JSONDecodeError:
+                payload = {}
+            return {
+                "ok": False,
+                "status_code": exc.code,
+                "response": response_text[:500],
+                "payload": payload if isinstance(payload, dict) else {},
+                "error": str((payload or {}).get("message") or response_text or exc.reason).strip() or "QQ HTTP error",
+            }
+        except Exception as exc:  # pragma: no cover - defensive network transport guard
+            return {
+                "ok": False,
+                "status_code": None,
+                "response": None,
+                "payload": {},
+                "error": str(exc),
+            }
 
     @classmethod
     def _access_token(cls, app_id: str, app_secret: str) -> str:
@@ -779,46 +751,23 @@ class QQConnectorBridge(BaseConnectorBridge):
             expires_at = float(cached.get("expires_at") or 0)
             if token and now < expires_at - 300:
                 return token
-        payload: dict[str, Any] = {}
-        last_error: Exception | None = None
-        for attempt_index in range(len(cls._RETRY_DELAYS_SECONDS) + 1):
-            request = Request(
-                "https://bots.qq.com/app/getAppAccessToken",
-                data=json.dumps({"appId": app_id, "clientSecret": app_secret}).encode("utf-8"),
-                method="POST",
-            )
-            request.add_header("Content-Type", "application/json; charset=utf-8")
-            try:
-                with urlopen(request, timeout=8) as response:  # noqa: S310
-                    payload = json.loads(response.read().decode("utf-8"))
-                access_token = str(payload.get("access_token") or "").strip()
-                if not access_token:
-                    raise ValueError(payload.get("message") or "QQ access token exchange failed.")
-                expires_in = int(payload.get("expires_in") or 7200)
-                cls._token_cache[app_id] = {
-                    "token": access_token,
-                    "expires_at": now + expires_in,
-                }
-                return access_token
-            except Exception as exc:  # pragma: no cover - defensive network transport guard
-                last_error = exc
-                if attempt_index >= len(cls._RETRY_DELAYS_SECONDS) or not cls._should_retry_failure({"error": str(exc)}):
-                    raise
-                time.sleep(cls._RETRY_DELAYS_SECONDS[attempt_index])
-        raise last_error or ValueError(payload.get("message") or "QQ access token exchange failed.")
-
-    @classmethod
-    def _should_retry_failure(cls, failure: dict[str, Any]) -> bool:
-        status_code = failure.get("status_code")
-        try:
-            if status_code is not None and int(status_code) in cls._RETRYABLE_STATUS_CODES:
-                return True
-        except (TypeError, ValueError):
-            pass
-        error_text = str(failure.get("error") or "").strip().lower()
-        if not error_text:
-            return False
-        return any(fragment in error_text for fragment in cls._RETRYABLE_ERROR_FRAGMENTS)
+        request = Request(
+            "https://bots.qq.com/app/getAppAccessToken",
+            data=json.dumps({"appId": app_id, "clientSecret": app_secret}).encode("utf-8"),
+            method="POST",
+        )
+        request.add_header("Content-Type", "application/json; charset=utf-8")
+        with urlopen(request, timeout=8) as response:  # noqa: S310
+            payload = json.loads(response.read().decode("utf-8"))
+        access_token = str(payload.get("access_token") or "").strip()
+        if not access_token:
+            raise ValueError(payload.get("message") or "QQ access token exchange failed.")
+        expires_in = int(payload.get("expires_in") or 7200)
+        cls._token_cache[app_id] = {
+            "token": access_token,
+            "expires_at": now + expires_in,
+        }
+        return access_token
 
 
 class WeixinSendItemsError(RuntimeError):
@@ -832,8 +781,7 @@ class WeixinConnectorBridge(BaseConnectorBridge):
     name = "weixin"
     _MEDIA_ITEM_TYPES = {2, 4, 5}
     _MEDIA_SEND_INITIAL_DELAY_SECONDS = 0.8
-    _TEXT_SEND_RETRY_DELAYS_SECONDS = (0.8, 1.5, 3.0)
-    _MEDIA_SEND_RETRY_DELAYS_SECONDS = (1.5, 3.0, 5.0)
+    _MEDIA_SEND_RETRY_DELAYS_SECONDS = (1.5, 3.0)
 
     def deliver(self, payload: dict[str, Any], config: dict[str, Any]) -> dict[str, Any] | None:
         return self.deliver_direct(payload, config)
@@ -1024,11 +972,7 @@ class WeixinConnectorBridge(BaseConnectorBridge):
     @classmethod
     def _retry_delays_for_item(cls, item: dict[str, Any], exc: Exception) -> tuple[float, ...]:
         message = str(exc or "").strip().lower()
-        if "ret=-2" not in message:
-            return ()
-        if cls._item_type(item) == 1:
-            return cls._TEXT_SEND_RETRY_DELAYS_SECONDS
-        if cls._item_type(item) in {2, 4, 5}:
+        if "ret=-2" in message and cls._item_type(item) in {4, 5}:
             return cls._MEDIA_SEND_RETRY_DELAYS_SECONDS
         return ()
 

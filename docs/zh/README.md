@@ -96,6 +96,12 @@ DeepScientist 灵活且易于使用，支持：
 
 ## 如果你想通过外部协作面继续推进
 
+- [16 Telegram Connector 指南](./16_TELEGRAM_CONNECTOR_GUIDE.md)
+  通过内置 polling 运行时绑定 Telegram，并从 bot 会话继续推进 quest。
+- [17 WhatsApp Connector 指南](./17_WHATSAPP_CONNECTOR_GUIDE.md)
+  通过本地 local-session 运行时绑定 WhatsApp，并从本地聊天会话继续推进 quest。
+- [18 Feishu Connector 指南](./18_FEISHU_CONNECTOR_GUIDE.md)
+  通过内置 long-connection 运行时绑定 Feishu，并从 bot 会话继续推进 quest。
 - [10 微信连接器指南](./10_WEIXIN_CONNECTOR_GUIDE.md)
   适合通过 DeepScientist 内置扫码流程，把个人微信直接绑定进来。
 - [03 QQ 连接器指南](./03_QQ_CONNECTOR_GUIDE.md)

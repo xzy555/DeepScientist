@@ -118,11 +118,9 @@ This check is especially important for attractive cross-domain ideas.
 The selected output should be one clear research object:
 
 - one falsifiable claim
-- one explicit baseline relation
 - one code-level plan
 - one minimal experiment
 - one abandonment rule
-- one non-goals statement
 - one relation-to-literature summary
 
 If the result is still a bag of possibilities, the idea stage is not done.

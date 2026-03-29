@@ -13,7 +13,7 @@ You will do four things:
 
 The screenshots in this guide use the current live web UI at `deepscientist.cc:20999` as an example. Your local UI at `127.0.0.1:20999` should look the same or very close.
 
-Current platform support: DeepScientist currently supports Linux and macOS only. Windows is not supported in the current release.
+Current platform support: DeepScientist fully supports Linux and macOS. Native Windows support is currently experimental; WSL2 remains the most battle-tested option when you need the closest Linux-like terminal behavior.
 
 ## Safety First: Isolate Before You Start
 
@@ -60,7 +60,7 @@ If you plan to use a provider-backed Codex profile instead of the default OpenAI
 
 ## 1. Install Node.js and DeepScientist
 
-DeepScientist currently supports Linux and macOS only.
+DeepScientist fully supports Linux and macOS. Native Windows support is currently experimental, and WSL2 is still the most battle-tested option when you want Linux-like shell behavior.
 
 Before installing DeepScientist itself, install Node.js from the official page:
 

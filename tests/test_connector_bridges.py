@@ -561,39 +561,3 @@ def test_bridge_direct_outbound_weixin_retries_file_send_after_ret_minus_2(monke
     assert result["delivery"]["ok"] is True
     assert uploads == [{"file_path": str(file_path), "to_user_id": "wx-user-5@im.wechat", "media_type": 3}]
     assert [body["msg"]["item_list"][0]["type"] for body in sends] == [4, 4, 1]
-
-
-def test_bridge_direct_outbound_weixin_retries_text_send_after_ret_minus_2(monkeypatch, temp_home: Path) -> None:
-    _app, _quest_id = _setup_app(
-        temp_home,
-        connector_name="weixin",
-        extra={"bot_token": "wx-token", "account_id": "wx-bot-1@im.bot"},
-    )
-    app = DaemonApp(temp_home)
-    remember_weixin_context_token(
-        temp_home / "logs" / "connectors" / "weixin",
-        user_id="wx-user-text@im.wechat",
-        context_token="ctx-token-text",
-        account_id="wx-bot-1@im.bot",
-    )
-
-    sends: list[dict] = []
-
-    def fake_send_weixin_message(*, base_url, token, body, route_tag=None, timeout_ms=15_000):  # noqa: ANN001
-        sends.append(body)
-        if len(sends) == 1:
-            raise RuntimeError("Weixin sendmessage failed with ret=-2 errcode=0")
-        return {}
-
-    monkeypatch.setattr("deepscientist.bridges.connectors.send_weixin_message", fake_send_weixin_message)
-    monkeypatch.setattr("deepscientist.bridges.connectors.time.sleep", lambda _seconds: None)
-
-    result = app.channels["weixin"].send(
-        {
-            "conversation_id": "weixin:direct:wx-user-text@im.wechat",
-            "message": "retry text send test",
-        }
-    )
-
-    assert result["delivery"]["ok"] is True
-    assert [body["msg"]["item_list"][0]["type"] for body in sends] == [1, 1]

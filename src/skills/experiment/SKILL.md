@@ -61,17 +61,6 @@ If a proposed efficiency change alters optimization dynamics, effective budget, 
 
 Use `references/evidence-ladder.md` when deciding whether the current package is merely executable, solid enough to carry the main claim, or already in the stage where broader polish is justified.
 
-Keep the evidence ladder explicit:
-
-- `smoke`
-  - command path, imports, output directories, and evaluator wiring work
-- `pilot`
-  - the mechanism produces non-trivial interpretable signals on a bounded slice
-- `main experiment`
-  - the paper-facing comparison contract is actually measured and durably recorded
-
-Do not collapse these levels into one another in chat, artifacts, or route decisions.
-
 Completing one main run is not quest completion.
 After reporting the run, keep moving to iterate, analyze, write, or finalize unless a genuine blocking decision remains.
 
@@ -94,8 +83,6 @@ Treat this as the short run-order summary. The detailed run contract, execution 
 - Do not change metric definitions or evaluation logic unless the change is explicitly justified and durably recorded.
 - Do not stop after a quick sanity run if the agreed goal is a real experiment.
 - Do not claim success before durable artifacts exist and the acceptance gate passes.
-- Do not treat a smoke run, pilot run, compatibility check, or generic `run` artifact as the canonical main experiment result.
-- Do not let the quest behave as if the main result exists until `artifact.record_main_experiment(...)` succeeds with the required baseline-facing metrics and interpretation.
 - Implement the claimed mechanism, not a convenient shortcut that changes the theory.
 - Keep the baseline reference read-only.
 - Avoid asking the user to fix the environment unless there is no credible agent-side path left.
@@ -139,11 +126,8 @@ Before a main run starts, confirm:
 - exact output location
 - required metric keys for acceptance
 - minimal experiment and abandonment condition from the idea stage
-- whether the next execution is a smoke, pilot, or true main run
 
 If any of these are materially unknown, stop and resolve them through `decision`.
-
-If the current step is only smoke or pilot, state that explicitly in `PLAN.md`, `CHECKLIST.md`, and progress updates so later turns do not mistake it for the main result.
 
 ## Required plan and checklist
 
@@ -541,9 +525,6 @@ Use `evaluation_summary` as the short structured judgment layer on top of the lo
 - `failure_mode`: `none`, `implementation`, `evaluation`, `environment`, or `direction`
 - `next_action`: the immediate route such as `continue`, `revise_idea`, `analysis_campaign`, `write`, or `stop`
 
-If the current result is only smoke, pilot, or diagnosis, do not force it into `artifact.record_main_experiment(...)`.
-Record it as a `run`, `report`, or `progress` artifact instead, and say explicitly that the canonical main result still does not exist.
-
 After `artifact.record_main_experiment(...)` succeeds, do not assume the same branch should absorb the next round by default.
 Interpret the measured result first, then either:
 
@@ -565,7 +546,6 @@ That milestone should state:
 - the exact recommended next move
 
 Do not treat a main run as durably complete until `artifact.record_main_experiment(...)` succeeds.
-Do not let a generic `run` artifact substitute for that gate just because the execution took time or produced logs.
 
 Recommended per-run documentation fields:
 
@@ -616,7 +596,6 @@ The experiment stage should normally end with one of:
 - reset or stop
 
 Do not let the stage end without an explicit next direction.
-If the stage stopped after smoke or pilot only, the next direction must say whether to escalate to a real main run, revise the idea, or abort the line.
 If analysis is selected, record why the expected information gain is strong enough to justify the added compute, time, or annotation budget.
 
 ## Run-quality rules

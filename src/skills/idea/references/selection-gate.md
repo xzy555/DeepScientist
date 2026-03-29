@@ -6,11 +6,6 @@ Use this reference when choosing the final idea and preparing the handoff to `ex
 
 Score the final serious candidate on a `0/1/2` scale:
 
-- clarity
-  - `0` still slogan-level or ambiguous
-  - `1` understandable but underspecified
-  - `2` clear problem, mechanism, baseline relation, and falsification path
-
 - novelty
   - `0` obvious tweak
   - `1` moderate variant
@@ -38,8 +33,6 @@ Also treat these as hard gates before promotion:
 - the literature survey must already durably cover at least `5` and usually `5-10` related and usable papers
 - the closest-prior-work comparison must explain why the idea is still needed
 - the final selected-idea draft must be ready to carry standard-format citations for the papers actually used
-- the selected idea must state its explicit baseline relation and non-goals
-- when more than one serious candidate existed, a durable decision must explain why the winner beat the others
 
 ## 2. Honest novelty / value labels
 
@@ -57,7 +50,6 @@ The selected idea record should include:
 
 - stable idea id
 - `motivation` in SCQA form
-- `baseline_relation`
 - `reasoning` with main hypothesis plus `2-3` competing hypotheses near the top
 - `claim` as one falsifiable sentence tied to:
   - `metric_key`
@@ -65,7 +57,6 @@ The selected idea record should include:
   - boundary condition
 - `theory_and_method`
 - `code_level_plan`
-- `non_goals`
 - `relation_to_literature`
 - `references` or `bibliography` in a standard citation format
 - evidence or source pointers

@@ -2,7 +2,8 @@
 
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
-import { HERO_RESEARCH_STEPS, HERO_TERMINAL_INTRO } from './hero-content'
+import type { Locale } from '@/types'
+import { getHeroBundle } from './hero-content'
 
 type SegmentType = 'blue' | 'red' | 'gradient'
 type Segment = { start: number; end: number; type: SegmentType }
@@ -178,14 +179,16 @@ const renderSegmentedLine = (line: string, segments: Segment[]) => {
 type HeroTerminalProps = {
   className?: string
   activeIndex?: number
+  locale: Locale
 }
 
-export default function HeroTerminal({ className, activeIndex = 0 }: HeroTerminalProps) {
-  const safeIndex = Math.min(Math.max(activeIndex, 0), HERO_RESEARCH_STEPS.length - 1)
-  const activeStep = HERO_RESEARCH_STEPS[safeIndex] ?? HERO_RESEARCH_STEPS[0]
-  const lines = [...HERO_TERMINAL_INTRO, ...activeStep.terminal]
-  const statusLine = `MODE   remote    SYNC   connected    USER   guest`
-  const focusLine = `FOCUS  ${activeStep.title.toUpperCase()}`
+export default function HeroTerminal({ className, activeIndex = 0, locale }: HeroTerminalProps) {
+  const hero = getHeroBundle(locale)
+  const safeIndex = Math.min(Math.max(activeIndex, 0), hero.researchSteps.length - 1)
+  const activeStep = hero.researchSteps[safeIndex] ?? hero.researchSteps[0]
+  const lines = [...hero.terminalIntro, ...activeStep.terminal]
+  const statusLine = locale === 'zh' ? '模式   remote    同步   connected    用户   guest' : 'MODE   remote    SYNC   connected    USER   guest'
+  const focusLine = locale === 'zh' ? `聚焦   ${activeStep.title}` : `FOCUS  ${activeStep.title.toUpperCase()}`
 
   return (
     <div
@@ -197,7 +200,7 @@ export default function HeroTerminal({ className, activeIndex = 0 }: HeroTermina
     >
       <div className="flex items-center justify-between border-b border-black/10 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-[#7E8B97]">
         <span>DeepScientist CLI</span>
-        <span>Session 01</span>
+        <span>{locale === 'zh' ? '会话 01' : 'Session 01'}</span>
       </div>
       <div className="rounded-b-2xl bg-[#FBF8F2]/95 px-3 py-3 font-mono text-[11px] leading-relaxed text-[#2D2A26]">
         <div className="ds-terminal-ascii space-y-0.5 overflow-hidden text-[8px]">

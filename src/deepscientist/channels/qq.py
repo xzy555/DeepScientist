@@ -1,6 +1,5 @@
 from __future__ import annotations
 import os
-import time
 from pathlib import Path
 from typing import Any
 
@@ -16,21 +15,6 @@ class QQRelayChannel(BaseChannel):
     display_mode = "user_facing_only"
     recent_conversation_limit = 20
     recent_event_limit = 12
-    retry_queue_limit = 128
-    retry_max_attempts = 8
-    retry_initial_delay_seconds = 15.0
-    retry_max_delay_seconds = 300.0
-    retryable_error_fragments = (
-        "temporary failure in name resolution",
-        "name or service not known",
-        "connection reset",
-        "connection refused",
-        "timed out",
-        "timeout",
-        "eof",
-        "ssl",
-        "network is unreachable",
-    )
 
     def __init__(self, home: Path, config: dict[str, Any] | None = None) -> None:
         super().__init__(home)
@@ -41,7 +25,6 @@ class QQRelayChannel(BaseChannel):
         self.ignored_path = self.root / "ignored.jsonl"
         self.bindings_path = self.root / "bindings.json"
         self.state_path = self.root / "state.json"
-        self.retry_queue_path = self.root / "retry_queue.json"
 
     def _profiles(self) -> list[dict[str, Any]]:
         return list_qq_profiles(self.config)
@@ -157,23 +140,51 @@ class QQRelayChannel(BaseChannel):
         return payload if isinstance(payload, dict) else {}
 
     def send(self, payload: dict[str, Any]) -> dict[str, Any]:
-        self._flush_retry_queue(max_items=3)
         formatted = self._format_outbound(payload)
         record = {"sent_at": utc_now(), **formatted}
-        record = self._send_record(record)
+        try:
+            delivery = self._deliver(record)
+        except Exception as exc:  # pragma: no cover - defensive transport guard
+            delivery = {
+                "ok": False,
+                "queued": False,
+                "error": str(exc),
+                "transport": "qq-http",
+            }
+        if not isinstance(delivery, dict):
+            delivery = {
+                "ok": False,
+                "queued": False,
+                "error": "QQ outbound delivery has no active transport.",
+                "transport": "qq-http",
+            }
+        else:
+            delivery = {
+                **delivery,
+                "ok": bool(delivery.get("ok", False)),
+                "queued": bool(delivery.get("queued", False)),
+                "transport": str(delivery.get("transport") or "qq-http"),
+            }
+        record["delivery"] = delivery
+        append_jsonl(self.outbox_path, record)
+        self._remember_conversation(
+            conversation_id=record.get("conversation_id"),
+            updated_at=str(record.get("sent_at") or utc_now()),
+            source="outbound_delivery",
+            quest_id=str(record.get("quest_id") or "").strip() or None,
+        )
         return {
-            "ok": bool((record.get("delivery") or {}).get("ok", False)),
-            "queued": bool((record.get("delivery") or {}).get("queued", False)),
+            "ok": bool(delivery.get("ok", False)),
+            "queued": bool(delivery.get("queued", False)),
             "channel": self.name,
             "payload": record,
-            "delivery": record.get("delivery"),
+            "delivery": delivery,
         }
 
     def poll(self) -> list[dict[str, Any]]:
         return read_jsonl(self.inbox_path)
 
     def status(self) -> dict[str, Any]:
-        self._flush_retry_queue(max_items=1)
         bindings = self.list_bindings()
         state = self._read_state()
         profiles = self._profiles()
@@ -378,7 +389,6 @@ class QQRelayChannel(BaseChannel):
             "last_error": last_error,
             "inbox_count": count_jsonl(self.inbox_path),
             "outbox_count": count_jsonl(self.outbox_path),
-            "retry_queue_count": len(self._retry_queue_items()),
             "ignored_count": count_jsonl(self.ignored_path),
             "binding_count": len(bindings),
             "bindings": bindings,
@@ -725,165 +735,6 @@ class QQRelayChannel(BaseChannel):
                 }
             return bridge.deliver({**record, "profile_id": profile_id}, merge_qq_profile_config(self.config, profile))
         return None
-
-    @staticmethod
-    def _normalize_delivery(delivery: dict[str, Any] | None) -> dict[str, Any]:
-        if not isinstance(delivery, dict):
-            return {
-                "ok": False,
-                "queued": False,
-                "error": "QQ outbound delivery has no active transport.",
-                "transport": "qq-http",
-            }
-        return {
-            **delivery,
-            "ok": bool(delivery.get("ok", False)),
-            "queued": bool(delivery.get("queued", False)),
-            "transport": str(delivery.get("transport") or "qq-http"),
-        }
-
-    def _send_record(self, record: dict[str, Any], *, retry_of: str | None = None, attempt_count: int = 0) -> dict[str, Any]:
-        try:
-            delivery = self._deliver(record)
-        except Exception as exc:  # pragma: no cover - defensive transport guard
-            delivery = {
-                "ok": False,
-                "queued": False,
-                "error": str(exc),
-                "transport": "qq-http",
-            }
-        normalized_delivery = self._normalize_delivery(delivery)
-        if retry_of:
-            record["retry_of"] = retry_of
-            record["retry_attempt_count"] = attempt_count
-        if self._should_retry_delivery(normalized_delivery):
-            queued_delivery = self._queue_retry(record, normalized_delivery)
-            record["delivery"] = queued_delivery
-        else:
-            record["delivery"] = normalized_delivery
-        append_jsonl(self.outbox_path, record)
-        if bool((record.get("delivery") or {}).get("ok", False)):
-            self._remember_conversation(
-                conversation_id=record.get("conversation_id"),
-                updated_at=str(record.get("sent_at") or utc_now()),
-                source="outbound_delivery",
-                quest_id=str(record.get("quest_id") or "").strip() or None,
-            )
-        return record
-
-    def _retry_queue_items(self) -> list[dict[str, Any]]:
-        payload = read_json(self.retry_queue_path, {"items": []})
-        items = payload.get("items") if isinstance(payload, dict) else []
-        return [dict(item) for item in items if isinstance(item, dict)]
-
-    def _write_retry_queue_items(self, items: list[dict[str, Any]]) -> None:
-        trimmed = items[-self.retry_queue_limit :]
-        write_json(self.retry_queue_path, {"items": trimmed})
-
-    @staticmethod
-    def _retry_key_for(record: dict[str, Any]) -> str:
-        for key in ("interaction_id", "artifact_id"):
-            value = str(record.get(key) or "").strip()
-            if value:
-                return value
-        return generate_id("qq-retry")
-
-    def _retry_delay_seconds(self, attempt_count: int) -> float:
-        exponent = max(attempt_count - 1, 0)
-        return min(self.retry_initial_delay_seconds * (2**exponent), self.retry_max_delay_seconds)
-
-    def _should_retry_delivery(self, delivery: dict[str, Any]) -> bool:
-        if bool(delivery.get("ok", False)) or bool(delivery.get("queued", False)):
-            return False
-        status_code = delivery.get("status_code")
-        try:
-            if status_code is not None and int(status_code) in {408, 409, 425, 429, 500, 502, 503, 504}:
-                return True
-        except (TypeError, ValueError):
-            pass
-        error_text = str(delivery.get("error") or "").strip().lower()
-        if not error_text:
-            return False
-        return any(fragment in error_text for fragment in self.retryable_error_fragments)
-
-    def _queue_retry(self, record: dict[str, Any], delivery: dict[str, Any]) -> dict[str, Any]:
-        retry_key = self._retry_key_for(record)
-        items = self._retry_queue_items()
-        next_attempt_count = 1
-        remaining: list[dict[str, Any]] = []
-        for item in items:
-            if str(item.get("retry_key") or "") != retry_key:
-                remaining.append(item)
-                continue
-            next_attempt_count = max(int(item.get("attempt_count") or 0) + 1, next_attempt_count)
-        delay_seconds = self._retry_delay_seconds(next_attempt_count)
-        next_retry_ts = time.time() + delay_seconds
-        if next_attempt_count < self.retry_max_attempts:
-            remaining.append(
-                {
-                    "retry_key": retry_key,
-                    "record": {key: value for key, value in record.items() if key != "delivery"},
-                    "attempt_count": next_attempt_count,
-                    "next_retry_ts": next_retry_ts,
-                    "last_error": str(delivery.get("error") or "").strip() or None,
-                    "created_at": str(record.get("sent_at") or utc_now()),
-                }
-            )
-        self._write_retry_queue_items(remaining)
-        return {
-            **delivery,
-            "queued": next_attempt_count < self.retry_max_attempts,
-            "retry_key": retry_key,
-            "retry_attempt_count": next_attempt_count,
-            "retry_after_seconds": int(delay_seconds),
-            "error": str(delivery.get("error") or "").strip() or None,
-        }
-
-    def _flush_retry_queue(self, *, max_items: int) -> None:
-        items = self._retry_queue_items()
-        if not items:
-            return
-        self._write_retry_queue_items([])
-        now = time.time()
-        remaining: list[dict[str, Any]] = []
-        flushed = 0
-        for item in items:
-            if flushed >= max_items:
-                remaining.append(item)
-                continue
-            try:
-                next_retry_ts = float(item.get("next_retry_ts") or 0)
-            except (TypeError, ValueError):
-                next_retry_ts = 0.0
-            if next_retry_ts > now:
-                remaining.append(item)
-                continue
-            record = dict(item.get("record") or {}) if isinstance(item.get("record"), dict) else {}
-            if not record:
-                continue
-            record["sent_at"] = utc_now()
-            attempt_count = int(item.get("attempt_count") or 1)
-            sent = self._send_record(
-                record,
-                retry_of=str(item.get("retry_key") or "").strip() or None,
-                attempt_count=attempt_count,
-            )
-            delivery = dict(sent.get("delivery") or {}) if isinstance(sent.get("delivery"), dict) else {}
-            if bool(delivery.get("queued", False)):
-                # _queue_retry already wrote the renewed queue item.
-                pass
-            flushed += 1
-        if flushed:
-            current_items = self._retry_queue_items()
-            active_keys = {str(item.get("retry_key") or "") for item in current_items}
-            merged: list[dict[str, Any]] = []
-            for item in remaining:
-                retry_key = str(item.get("retry_key") or "")
-                if retry_key and retry_key in active_keys:
-                    continue
-                merged.append(item)
-            merged.extend(current_items)
-            self._write_retry_queue_items(merged)
 
     def _read_state(self) -> dict[str, Any]:
         payload = read_json(self.state_path, {})

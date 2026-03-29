@@ -1,18 +1,24 @@
 from __future__ import annotations
 
+import base64
 import codecs
 import json
 import os
-import pty
 import select
 import shlex
-import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any
 
+if os.name != "nt":  # pragma: no cover - exercised on POSIX
+    import pty
+else:  # pragma: no cover - exercised on Windows
+    pty = None
+
+from ..process_control import process_session_popen_kwargs, terminate_subprocess
 from .service import (
     BASH_CARRIAGE_RETURN_PREFIX,
     BASH_PROGRESS_PREFIX,
@@ -22,6 +28,7 @@ from .service import (
     _coerce_session_status,
     _parse_progress_marker,
 )
+from .shells import build_exec_shell_launch
 from ..shared import append_jsonl, ensure_dir, iter_jsonl, read_json, read_jsonl, utc_now
 
 DEFAULT_STOP_GRACE_SECONDS = 5
@@ -179,39 +186,21 @@ def _status_marker(meta: dict[str, Any], *, status: str, exit_code: int | None, 
 
 
 def _terminate_process(process: subprocess.Popen[bytes], process_group_id: int | None) -> None:
-    if process.poll() is not None:
-        return
-    if isinstance(process_group_id, int) and process_group_id > 0:
-        try:
-            os.killpg(process_group_id, signal.SIGTERM)
-        except ProcessLookupError:
-            return
-    else:
-        process.terminate()
-    deadline = time.monotonic() + DEFAULT_STOP_GRACE_SECONDS
-    while time.monotonic() < deadline:
-        if process.poll() is not None:
-            return
-        time.sleep(0.1)
-    if isinstance(process_group_id, int) and process_group_id > 0:
-        try:
-            os.killpg(process_group_id, signal.SIGKILL)
-        except ProcessLookupError:
-            return
-    elif process.poll() is None:
-        process.kill()
+    terminate_subprocess(
+        process,
+        process_group_id=process_group_id,
+        force=False,
+        grace_seconds=DEFAULT_STOP_GRACE_SECONDS,
+    )
 
 
 def _terminate_process_force(process: subprocess.Popen[bytes], process_group_id: int | None) -> None:
-    if process.poll() is not None:
-        return
-    if isinstance(process_group_id, int) and process_group_id > 0:
-        try:
-            os.killpg(process_group_id, signal.SIGKILL)
-        except ProcessLookupError:
-            return
-    else:
-        process.kill()
+    terminate_subprocess(
+        process,
+        process_group_id=process_group_id,
+        force=True,
+        grace_seconds=DEFAULT_STOP_GRACE_SECONDS,
+    )
 
 
 def _drain_buffer(
@@ -266,6 +255,12 @@ def _parse_terminal_prompt_marker(line: str) -> dict[str, str] | None:
 
 
 def _format_terminal_prompt(meta: dict[str, Any], cwd_value: str) -> str:
+    cwd_b64 = str(cwd_value or "").strip()
+    if meta.get("shell_family") == "powershell" and cwd_b64:
+        try:
+            cwd_value = base64.b64decode(cwd_b64.encode("ascii")).decode("utf-8")
+        except Exception:
+            cwd_value = cwd_b64
     quest_root = Path(str(meta.get("quest_root") or ".")).expanduser().resolve()
     cwd_path = Path(str(cwd_value or quest_root)).expanduser().resolve()
     home = Path.home().expanduser().resolve()
@@ -274,6 +269,8 @@ def _format_terminal_prompt(meta: dict[str, Any], cwd_value: str) -> str:
         display = "~" if relative == "." else f"~/{relative}"
     except ValueError:
         display = str(cwd_path)
+    if str(meta.get("shell_family") or "").strip().lower() == "powershell":
+        return f"PS {display}> "
     return f"{display}$ "
 
 
@@ -330,7 +327,19 @@ def run_monitor(session_dir: Path) -> int:
         prompt_marker = _parse_terminal_prompt_marker(line) if session_kind == "terminal" else None
         if prompt_marker is not None:
             prompt_ts = str(prompt_marker.get("ts") or utc_now())
-            prompt_cwd = str(prompt_marker.get("cwd") or meta.get("cwd") or cwd)
+            prompt_cwd_raw = str(
+                prompt_marker.get("cwd_b64")
+                or prompt_marker.get("cwd")
+                or meta.get("cwd")
+                or cwd
+            )
+            if prompt_marker.get("cwd_b64"):
+                try:
+                    prompt_cwd = base64.b64decode(prompt_cwd_raw.encode("ascii")).decode("utf-8")
+                except Exception:
+                    prompt_cwd = prompt_cwd_raw
+            else:
+                prompt_cwd = prompt_cwd_raw
             update_meta(cwd=prompt_cwd, last_prompt_at=prompt_ts)
             seq += 1
             _append_jsonl(
@@ -338,7 +347,7 @@ def run_monitor(session_dir: Path) -> int:
                 {
                     "seq": seq,
                     "stream": "prompt",
-                    "line": _format_terminal_prompt(meta, prompt_cwd),
+                    "line": _format_terminal_prompt(meta, prompt_cwd_raw),
                     "timestamp": prompt_ts,
                 },
             )
@@ -374,39 +383,49 @@ def run_monitor(session_dir: Path) -> int:
 
     master_fd: int | None = None
     slave_fd: int | None = None
-    output_fd: int | None = None
+    output_stream: Any = None
     process: subprocess.Popen[bytes] | None = None
+    pipe_chunks: list[bytes] = []
+    pipe_chunks_lock = threading.Lock()
+    pipe_reader_done = threading.Event()
+    pipe_reader_thread: threading.Thread | None = None
     try:
-        using_pty = True
+        launch_argv = [
+            str(item)
+            for item in (meta.get("launch_argv") or [])
+            if str(item).strip()
+        ] or build_exec_shell_launch(command).argv
+        using_pty = os.name != "nt" and pty is not None
         try:
+            if not using_pty:
+                raise OSError("pty_unavailable")
             master_fd, slave_fd = pty.openpty()
             process = subprocess.Popen(
-                ["bash", "-lc", command],
+                launch_argv,
                 cwd=str(cwd),
                 env=env_payload,
                 stdin=slave_fd,
                 stdout=slave_fd,
                 stderr=slave_fd,
-                start_new_session=True,
+                **process_session_popen_kwargs(hide_window=True),
             )
             os.close(slave_fd)
             slave_fd = None
-            output_fd = master_fd
         except OSError:
             using_pty = False
             process = subprocess.Popen(
-                ["bash", "-lc", command],
+                launch_argv,
                 cwd=str(cwd),
                 env=env_payload,
-                stdin=subprocess.DEVNULL,
+                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                start_new_session=True,
+                **process_session_popen_kwargs(hide_window=True),
             )
             if process.stdout is None:
                 raise RuntimeError("bash_exec_missing_stdout_pipe")
-            output_fd = process.stdout.fileno()
-        process_group_id = os.getpgid(process.pid)
+            output_stream = process.stdout
+        process_group_id = process.pid if os.name == "nt" else os.getpgid(process.pid)
         update_meta(
             monitor_pid=os.getpid(),
             process_pid=process.pid,
@@ -420,6 +439,24 @@ def run_monitor(session_dir: Path) -> int:
         buffer = ""
         deadline = time.monotonic() + int(timeout_seconds) if isinstance(timeout_seconds, int) and timeout_seconds > 0 else None
         stop_requested = False
+        if not using_pty and output_stream is not None:
+            def _pipe_reader() -> None:
+                try:
+                    while True:
+                        chunk = output_stream.read(4096)
+                        if not chunk:
+                            break
+                        with pipe_chunks_lock:
+                            pipe_chunks.append(chunk)
+                finally:
+                    pipe_reader_done.set()
+
+            pipe_reader_thread = threading.Thread(
+                target=_pipe_reader,
+                name=f"bash-exec-monitor-{meta.get('bash_id')}",
+                daemon=True,
+            )
+            pipe_reader_thread.start()
 
         while True:
             if not stop_requested and stop_request_path.exists():
@@ -459,7 +496,11 @@ def run_monitor(session_dir: Path) -> int:
                         raw_data = str(entry.get("data") or "")
                         if raw_data:
                             try:
-                                os.write(output_fd, raw_data.encode("utf-8"))
+                                if using_pty and master_fd is not None:
+                                    os.write(master_fd, raw_data.encode("utf-8"))
+                                elif process.stdin is not None:
+                                    process.stdin.write(raw_data.encode("utf-8"))
+                                    process.stdin.flush()
                             except OSError:
                                 break
                         offset += 1
@@ -471,13 +512,28 @@ def run_monitor(session_dir: Path) -> int:
                         },
                     )
 
-            ready, _unused_w, _unused_x = select.select([output_fd], [], [], TERMINAL_IO_POLL_SECONDS)
-            if ready:
-                try:
-                    chunk = os.read(output_fd, 4096)
-                except OSError:
-                    chunk = b""
-                if chunk:
+            if using_pty and master_fd is not None:
+                ready, _unused_w, _unused_x = select.select([master_fd], [], [], TERMINAL_IO_POLL_SECONDS)
+                if ready:
+                    try:
+                        chunk = os.read(master_fd, 4096)
+                    except OSError:
+                        chunk = b""
+                    if chunk:
+                        buffer += decoder.decode(chunk)
+                        buffer = _drain_buffer(
+                            buffer,
+                            append_line,
+                            flush_partial=session_kind == "terminal",
+                            carriage_mode="stream" if session_kind == "terminal" else "marker",
+                        )
+            else:
+                drained: list[bytes] = []
+                with pipe_chunks_lock:
+                    if pipe_chunks:
+                        drained = list(pipe_chunks)
+                        pipe_chunks.clear()
+                for chunk in drained:
                     buffer += decoder.decode(chunk)
                     buffer = _drain_buffer(
                         buffer,
@@ -485,23 +541,42 @@ def run_monitor(session_dir: Path) -> int:
                         flush_partial=session_kind == "terminal",
                         carriage_mode="stream" if session_kind == "terminal" else "marker",
                     )
+                if not drained:
+                    time.sleep(TERMINAL_IO_POLL_SECONDS)
             if process.poll() is not None:
                 break
 
-        while True:
-            try:
-                chunk = os.read(output_fd, 4096)
-            except OSError:
-                chunk = b""
-            if not chunk:
-                break
-            buffer += decoder.decode(chunk)
-            buffer = _drain_buffer(
-                buffer,
-                append_line,
-                flush_partial=session_kind == "terminal",
-                carriage_mode="stream" if session_kind == "terminal" else "marker",
-            )
+        if using_pty and master_fd is not None:
+            while True:
+                try:
+                    chunk = os.read(master_fd, 4096)
+                except OSError:
+                    chunk = b""
+                if not chunk:
+                    break
+                buffer += decoder.decode(chunk)
+                buffer = _drain_buffer(
+                    buffer,
+                    append_line,
+                    flush_partial=session_kind == "terminal",
+                    carriage_mode="stream" if session_kind == "terminal" else "marker",
+                )
+        else:
+            if pipe_reader_thread is not None:
+                pipe_reader_thread.join(timeout=1)
+            drained = []
+            with pipe_chunks_lock:
+                if pipe_chunks:
+                    drained = list(pipe_chunks)
+                    pipe_chunks.clear()
+            for chunk in drained:
+                buffer += decoder.decode(chunk)
+                buffer = _drain_buffer(
+                    buffer,
+                    append_line,
+                    flush_partial=session_kind == "terminal",
+                    carriage_mode="stream" if session_kind == "terminal" else "marker",
+                )
         buffer += decoder.decode(b"", final=True)
         if buffer:
             append_line(buffer, stream="partial" if session_kind == "terminal" else "stdout")
@@ -533,6 +608,11 @@ def run_monitor(session_dir: Path) -> int:
         if slave_fd is not None:
             try:
                 os.close(slave_fd)
+            except OSError:
+                pass
+        if process is not None and process.stdin is not None:
+            try:
+                process.stdin.close()
             except OSError:
                 pass
         if process is not None and process.stdout is not None:

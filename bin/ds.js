@@ -314,11 +314,11 @@ function fetchLatestPublishedVersion({ npmBinary, timeoutMs = 3500 }) {
       latestVersion: null,
     };
   }
-  const result = spawnSync(npmBinary, ['view', UPDATE_PACKAGE_NAME, 'version', '--json'], {
+  const result = spawnSync(npmBinary, ['view', UPDATE_PACKAGE_NAME, 'version', '--json'], syncSpawnOptions({
     encoding: 'utf8',
     env: process.env,
     timeout: timeoutMs,
-  });
+  }));
   if (result.error) {
     return {
       ok: false,
@@ -606,7 +606,7 @@ function renderBrandArtwork() {
     const result = spawnSync(
       chafa,
       ['--size', `${width}x${height}`, '--format', 'symbols', '--colors', '16', brandPath],
-      { encoding: 'utf8' }
+      syncSpawnOptions({ encoding: 'utf8' })
     );
     if (result.status === 0 && result.stdout && result.stdout.trim()) {
       return result.stdout.replace(/\s+$/, '').split(/\r?\n/);
@@ -1465,11 +1465,14 @@ function scheduleDeferredSourceCleanup({ sourceHome, targetHome }) {
     '  }',
     '})();',
   ].join('\n');
-  const child = spawn(process.execPath, ['-e', helperScript, String(process.pid), sourceHome, logPath], {
-    detached: true,
-    stdio: 'ignore',
-    env: process.env,
-  });
+  const child = spawn(
+    process.execPath,
+    ['-e', helperScript, String(process.pid), sourceHome, logPath],
+    detachedSpawnOptions({
+      stdio: 'ignore',
+      env: process.env,
+    })
+  );
   child.unref();
 }
 
@@ -1554,10 +1557,10 @@ function probePython(binary) {
     '  "patch": sys.version_info[2],',
     '}, ensure_ascii=False))',
   ].join('\n');
-  const result = spawnSync(binary, ['-c', snippet], {
+  const result = spawnSync(binary, ['-c', snippet], syncSpawnOptions({
     encoding: 'utf8',
     env: process.env,
-  });
+  }));
   if (result.error) {
     return {
       ok: false,
@@ -1830,6 +1833,7 @@ function runSync(binary, args, options = {}) {
     env: options.env || process.env,
     encoding: 'utf8',
     input: options.input,
+    windowsHide: process.platform === 'win32',
   });
   if (result.error) {
     throw result.error;
@@ -1847,12 +1851,30 @@ function step(index, total, message) {
   console.log(`[${index}/${total}] ${message}`);
 }
 
+function detachedSpawnOptions(options = {}) {
+  return {
+    ...options,
+    detached: true,
+    windowsHide: process.platform === 'win32',
+  };
+}
+
+function syncSpawnOptions(options = {}) {
+  return {
+    ...options,
+    windowsHide: process.platform === 'win32',
+  };
+}
+
 function verifyPythonRuntime(runtimePython) {
   const result = runSync(
     runtimePython,
     ['-c', 'import deepscientist.cli; import cryptography; import _cffi_backend; print("ok")'],
     { capture: true, allowFailure: true }
   );
+  if (result.status !== 0 && result.stderr) {
+    process.stderr.write(result.stderr);
+  }
   return result.status === 0;
 }
 
@@ -1999,11 +2021,11 @@ function downloadFileWithNode(url, destinationPath) {
     '  process.exit(1);',
     '});',
   ].join('\n');
-  const result = spawnSync(process.execPath, ['-e', downloader, url, destinationPath, '45000'], {
+  const result = spawnSync(process.execPath, ['-e', downloader, url, destinationPath, '45000'], syncSpawnOptions({
     cwd: repoRoot,
     stdio: 'inherit',
     env: process.env,
-  });
+  }));
   if (result.error) {
     throw result.error;
   }
@@ -2054,11 +2076,11 @@ function installLocalUv(home) {
     shellArgs = [installerPath];
   }
 
-  const installResult = spawnSync(shellBinary, shellArgs, {
+  const installResult = spawnSync(shellBinary, shellArgs, syncSpawnOptions({
     cwd: repoRoot,
     stdio: 'inherit',
     env: installEnv,
-  });
+  }));
   if (installResult.error) {
     throw installResult.error;
   }
@@ -2153,6 +2175,20 @@ function ensureUvManagedPython(home, uvBinary, minimumVersionRequest) {
     process.exit(1);
   }
   return probe;
+}
+
+function resolveBackgroundPythonExecutable(runtimePython) {
+  const normalized = String(runtimePython || '').trim();
+  if (process.platform !== 'win32' || !normalized) {
+    return normalized;
+  }
+  const runtimePath = path.resolve(normalized);
+  const runtimeDir = path.dirname(runtimePath);
+  const pythonwCandidate = path.join(runtimeDir, 'pythonw.exe');
+  if (fs.existsSync(pythonwCandidate)) {
+    return pythonwCandidate;
+  }
+  return runtimePath;
 }
 
 function syncUvProjectEnvironment(home, uvBinary, pythonTarget, editable) {
@@ -2598,8 +2634,9 @@ function spawnManagedDaemonProcess({ home, runtimePython, host, port, proxy = nu
   const out = fs.openSync(logPath, 'a');
   const resolvedDaemonId = String(daemonId || crypto.randomUUID()).trim();
   const launcherPath = path.join(repoRoot, 'bin', 'ds.js');
+  const backgroundPython = resolveBackgroundPythonExecutable(runtimePython);
   const child = spawn(
-    runtimePython,
+    backgroundPython,
     [
       '-m',
       'deepscientist.cli',
@@ -2612,9 +2649,8 @@ function spawnManagedDaemonProcess({ home, runtimePython, host, port, proxy = nu
       '--port',
       String(port),
     ],
-    {
+    detachedSpawnOptions({
       cwd: repoRoot,
-      detached: true,
       stdio: ['ignore', out, out],
       env: {
         ...process.env,
@@ -2625,7 +2661,7 @@ function spawnManagedDaemonProcess({ home, runtimePython, host, port, proxy = nu
         DS_DAEMON_ID: resolvedDaemonId,
         DS_DAEMON_MANAGED_BY: 'ds-launcher',
       },
-    }
+    })
   );
   child.unref();
   const statePayload = {
@@ -2673,9 +2709,8 @@ function spawnDaemonSupervisor({ home, runtimePython, host, port, proxy = null, 
   if (envPayload) {
     args.push('--env-json', envPayload);
   }
-  const child = spawn(process.execPath, args, {
+  const child = spawn(process.execPath, args, detachedSpawnOptions({
     cwd: repoRoot,
-    detached: true,
     stdio: 'ignore',
     env: {
       ...process.env,
@@ -2683,7 +2718,7 @@ function spawnDaemonSupervisor({ home, runtimePython, host, port, proxy = null, 
       DEEPSCIENTIST_NODE_BINARY: process.execPath,
       DEEPSCIENTIST_LAUNCHER_PATH: launcherPath,
     },
-  });
+  }));
   child.unref();
   return child.pid || null;
 }
@@ -2902,7 +2937,7 @@ function killManagedProcess(pid, signal) {
     if (signal === 'SIGKILL') {
       taskkillArgs.push('/T', '/F');
     }
-    const result = spawnSync('taskkill', taskkillArgs, { stdio: 'ignore' });
+    const result = spawnSync('taskkill', taskkillArgs, syncSpawnOptions({ stdio: 'ignore' }));
     return result.status === 0;
   }
   try {
@@ -3034,11 +3069,11 @@ function summarizeUpdateFailure(result) {
 function runNpmInstallLatest(home, npmBinary) {
   const args = ['install', '-g', `${UPDATE_PACKAGE_NAME}@latest`, '--no-audit', '--no-fund'];
   const startedAt = new Date().toISOString();
-  const result = spawnSync(npmBinary, args, {
+  const result = spawnSync(npmBinary, args, syncSpawnOptions({
     encoding: 'utf8',
     env: process.env,
     timeout: 15 * 60 * 1000,
-  });
+  }));
   const finishedAt = new Date().toISOString();
   const logPath = writeUpdateLog(
     home,
@@ -3132,12 +3167,11 @@ async function promptYesNo(question, { defaultValue = false } = {}) {
 
 function spawnDetachedNode(args, options = {}) {
   const out = options.logPath ? fs.openSync(options.logPath, 'a') : 'ignore';
-  const child = spawn(process.execPath, args, {
+  const child = spawn(process.execPath, args, detachedSpawnOptions({
     cwd: options.cwd || repoRoot,
-    detached: true,
     stdio: ['ignore', out, out],
     env: options.env || process.env,
-  });
+  }));
   child.unref();
   return child;
 }
@@ -3351,11 +3385,11 @@ function relaunchLauncherAfterUpdate(rawArgs, home) {
       message: 'DeepScientist was updated, but the new launcher path could not be resolved for relaunch.',
     };
   }
-  const result = spawnSync(process.execPath, [launcherPath, ...normalizeLauncherRelaunchArgs(rawArgs, home)], {
+  const result = spawnSync(process.execPath, [launcherPath, ...normalizeLauncherRelaunchArgs(rawArgs, home)], syncSpawnOptions({
     cwd: repoRoot,
     stdio: 'inherit',
     env: process.env,
-  });
+  }));
   if (result.error) {
     return {
       ok: false,
@@ -3619,7 +3653,7 @@ async function startDaemon(home, runtimePython, host, port, proxy = null, envOve
 function openBrowser(url) {
   const spawnDetached = (command, args) => {
     try {
-      const child = spawn(command, args, { detached: true, stdio: 'ignore' });
+      const child = spawn(command, args, detachedSpawnOptions({ stdio: 'ignore' }));
       child.unref();
       return true;
     } catch {
@@ -3933,12 +3967,11 @@ async function migrateMain(rawArgs) {
       const child = spawn(
         process.execPath,
         [migratedLauncher, '--home', targetHome, '--daemon-only', '--no-browser', '--skip-update-check'],
-        {
+        detachedSpawnOptions({
           cwd: path.join(targetHome, 'cli'),
-          detached: true,
           stdio: 'ignore',
           env: process.env,
-        }
+        })
       );
       child.unref();
       restartMessage = 'Managed daemon restart scheduled from the migrated home.';

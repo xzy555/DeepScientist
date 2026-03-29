@@ -61,8 +61,6 @@ They are common research entry states.
 - Do not rerun expensive work just because files exist. First decide whether a trust gap actually requires rerunning.
 - Do not fabricate missing durable records in order to make the quest look cleaner.
 - Do not mark an existing baseline as trusted unless the metric contract, source, and comparability are clear enough.
-- Do not treat a thin attached baseline package as fully trusted if it is missing a quest-local source snapshot or a durable Git foundation.
-- Do not silently trust a baseline that was copied from another quest package unless the original source provenance and current snapshot integrity are still explicit.
 - Do not mark an existing experiment as a durable main result unless it is genuinely the main run for an accepted idea line.
 - Do not silently import old drafts, plots, or notes as the active contract if they belong to a different idea line or branch line.
 - Do not lose provenance. If an artifact is reused, record where it came from and why it is trusted enough.
@@ -149,7 +147,6 @@ Create or refresh a durable audit note using `references/state-audit-template.md
 The inventory should cover:
 
 - baseline assets
-- baseline source snapshot and git-foundation state
 - main experiment assets
 - analysis assets
 - writing assets
@@ -183,7 +180,6 @@ Then reconcile it with the durable artifact layer:
 - existing reusable baseline:
   - `artifact.attach_baseline(...)`
   - then `artifact.confirm_baseline(...)` when trust is justified
-  - for attached or imported baselines, also verify whether a quest-local `source_snapshot` and baseline foundation branch or commit actually exist before calling the baseline trusted
 - existing main result:
   - `artifact.record_main_experiment(...)` only if the run is genuinely the accepted main run and the required fields can be filled honestly
 - existing analysis results:
@@ -194,15 +190,6 @@ Then reconcile it with the durable artifact layer:
   - `artifact.submit_paper_bundle(...)` when the draft/package state is genuinely ready
 
 If the evidence is insufficient for a durable backfill, record that insufficiency explicitly instead of inventing a cleaned-up history.
-
-For baseline-specific trust ranking, answer these extra questions explicitly:
-
-- does the baseline root include a real quest-local source snapshot, not only reports or metric JSON?
-- is the snapshot tied to a durable Git foundation in the current quest?
-- is the package pointing directly to an original source, or only to another quest's baseline package?
-- if it came from another quest, is that upstream quest itself trustworthy enough to inherit from directly?
-
-If any of these answers are negative, classify the baseline as `usable_with_verification` or `missing_context`, not `trusted`.
 
 ### 5. Choose the next anchor
 

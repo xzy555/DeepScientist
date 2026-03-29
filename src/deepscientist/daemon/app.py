@@ -25,7 +25,7 @@ from .. import __version__
 from ..annotations import AnnotationService
 from ..artifact import ArtifactService
 from ..bash_exec import BashExecService
-from ..bash_exec.runtime import TerminalClient
+from ..bash_exec.models import TerminalClient
 from ..bridges import register_builtin_connector_bridges
 from ..bridges.connectors import QQConnectorBridge
 from ..channels import QQRelayChannel, get_channel_factory, list_channel_names, register_builtin_channels
@@ -139,6 +139,12 @@ _LINGZHU_SHORT_COMMAND_PREFIX_MAP = {
 }
 _LINGZHU_SHORT_LATEST_ALIASES = {"latest", "newest", "最新", "最新的"}
 _LINGZHU_DELETE_CONFIRM_ALIASES = {"确认", "强制", "--yes", "-y"}
+
+
+def _windows_hidden_subprocess_kwargs() -> dict[str, object]:
+    if os.name == "nt" and hasattr(subprocess, "CREATE_NO_WINDOW"):
+        return {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW")}
+    return {}
 
 
 class DaemonApp:
@@ -716,6 +722,7 @@ class DaemonApp:
                 timeout=8,
                 check=False,
                 env=os.environ.copy(),
+                **_windows_hidden_subprocess_kwargs(),
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError("DeepScientist update check timed out.") from exc
@@ -763,6 +770,7 @@ class DaemonApp:
                 timeout=8,
                 check=False,
                 env=os.environ.copy(),
+                **_windows_hidden_subprocess_kwargs(),
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError("DeepScientist update request timed out.") from exc

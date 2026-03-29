@@ -26,6 +26,9 @@
 <p align="center">
   <a href="docs/en/00_QUICK_START.md">Quick Start</a> •
   <a href="docs/en/02_START_RESEARCH_GUIDE.md">Start Research Guide</a> •
+  <a href="docs/en/16_TELEGRAM_CONNECTOR_GUIDE.md">Telegram</a> •
+  <a href="docs/en/17_WHATSAPP_CONNECTOR_GUIDE.md">WhatsApp</a> •
+  <a href="docs/en/18_FEISHU_CONNECTOR_GUIDE.md">Feishu</a> •
   <a href="docs/en/10_WEIXIN_CONNECTOR_GUIDE.md"><img src="assets/branding/connector-weixin.png" alt="Weixin" width="14" height="14" /> Weixin</a> •
   <a href="docs/en/03_QQ_CONNECTOR_GUIDE.md"><img src="assets/branding/connector-qq.png" alt="QQ" width="14" height="14" /> QQ</a> •
   <a href="docs/en/04_LINGZHU_CONNECTOR_GUIDE.md"><img src="assets/branding/connector-rokid.png" alt="Rokid" width="14" height="14" /> Rokid</a> •
@@ -95,6 +98,8 @@ ds --yolo --here
 
 If `codex --login` is unavailable, run `codex` once and finish authentication there. After startup, open `http://127.0.0.1:20999`.
 
+Linux and macOS remain the most battle-tested platforms. Native Windows support is now experimental; if you need the closest Linux-like terminal behavior, prefer WSL2.
+
 For detailed install, troubleshooting, PDF compile, and other launch modes, use:
 
 - [Quick Start](docs/en/00_QUICK_START.md)
@@ -108,6 +113,9 @@ For detailed install, troubleshooting, PDF compile, and other launch modes, use:
 - [Core Architecture Guide (English)](docs/en/13_CORE_ARCHITECTURE_GUIDE.md)
 - [Prompt, Skills, and MCP Guide (English)](docs/en/14_PROMPT_SKILLS_AND_MCP_GUIDE.md)
 - [Weixin Connector Guide (English)](docs/en/10_WEIXIN_CONNECTOR_GUIDE.md)
+- [Telegram Connector Guide (English)](docs/en/16_TELEGRAM_CONNECTOR_GUIDE.md)
+- [WhatsApp Connector Guide (English)](docs/en/17_WHATSAPP_CONNECTOR_GUIDE.md)
+- [Feishu Connector Guide (English)](docs/en/18_FEISHU_CONNECTOR_GUIDE.md)
 - [QQ Connector Guide (English)](docs/en/03_QQ_CONNECTOR_GUIDE.md)
 - [Lingzhu / Rokid Guide (English)](docs/en/04_LINGZHU_CONNECTOR_GUIDE.md)
 - [Memory and MCP Guide (English)](docs/en/07_MEMORY_AND_MCP.md)

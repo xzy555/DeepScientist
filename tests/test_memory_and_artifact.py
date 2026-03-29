@@ -9,7 +9,6 @@ import pytest
 
 from deepscientist.artifact import ArtifactService
 from deepscientist.artifact.metrics import MetricContractValidationError
-from deepscientist.channels.qq import QQRelayChannel
 from deepscientist.connector.weixin_support import remember_weixin_context_token
 from deepscientist.config import ConfigManager
 from deepscientist.daemon.app import DaemonApp
@@ -18,7 +17,7 @@ from deepscientist.memory import MemoryService
 from deepscientist.memory.frontmatter import dump_markdown_document, load_markdown_document
 from deepscientist.quest import QuestService
 from deepscientist.registries import BaselineRegistry
-from deepscientist.shared import read_json, read_jsonl, read_yaml, run_command, write_json, write_yaml
+from deepscientist.shared import read_json, read_jsonl, read_yaml, write_json, write_yaml
 from deepscientist.skills import SkillInstaller
 
 
@@ -89,80 +88,6 @@ def test_confirm_baseline_writes_metric_contract_json_and_exposes_path(temp_home
     assert payload["metric_contract"]["primary_metric_id"] == "acc"
     attachment = read_yaml(quest_root / "baselines" / "imported" / "baseline-metric-contract" / "attachment.yaml", {})
     assert attachment["confirmation"]["metric_contract_json_rel_path"] == confirmed_ref["metric_contract_json_rel_path"]
-
-
-def test_confirm_imported_baseline_materializes_source_snapshot_and_creates_foundation_branch(temp_home: Path) -> None:
-    ensure_home_layout(temp_home)
-    ConfigManager(temp_home).ensure_files()
-    quest_service = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home))
-    quest = quest_service.create("imported baseline foundation quest")
-    quest_root = Path(quest["quest_root"])
-    artifact = ArtifactService(temp_home)
-
-    external_root = temp_home / "external-baseline"
-    (external_root / "scripts").mkdir(parents=True, exist_ok=True)
-    (external_root / "README.md").write_text("# External baseline\n", encoding="utf-8")
-    (external_root / "scripts" / "run.py").write_text("print('baseline')\n", encoding="utf-8")
-
-    baseline_root = quest_root / "baselines" / "imported" / "baseline-imported"
-    baseline_root.mkdir(parents=True, exist_ok=True)
-    write_yaml(
-        baseline_root / "attachment.yaml",
-        {
-            "source_baseline_id": "baseline-imported",
-            "source_variant_id": "v1",
-            "source": {
-                "type": "local_directory",
-                "root": str(external_root),
-            },
-        },
-    )
-
-    result = artifact.confirm_baseline(
-        quest_root,
-        baseline_path=str(baseline_root),
-        baseline_id="baseline-imported",
-        summary="Imported baseline with local source snapshot.",
-        metrics_summary={"acc": 0.91},
-        primary_metric={"metric_id": "acc", "value": 0.91},
-        metric_contract={"primary_metric_id": "acc", "metrics": [{"metric_id": "acc", "direction": "maximize"}]},
-    )
-
-    assert result["ok"] is True
-    confirmed_ref = result["confirmed_baseline_ref"]
-    snapshot_root = quest_root / confirmed_ref["source_snapshot_root_rel_path"]
-    assert snapshot_root == baseline_root / "source_snapshot"
-    assert (snapshot_root / "README.md").exists()
-    assert (snapshot_root / "scripts" / "run.py").exists()
-    assert confirmed_ref["baseline_branch"].startswith("baseline/")
-    branch_check = run_command(["git", "rev-parse", "--verify", confirmed_ref["baseline_branch"]], cwd=quest_root, check=False)
-    assert branch_check.returncode == 0
-
-
-def test_submit_idea_defaults_to_confirmed_baseline_foundation_branch(temp_home: Path) -> None:
-    ensure_home_layout(temp_home)
-    ConfigManager(temp_home).ensure_files()
-    quest_service = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home))
-    quest = quest_service.create("baseline founded idea quest")
-    quest_root = Path(quest["quest_root"])
-    artifact = ArtifactService(temp_home)
-
-    confirmed = _confirm_local_baseline(artifact, quest_root, baseline_id="baseline-founded")
-    baseline_branch = confirmed["confirmed_baseline_ref"]["baseline_branch"]
-
-    idea = artifact.submit_idea(
-        quest_root,
-        title="Baseline-rooted idea",
-        problem="The first idea should branch from the confirmed baseline root.",
-        hypothesis="Baseline-rooted lineage is auditable.",
-        mechanism="Use the baseline foundation branch as the durable parent.",
-        expected_gain="Clearer lineage in the quest graph.",
-        decision_reason="Promote the first route from the confirmed baseline.",
-    )
-
-    assert idea["foundation_ref"]["kind"] == "baseline"
-    assert idea["foundation_ref"]["branch"] == baseline_branch
-    assert idea["parent_branch"] == baseline_branch
 
 
 def test_confirm_baseline_strict_rejects_missing_metric_explanations(temp_home: Path) -> None:
@@ -2822,12 +2747,9 @@ def test_artifact_interact_routes_to_weixin_connector(temp_home: Path, monkeypat
                 "timeout_ms": timeout_ms,
             }
         )
-        if len(sends) == 1:
-            raise RuntimeError("Weixin sendmessage failed with ret=-2 errcode=0")
         return {}
 
     monkeypatch.setattr("deepscientist.bridges.connectors.send_weixin_message", fake_send_weixin_message)
-    monkeypatch.setattr("deepscientist.bridges.connectors.time.sleep", lambda _seconds: None)
 
     result = artifact.interact(
         quest_root,
@@ -2841,7 +2763,7 @@ def test_artifact_interact_routes_to_weixin_connector(temp_home: Path, monkeypat
     assert result["preferred_connector"] == "weixin"
     assert result["delivery_policy"] == "primary_only"
     assert result["delivery_targets"] == ["weixin:direct:wx-user-1@im.wechat"]
-    assert len(sends) == 2
+    assert len(sends) == 1
     assert sends[0]["token"] == "wx-token"
     assert sends[0]["body"]["msg"]["to_user_id"] == "wx-user-1@im.wechat"
     assert sends[0]["body"]["msg"]["context_token"] == "ctx-token-1"
@@ -2849,37 +2771,6 @@ def test_artifact_interact_routes_to_weixin_connector(temp_home: Path, monkeypat
 
     weixin_records = read_jsonl(temp_home / "logs" / "connectors" / "weixin" / "outbox.jsonl")
     assert any("Weixin artifact interaction test." in str(item.get("text") or "") for item in weixin_records)
-
-
-def test_confirm_baseline_emits_milestone_to_bound_connectors(temp_home: Path, monkeypatch) -> None:
-    ensure_home_layout(temp_home)
-    manager = ConfigManager(temp_home)
-    manager.ensure_files()
-    connectors = manager.load_named("connectors")
-    connectors["qq"]["enabled"] = True
-    connectors["qq"]["app_id"] = "1903299925"
-    connectors["qq"]["app_secret"] = "qq-secret"
-    connectors["_routing"]["artifact_delivery_policy"] = "primary_only"
-    write_yaml(manager.path_for("connectors"), connectors)
-
-    monkeypatch.setattr(
-        "deepscientist.bridges.connectors.QQConnectorBridge.deliver",
-        lambda _self, _payload, _config: {"ok": True, "transport": "qq-http"},
-    )
-
-    quest_service = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home))
-    quest = quest_service.create("baseline milestone delivery quest")
-    quest_root = Path(quest["quest_root"])
-    artifact = ArtifactService(temp_home)
-    quest_service.bind_source(quest["quest_id"], "qq:direct:qq-baseline-user")
-
-    result = _confirm_local_baseline(artifact, quest_root, baseline_id="baseline-milestone")
-
-    assert result["interaction"]["status"] == "ok"
-    assert result["interaction"]["delivery_targets"] == ["qq:direct:qq-baseline-user"]
-    qq_records = read_jsonl(temp_home / "logs" / "connectors" / "qq" / "outbox.jsonl")
-    assert qq_records[-1]["kind"] == "milestone"
-    assert "Baseline `baseline-milestone` is now confirmed." in str(qq_records[-1]["text"] or "")
 
 
 def test_artifact_interact_persists_surface_actions_and_connector_payload(temp_home: Path, monkeypatch) -> None:
@@ -2991,63 +2882,6 @@ def test_artifact_interact_normalizes_attachment_paths_and_returns_delivery_resu
     assert result["delivery_results"][0]["conversation_id"] == "qq:direct:qq-user-absolute"
     assert captured
     assert captured[-1]["attachments"][0]["path"] == str(absolute_path.resolve())
-
-
-def test_qq_retry_queue_flushes_retryable_failures_on_status(temp_home: Path, monkeypatch) -> None:
-    ensure_home_layout(temp_home)
-    ConfigManager(temp_home).ensure_files()
-    channel = QQRelayChannel(
-        temp_home,
-        {
-            "profiles": [
-                {
-                    "profile_id": "qq-main",
-                    "app_id": "1903299925",
-                    "app_secret": "qq-secret",
-                    "main_chat_id": "qq-user",
-                }
-            ]
-        },
-    )
-
-    calls = {"count": 0}
-
-    class _FakeBridge:
-        def deliver(self, _payload, _config):  # noqa: ANN001
-            calls["count"] += 1
-            if calls["count"] == 1:
-                return {
-                    "ok": False,
-                    "queued": False,
-                    "transport": "qq-http",
-                    "error": "<urlopen error [Errno -3] Temporary failure in name resolution>",
-                }
-            return {"ok": True, "queued": False, "transport": "qq-http", "message_id": "msg-2"}
-
-    monkeypatch.setattr("deepscientist.channels.qq.get_connector_bridge", lambda _name: _FakeBridge())
-
-    first = channel.send(
-        {
-            "conversation_id": "qq:direct:qq-user:qq-main",
-            "kind": "progress",
-            "text": "queued retry test",
-            "quest_id": "001",
-        }
-    )
-
-    assert first["queued"] is True
-    queue_payload = read_json(channel.retry_queue_path, {})
-    assert len(queue_payload["items"]) == 1
-    queue_payload["items"][0]["next_retry_ts"] = 0
-    write_json(channel.retry_queue_path, queue_payload)
-
-    status = channel.status()
-
-    assert status["retry_queue_count"] == 0
-    outbox = read_jsonl(channel.outbox_path)
-    assert len(outbox) >= 2
-    assert outbox[-1]["delivery"]["ok"] is True
-    assert outbox[-1]["retry_of"] == outbox[0]["delivery"]["retry_key"]
 
 
 def test_artifact_interact_reports_missing_attachment_path_to_agent(temp_home: Path) -> None:

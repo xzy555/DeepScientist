@@ -4,8 +4,8 @@ import { ArrowUpCircle, Sparkles } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { client } from '@/lib/api'
 import { useI18n } from '@/lib/i18n'
+import { loadSystemUpdateStatus } from '@/lib/system-update-status'
 import type { SystemUpdateStatus } from '@/types'
 
 import { SystemUpdateDialog } from './SystemUpdateDialog'
@@ -15,6 +15,13 @@ const LABELS = {
   en: 'Update',
 } as const
 
+function isNativeWindowsBrowser() {
+  if (typeof navigator === 'undefined') {
+    return false
+  }
+  return /windows/i.test(navigator.userAgent)
+}
+
 export function SystemUpdateButton() {
   const { locale } = useI18n()
   const label = LABELS[locale]
@@ -22,13 +29,14 @@ export function SystemUpdateButton() {
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const intervalRef = useRef<number | null>(null)
+  const disablePolling = isNativeWindowsBrowser()
 
   useEffect(() => {
     let cancelled = false
 
     const loadStatus = async () => {
       try {
-        const payload = await client.systemUpdateStatus()
+        const payload = await loadSystemUpdateStatus({ force: false, maxAgeMs: 5000 })
         if (cancelled) {
           return
         }
@@ -43,9 +51,11 @@ export function SystemUpdateButton() {
     }
 
     void loadStatus()
-    intervalRef.current = window.setInterval(() => {
-      void loadStatus()
-    }, 60_000)
+    if (!disablePolling) {
+      intervalRef.current = window.setInterval(() => {
+        void loadStatus()
+      }, 60_000)
+    }
 
     return () => {
       cancelled = true
@@ -54,7 +64,7 @@ export function SystemUpdateButton() {
         intervalRef.current = null
       }
     }
-  }, [])
+  }, [disablePolling])
 
   const visible = Boolean(status?.update_available || status?.busy)
   if (!visible) {

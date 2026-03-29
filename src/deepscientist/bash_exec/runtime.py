@@ -1,24 +1,30 @@
 from __future__ import annotations
 
+import base64
 import codecs
 import json
 import os
-import pty
+from pathlib import Path
 import select
-import shlex
-import signal
 import struct
 import subprocess
 import tempfile
-import termios
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
-from ..shared import append_jsonl, ensure_dir, generate_id, read_json, utc_now
+if os.name != "nt":  # pragma: no cover - exercised on POSIX
+    import pty
+    import termios
+else:  # pragma: no cover - exercised on Windows
+    pty = None
+    termios = None
+
+from ..process_control import process_session_popen_kwargs, terminate_subprocess
+from ..shared import ensure_dir, generate_id, read_json, utc_now
+from .models import AttachToken, TerminalClient
 
 BASH_STATUS_MARKER_PREFIX = "__DS_BASH_STATUS__"
 BASH_CARRIAGE_RETURN_PREFIX = "__DS_BASH_CR__"
@@ -76,14 +82,11 @@ def _parse_terminal_prompt_marker(line: str) -> dict[str, str] | None:
     if not raw:
         return None
     payload: dict[str, str] = {}
-    try:
-        for token in shlex.split(raw):
-            if "=" not in token:
-                continue
-            key, value = token.split("=", 1)
-            payload[key.strip()] = value
-    except ValueError:
-        return None
+    for token in raw.split():
+        if "=" not in token:
+            continue
+        key, value = token.split("=", 1)
+        payload[key.strip()] = value
     return payload or None
 
 
@@ -106,26 +109,6 @@ def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
     ensure_dir(path.parent)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
-
-
-def _kill_process_group(process_group_id: int | None, process: subprocess.Popen[bytes] | None) -> None:
-    if isinstance(process_group_id, int) and process_group_id > 0:
-        try:
-            os.killpg(process_group_id, signal.SIGTERM)
-        except ProcessLookupError:
-            return
-    elif process is not None and process.poll() is None:
-        process.terminate()
-
-
-def _kill_process_group_force(process_group_id: int | None, process: subprocess.Popen[bytes] | None) -> None:
-    if isinstance(process_group_id, int) and process_group_id > 0:
-        try:
-            os.killpg(process_group_id, signal.SIGKILL)
-        except ProcessLookupError:
-            return
-    elif process is not None and process.poll() is None:
-        process.kill()
 
 
 def _drain_buffer(
@@ -162,20 +145,12 @@ def _drain_buffer(
 
 
 @dataclass(slots=True)
-class AttachToken:
-    token: str
-    quest_root: Path
-    bash_id: str
-    expires_at: float
-
-
-@dataclass(slots=True)
-class TerminalClient:
-    client_id: str
-    send_text: Any
-    send_binary: Any
-    close: Any
-    send_lock: threading.Lock
+class _LaunchDescriptor:
+    transport: str
+    process: subprocess.Popen[bytes]
+    process_group_id: int | None
+    master_fd: int | None = None
+    output_stream: BinaryIO | None = None
 
 
 class TerminalRuntime:
@@ -190,7 +165,9 @@ class TerminalRuntime:
         prompt_events_path: Path,
         env_payload: dict[str, str],
         command: str,
+        launch_argv: list[str] | None,
         cwd: Path,
+        transport_preference: str | None,
         on_finished,
     ) -> None:
         self.quest_root = quest_root
@@ -201,7 +178,9 @@ class TerminalRuntime:
         self.prompt_events_path = prompt_events_path
         self.env_payload = dict(env_payload)
         self.command = command
+        self.launch_argv = [str(item) for item in (launch_argv or []) if str(item).strip()]
         self.cwd = cwd
+        self.transport_preference = _normalize_string(transport_preference).lower() or None
         self._on_finished = on_finished
         self._clients: dict[str, TerminalClient] = {}
         self._clients_lock = threading.Lock()
@@ -213,6 +192,8 @@ class TerminalRuntime:
         self._process: subprocess.Popen[bytes] | None = None
         self._process_group_id: int | None = None
         self._master_fd: int | None = None
+        self._output_stream: BinaryIO | None = None
+        self._transport = "pipe"
         self._replay_chunks: deque[bytes] = deque()
         self._replay_bytes = 0
         self._prompt_offset = 0
@@ -224,32 +205,26 @@ class TerminalRuntime:
         self.terminal_log_path.touch()
         self.log_path.touch()
         self.prompt_events_path.touch()
-        master_fd, slave_fd = pty.openpty()
+
         env_payload = os.environ.copy()
         env_payload.update(self.env_payload)
         env_payload.setdefault("PYTHONUNBUFFERED", "1")
         env_payload.setdefault("TERM", "xterm-256color")
         env_payload.setdefault("COLORTERM", "truecolor")
-        process = subprocess.Popen(
-            ["bash", "-lc", self.command],
-            cwd=str(self.cwd),
-            env=env_payload,
-            stdin=slave_fd,
-            stdout=slave_fd,
-            stderr=slave_fd,
-            start_new_session=True,
-        )
-        os.close(slave_fd)
-        os.set_blocking(master_fd, False)
-        process_group_id = os.getpgid(process.pid)
+        launch = self._start_process(env_payload)
+
         with self._state_lock:
-            self._master_fd = master_fd
-            self._process = process
-            self._process_group_id = process_group_id
+            self._transport = launch.transport
+            self._master_fd = launch.master_fd
+            self._output_stream = launch.output_stream
+            self._process = launch.process
+            self._process_group_id = launch.process_group_id
+
         meta = read_json(self.meta_path, {}) or {}
         meta["monitor_pid"] = None
-        meta["process_pid"] = process.pid
-        meta["process_group_id"] = process_group_id
+        meta["process_pid"] = launch.process.pid
+        meta["process_group_id"] = launch.process_group_id
+        meta["transport"] = launch.transport
         meta["status"] = "running"
         meta["updated_at"] = utc_now()
         _atomic_write_json(self.meta_path, meta)
@@ -262,9 +237,55 @@ class TerminalRuntime:
         self._reader_thread.start()
         return meta
 
+    def _start_process(self, env_payload: dict[str, str]) -> _LaunchDescriptor:
+        argv = self.launch_argv or ["bash", "-lc", self.command]
+        popen_kwargs = {
+            "cwd": str(self.cwd),
+            "env": env_payload,
+            **process_session_popen_kwargs(hide_window=True),
+        }
+        allow_pty = (
+            os.name != "nt"
+            and pty is not None
+            and termios is not None
+            and self.transport_preference != "pipe"
+        )
+        if allow_pty:
+            master_fd, slave_fd = pty.openpty()
+            process = subprocess.Popen(
+                argv,
+                stdin=slave_fd,
+                stdout=slave_fd,
+                stderr=slave_fd,
+                **popen_kwargs,
+            )
+            os.close(slave_fd)
+            os.set_blocking(master_fd, False)
+            return _LaunchDescriptor(
+                transport="pty",
+                process=process,
+                process_group_id=os.getpgid(process.pid),
+                master_fd=master_fd,
+            )
+        process = subprocess.Popen(
+            argv,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            **popen_kwargs,
+        )
+        if process.stdout is None:
+            raise RuntimeError("terminal_runtime_missing_stdout_pipe")
+        return _LaunchDescriptor(
+            transport="pipe",
+            process=process,
+            process_group_id=process.pid if os.name == "nt" else os.getpgid(process.pid),
+            output_stream=process.stdout,
+        )
+
     def is_alive(self) -> bool:
         process = self._process
-        return process is not None and process.poll() is None and self._master_fd is not None
+        return process is not None and process.poll() is None
 
     def snapshot_replay(self) -> list[bytes]:
         with self._replay_lock:
@@ -281,46 +302,48 @@ class TerminalRuntime:
     def write_input(self, data: str) -> None:
         if not data:
             return
-        payload = data.encode("utf-8")
-        self.write_binary_input(payload)
+        self.write_binary_input(data.encode("utf-8"))
 
     def write_binary_input(self, data: bytes) -> None:
         if not data:
             return
-        master_fd = self._master_fd
-        if master_fd is None or not self.is_alive():
+        process = self._process
+        if process is None or process.poll() is not None:
             raise RuntimeError("terminal_runtime_inactive")
         with self._write_lock:
-            os.write(master_fd, data)
+            if self._transport == "pty" and self._master_fd is not None:
+                os.write(self._master_fd, data)
+                return
+            if process.stdin is None:
+                raise RuntimeError("terminal_runtime_missing_stdin")
+            process.stdin.write(data)
+            process.stdin.flush()
 
     def resize(self, cols: int, rows: int) -> None:
-        master_fd = self._master_fd
-        if master_fd is None or cols <= 0 or rows <= 0:
+        if self._transport != "pty" or self._master_fd is None or cols <= 0 or rows <= 0 or termios is None:
             return
         winsz = struct.pack("HHHH", rows, cols, 0, 0)
         with self._write_lock:
-            termios.tcsetwinsize(master_fd, (rows, cols))
+            termios.tcsetwinsize(self._master_fd, (rows, cols))
             try:
-                import fcntl
+                import fcntl  # pragma: no cover - exercised on POSIX
 
-                fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsz)
+                fcntl.ioctl(self._master_fd, termios.TIOCSWINSZ, winsz)
             except Exception:
                 return
 
     def stop(self, *, reason: str = "runtime_shutdown", force: bool = False) -> None:
         self._stop_event.set()
         process = self._process
-        process_group_id = self._process_group_id
-        if force:
-            _kill_process_group_force(process_group_id, process)
+        if process is None:
             return
-        _kill_process_group(process_group_id, process)
-        deadline = time.monotonic() + TERMINAL_STOP_GRACE_SECONDS
-        while time.monotonic() < deadline:
-            if process is None or process.poll() is not None:
-                return
-            time.sleep(0.05)
-        _kill_process_group_force(process_group_id, process)
+        terminate_subprocess(
+            process,
+            process_group_id=self._process_group_id,
+            force=force,
+            prefer_ctrl_break=True,
+            grace_seconds=TERMINAL_STOP_GRACE_SECONDS,
+        )
 
     def _append_replay(self, payload: bytes) -> None:
         if not payload:
@@ -418,83 +441,47 @@ class TerminalRuntime:
             if not marker:
                 continue
             meta = read_json(self.meta_path, {}) or {}
-            meta["cwd"] = str(marker.get("cwd") or meta.get("cwd") or self.cwd)
+            prompt_cwd_raw = str(marker.get("cwd_b64") or marker.get("cwd") or meta.get("cwd") or self.cwd)
+            if marker.get("cwd_b64"):
+                try:
+                    prompt_cwd = base64.b64decode(prompt_cwd_raw.encode("ascii")).decode("utf-8")
+                except Exception:
+                    prompt_cwd = prompt_cwd_raw
+            else:
+                prompt_cwd = prompt_cwd_raw
+            meta["cwd"] = prompt_cwd
             meta["last_prompt_at"] = str(marker.get("ts") or utc_now())
             meta["updated_at"] = utc_now()
             _atomic_write_json(self.meta_path, meta)
 
+    def _consume_text(self, text: str, log_buffer: str) -> str:
+        if not text:
+            return log_buffer
+        encoded = text.encode("utf-8", errors="replace")
+        self._append_replay(encoded)
+        self._append_terminal_display(text)
+        self._broadcast_output(encoded)
+        log_buffer += text
+        return _drain_buffer(
+            log_buffer,
+            self._append_log_entry,
+            flush_partial=True,
+            carriage_mode="stream",
+        )
+
     def _reader_loop(self) -> None:
         decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         log_buffer = ""
-        exit_code = None
-        final_status = "failed"
-        stop_reason = None
         process = self._process
-        master_fd = self._master_fd
         try:
-            if process is None or master_fd is None:
+            if process is None:
                 return
-            while True:
-                self._poll_prompt_events()
-                if self._stop_event.is_set() and process.poll() is None:
-                    _kill_process_group(self._process_group_id, process)
-                ready, _unused_w, _unused_x = select.select([master_fd], [], [], TERMINAL_RUNTIME_POLL_SECONDS)
-                if ready:
-                    try:
-                        chunk = os.read(master_fd, 4096)
-                    except OSError:
-                        chunk = b""
-                    if chunk:
-                        text = decoder.decode(chunk)
-                        if text:
-                            encoded = text.encode("utf-8", errors="replace")
-                            self._append_replay(encoded)
-                            self._append_terminal_display(text)
-                            self._broadcast_output(encoded)
-                            log_buffer += text
-                            log_buffer = _drain_buffer(
-                                log_buffer,
-                                self._append_log_entry,
-                                flush_partial=True,
-                                carriage_mode="stream",
-                            )
-                if process.poll() is not None:
-                    break
-
-            while True:
-                try:
-                    chunk = os.read(master_fd, 4096)
-                except OSError:
-                    chunk = b""
-                if not chunk:
-                    break
-                text = decoder.decode(chunk)
-                if text:
-                    encoded = text.encode("utf-8", errors="replace")
-                    self._append_replay(encoded)
-                    self._append_terminal_display(text)
-                    self._broadcast_output(encoded)
-                    log_buffer += text
-                    log_buffer = _drain_buffer(
-                        log_buffer,
-                        self._append_log_entry,
-                        flush_partial=True,
-                        carriage_mode="stream",
-                    )
-
+            if self._transport == "pty":
+                log_buffer = self._reader_loop_pty(process, decoder, log_buffer)
+            else:
+                log_buffer = self._reader_loop_pipe(process, decoder, log_buffer)
             tail = decoder.decode(b"", final=True)
-            if tail:
-                encoded = tail.encode("utf-8", errors="replace")
-                self._append_replay(encoded)
-                self._append_terminal_display(tail)
-                self._broadcast_output(encoded)
-                log_buffer += tail
-                log_buffer = _drain_buffer(
-                    log_buffer,
-                    self._append_log_entry,
-                    flush_partial=True,
-                    carriage_mode="stream",
-                )
+            log_buffer = self._consume_text(tail, log_buffer)
             if log_buffer:
                 self._append_log_entry(log_buffer, stream="partial")
             exit_code = process.wait()
@@ -534,12 +521,83 @@ class TerminalRuntime:
                 except OSError:
                     pass
                 self._master_fd = None
-            if self._process is not None and self._process.stdout is not None:
+            if self._output_stream is not None:
                 try:
-                    self._process.stdout.close()
+                    self._output_stream.close()
+                except OSError:
+                    pass
+                self._output_stream = None
+            if self._process is not None and self._process.stdin is not None:
+                try:
+                    self._process.stdin.close()
                 except OSError:
                     pass
             self._on_finished(self.quest_root, self.bash_id)
+
+    def _reader_loop_pty(
+        self,
+        process: subprocess.Popen[bytes],
+        decoder,
+        log_buffer: str,
+    ) -> str:
+        master_fd = self._master_fd
+        if master_fd is None:
+            return log_buffer
+        while True:
+            self._poll_prompt_events()
+            if self._stop_event.is_set() and process.poll() is None:
+                terminate_subprocess(
+                    process,
+                    process_group_id=self._process_group_id,
+                    prefer_ctrl_break=True,
+                    grace_seconds=TERMINAL_STOP_GRACE_SECONDS,
+                )
+            ready, _unused_w, _unused_x = select.select([master_fd], [], [], TERMINAL_RUNTIME_POLL_SECONDS)
+            if ready:
+                try:
+                    chunk = os.read(master_fd, 4096)
+                except OSError:
+                    chunk = b""
+                if chunk:
+                    log_buffer = self._consume_text(decoder.decode(chunk), log_buffer)
+            if process.poll() is not None:
+                break
+        while True:
+            try:
+                chunk = os.read(master_fd, 4096)
+            except OSError:
+                chunk = b""
+            if not chunk:
+                break
+            log_buffer = self._consume_text(decoder.decode(chunk), log_buffer)
+        return log_buffer
+
+    def _reader_loop_pipe(
+        self,
+        process: subprocess.Popen[bytes],
+        decoder,
+        log_buffer: str,
+    ) -> str:
+        output_stream = self._output_stream
+        if output_stream is None:
+            return log_buffer
+        while True:
+            if self._stop_event.is_set() and process.poll() is None:
+                terminate_subprocess(
+                    process,
+                    process_group_id=self._process_group_id,
+                    prefer_ctrl_break=True,
+                    grace_seconds=TERMINAL_STOP_GRACE_SECONDS,
+                )
+            chunk = output_stream.read(4096)
+            self._poll_prompt_events()
+            if chunk:
+                log_buffer = self._consume_text(decoder.decode(chunk), log_buffer)
+                continue
+            if process.poll() is not None:
+                break
+            time.sleep(TERMINAL_RUNTIME_POLL_SECONDS)
+        return log_buffer
 
 
 class TerminalRuntimeManager:
@@ -575,7 +633,9 @@ class TerminalRuntimeManager:
         prompt_events_path: Path,
         env_payload: dict[str, str],
         command: str,
+        launch_argv: list[str] | None,
         cwd: Path,
+        transport_preference: str | None = None,
     ) -> dict[str, Any]:
         runtime = self.get_runtime(quest_root, bash_id)
         if runtime is not None:
@@ -589,7 +649,9 @@ class TerminalRuntimeManager:
             prompt_events_path=prompt_events_path,
             env_payload=env_payload,
             command=command,
+            launch_argv=launch_argv,
             cwd=cwd,
+            transport_preference=transport_preference,
             on_finished=self._handle_runtime_finished,
         )
         meta = created.start()

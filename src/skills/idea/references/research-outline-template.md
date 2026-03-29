@@ -27,7 +27,6 @@ Prefer these section headers:
 - `Executive Summary`
   - purpose
   - current results
-  - baseline relation
   - dataset characteristics
   - core algorithm summary
   - major limitations
@@ -54,16 +53,4 @@ Prefer these section headers:
   - exactly five directions when the space is broad enough
   - each direction should include both the challenge and the proposed approach
   - balance exploration cost against expected improvement
-  - include baseline relation, cheapest falsification path, and explicit non-goals for each serious direction
-
-## Selected winner add-on
-
-When this outline is also used to justify a final selected idea, append a short winner package that states:
-
-- the winning direction in one falsifiable sentence
-- why it beat the other serious candidates
-- the explicit baseline relation
-- the strongest objection
-- the abandonment condition
-- the non-goals
 ```

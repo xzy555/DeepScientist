@@ -3,9 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
-import shlex
 import shutil
-import signal
 import subprocess
 import sys
 import tempfile
@@ -17,7 +15,9 @@ from pathlib import Path
 from typing import Any
 
 from ..mcp.context import McpContext
+from ..process_control import is_process_alive, process_session_popen_kwargs, terminate_process_ids
 from ..shared import append_jsonl, ensure_dir, generate_id, iter_jsonl, read_json, read_jsonl, read_jsonl_tail, utc_now
+from .shells import build_exec_shell_launch, build_terminal_shell_launch
 from .runtime import TerminalRuntimeManager
 
 BASH_STATUS_MARKER_PREFIX = "__DS_BASH_STATUS__"
@@ -112,26 +112,6 @@ def _session_sort_key(session: dict[str, Any]) -> tuple[str, str]:
         str(session.get("started_at") or ""),
         str(session.get("updated_at") or ""),
     )
-
-
-def _is_process_alive(pid: object) -> bool:
-    if not isinstance(pid, int) or pid <= 0:
-        return False
-    proc_stat_path = Path("/proc") / str(pid) / "stat"
-    if proc_stat_path.exists():
-        try:
-            parts = proc_stat_path.read_text(encoding="utf-8").split()
-        except OSError:
-            parts = []
-        if len(parts) >= 3 and parts[2] == "Z":
-            return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
 
 
 def _parse_progress_marker(line: str) -> dict[str, Any] | None:
@@ -519,17 +499,11 @@ class BashExecService:
         monitor_pid = meta.get("monitor_pid")
         process_pid = meta.get("process_pid")
         if kind == "terminal" and _is_process_alive(process_pid):
-            process_group_id = meta.get("process_group_id")
-            if isinstance(process_group_id, int) and process_group_id > 0:
-                try:
-                    os.killpg(process_group_id, signal.SIGTERM)
-                except ProcessLookupError:
-                    pass
-            elif isinstance(process_pid, int) and process_pid > 0:
-                try:
-                    os.kill(process_pid, signal.SIGTERM)
-                except ProcessLookupError:
-                    pass
+            terminate_process_ids(
+                process_pid=process_pid if isinstance(process_pid, int) else None,
+                process_group_id=meta.get("process_group_id") if isinstance(meta.get("process_group_id"), int) else None,
+                force=False,
+            )
             time.sleep(0.05)
         if kind != "terminal" and (_is_process_alive(process_pid) or _is_process_alive(monitor_pid)):
             return self._session_payload(quest_root, meta)
@@ -717,18 +691,11 @@ class BashExecService:
         if runtime is not None:
             runtime.stop(reason=request_payload["reason"], force=bool(force))
         else:
-            process_group_id = meta.get("process_group_id")
-            process_pid = meta.get("process_pid")
-            if isinstance(process_group_id, int) and process_group_id > 0:
-                try:
-                    os.killpg(process_group_id, signal.SIGKILL if force else signal.SIGTERM)
-                except ProcessLookupError:
-                    pass
-            elif isinstance(process_pid, int) and process_pid > 0:
-                try:
-                    os.kill(process_pid, signal.SIGKILL if force else signal.SIGTERM)
-                except ProcessLookupError:
-                    pass
+            terminate_process_ids(
+                process_pid=meta.get("process_pid") if isinstance(meta.get("process_pid"), int) else None,
+                process_group_id=meta.get("process_group_id") if isinstance(meta.get("process_group_id"), int) else None,
+                force=bool(force),
+            )
         return self._session_payload(quest_root, meta)
 
     def _build_initial_meta(
@@ -737,6 +704,7 @@ class BashExecService:
         context: McpContext,
         bash_id: str,
         command: str,
+        launch_argv: list[str] | None,
         mode: str,
         cwd: Path,
         workdir_display: str,
@@ -744,6 +712,8 @@ class BashExecService:
         env_keys: list[str],
         comment: str | dict[str, Any] | None = None,
         kind: str = "exec",
+        shell_family: str | None = None,
+        shell_name: str | None = None,
     ) -> dict[str, Any]:
         quest_root = context.require_quest_root().resolve()
         session_id = _normalize_string(context.conversation_id) or f"quest:{context.quest_id or quest_root.name}"
@@ -766,6 +736,9 @@ class BashExecService:
             "stopped_by_user_id": None,
             "comment": comment,
             "command": command,
+            "launch_argv": list(launch_argv or []),
+            "shell_family": shell_family,
+            "shell_name": shell_name,
             "workdir": workdir_display,
             "cwd": str(cwd),
             "kind": kind,
@@ -808,7 +781,7 @@ class BashExecService:
                 stderr=monitor_log_handle,
                 cwd=str(quest_root),
                 env=monitor_env,
-                start_new_session=True,
+                **process_session_popen_kwargs(hide_window=True),
             )
         finally:
             monitor_log_handle.close()
@@ -833,10 +806,12 @@ class BashExecService:
         session_dir = self.session_dir(quest_root, bash_id)
         ensure_dir(session_dir)
         env_payload = {str(key): str(value) for key, value in (env or {}).items() if value is not None}
+        launch = build_exec_shell_launch(command)
         meta = self._build_initial_meta(
             context=context,
             bash_id=bash_id,
             command=command,
+            launch_argv=launch.argv,
             mode=mode,
             cwd=cwd,
             workdir_display=workdir_display,
@@ -844,6 +819,8 @@ class BashExecService:
             env_keys=sorted(env_payload),
             comment=comment,
             kind="exec",
+            shell_family=launch.family,
+            shell_name=launch.shell_name,
         )
         self.terminal_log_path(quest_root, bash_id).touch()
         self.log_path(quest_root, bash_id).touch()
@@ -880,10 +857,14 @@ class BashExecService:
         cwd: Path,
         workdir_display: str,
         command: str,
+        launch_argv: list[str] | None,
         source: str,
         conversation_id: str | None,
         user_id: str | None,
         env_keys: list[str],
+        shell_family: str | None = None,
+        shell_name: str | None = None,
+        transport_preference: str | None = None,
     ) -> dict[str, Any]:
         timestamp = utc_now()
         session_id = _normalize_string(conversation_id) or f"quest:{quest_id}:terminal"
@@ -903,6 +884,10 @@ class BashExecService:
             "stopped_by_user_id": None,
             "label": label,
             "command": command,
+            "launch_argv": list(launch_argv or []),
+            "shell_family": shell_family,
+            "shell_name": shell_name,
+            "transport_preference": transport_preference,
             "workdir": workdir_display,
             "cwd": str(cwd),
             "kind": "terminal",
@@ -984,29 +969,49 @@ class BashExecService:
             self.line_buffer_path(resolved_quest_root, bash_id),
             {"buffer": "", "updated_at": utc_now()},
         )
-        terminal_rc_path = self.terminal_rc_path(resolved_quest_root, bash_id)
-        terminal_rc_path.write_text(
-            "\n".join(
-                [
-                    "PS1='\\w$ '",
-                    "PS2='> '",
-                    'PROMPT_COMMAND=\'printf "__DS_TERMINAL_PROMPT__ cwd=%q ts=%s\\n" "$PWD" "$(date -u +%FT%TZ)" >> "${DS_TERMINAL_PROMPT_PATH}"\'',
-                    "bind 'set enable-bracketed-paste off' >/dev/null 2>&1 || true",
-                    "",
-                ]
-            ),
-            encoding="utf-8",
-        )
+        terminal_script_path = session_dir / ("terminal.ps1" if os.name == "nt" else "terminal.rc")
         stop_request = self.stop_request_path(resolved_quest_root, bash_id)
         if stop_request.exists():
             stop_request.unlink()
 
         env_payload = {
-            "TERM": "xterm-256color",
-            "COLORTERM": "truecolor",
             "DS_TERMINAL_PROMPT_PATH": str(self.prompt_events_path(resolved_quest_root, bash_id)),
         }
-        command = f"exec bash --noprofile --rcfile {shlex.quote(str(terminal_rc_path))} -i"
+        if os.name != "nt":
+            terminal_script_path.write_text(
+                "\n".join(
+                    [
+                        "PS1='\\w$ '",
+                        "PS2='> '",
+                        'PROMPT_COMMAND=\'printf "__DS_TERMINAL_PROMPT__ cwd_b64=%s ts=%s\\n" "$(printf "%s" "$PWD" | base64 | tr -d "\\n")" "$(date -u +%FT%TZ)" >> "${DS_TERMINAL_PROMPT_PATH}"\'',
+                        "bind 'set enable-bracketed-paste off' >/dev/null 2>&1 || true",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            env_payload["TERM"] = "xterm-256color"
+            env_payload["COLORTERM"] = "truecolor"
+        else:
+            terminal_script_path.write_text(
+                "\n".join(
+                    [
+                        "$global:__dsPromptPath = $env:DS_TERMINAL_PROMPT_PATH",
+                        "function global:prompt {",
+                        "    $cwdBytes = [System.Text.Encoding]::UTF8.GetBytes((Get-Location).Path)",
+                        "    $cwdB64 = [Convert]::ToBase64String($cwdBytes)",
+                        '    $ts = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")',
+                        '    Add-Content -LiteralPath $global:__dsPromptPath -Value "__DS_TERMINAL_PROMPT__ cwd_b64=$cwdB64 ts=$ts"',
+                        '    return "PS $((Get-Location).Path)> "',
+                        "}",
+                        "try { Set-PSReadLineOption -BellStyle None | Out-Null } catch {}",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+        launch = build_terminal_shell_launch(terminal_script_path)
+        command = " ".join(launch.argv)
         resolved_label = _normalize_string(label) or previous_label
         meta = self._build_terminal_meta(
             quest_root=resolved_quest_root,
@@ -1016,10 +1021,14 @@ class BashExecService:
             cwd=target_cwd,
             workdir_display=workdir_display,
             command=command,
+            launch_argv=launch.argv,
             source=source,
             conversation_id=conversation_id,
             user_id=user_id,
             env_keys=sorted(env_payload),
+            shell_family=launch.family,
+            shell_name=launch.shell_name,
+            transport_preference="pipe" if os.name == "nt" else "pty",
         )
         self._write_meta(resolved_quest_root, bash_id, meta)
         append_jsonl(
@@ -1042,7 +1051,9 @@ class BashExecService:
             prompt_events_path=self.prompt_events_path(resolved_quest_root, bash_id),
             env_payload=env_payload,
             command=command,
+            launch_argv=launch.argv,
             cwd=target_cwd,
+            transport_preference="pipe" if os.name == "nt" else "pty",
         )
         meta["updated_at"] = utc_now()
         self._write_meta(resolved_quest_root, bash_id, meta)

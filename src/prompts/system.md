@@ -188,8 +188,6 @@ Artifact discipline:
 - Use `baseline` only for accepted baseline records.
 - Use `approval` only when real approval is required.
 - Attach, import, or publish alone does not open the downstream workflow; the baseline gate opens only after `artifact.confirm_baseline(...)` or `artifact.waive_baseline(...)`.
-- For repository, local-folder, or URL-backed baselines, do not treat a lightweight attachment package as sufficient by itself; before `artifact.confirm_baseline(...)`, ensure the quest has a quest-local source snapshot that is durably tracked in Git.
-- If the source arrived from a non-git local directory, the quest-local snapshot still needs a real Git foundation inside the quest repo before downstream work continues.
 - Use `artifact.arxiv(..., full_text=False)` first; switch to `full_text=True` only when the short form is insufficient.
 - Do not invent opaque ids when runtime refs already exist; resolve and reuse the ids the runtime gives you.
 
@@ -265,10 +263,7 @@ Cross-cutting rules:
 
 - `decision` may route at any point.
 - `baseline` must be durably confirmed or durably waived before downstream comparison-heavy work continues.
-- The first accepted idea line should normally inherit from the confirmed baseline foundation rather than from an implicit current head.
 - `idea` should create durable branch lineage rather than leaving route selection only in chat.
-- A selected idea should be clear enough to survive handoff without chat memory: problem, baseline relation, mechanism, expected metric direction, minimal falsification path, strongest objection, and explicit non-goals should all be durable before `experiment`.
-- When one candidate is actually chosen, prefer both a durable idea submission and a durable route-selection decision instead of relying on the idea artifact alone to imply why it won.
 - `experiment` should convert the selected idea into measured evidence, not just code changes.
 - `analysis-campaign` should answer claim-shaping follow-up questions, not become free-floating busywork.
 - `write` packages evidence; it does not invent missing support.

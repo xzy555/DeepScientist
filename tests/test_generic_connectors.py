@@ -25,16 +25,19 @@ def _enable_system_connectors(home: Path, *names: str) -> None:
     write_yaml(manager.path_for("config"), config)
 
 
-def test_default_connectors_include_weixin_feishu_whatsapp_and_lingzhu(temp_home: Path) -> None:
+def test_default_connectors_include_telegram_weixin_feishu_whatsapp_and_lingzhu(temp_home: Path) -> None:
     ensure_home_layout(temp_home)
     manager = ConfigManager(temp_home)
     manager.ensure_files()
     connectors = manager.load_named("connectors")
 
+    assert "telegram" in connectors
     assert "weixin" in connectors
     assert "whatsapp" in connectors
     assert "feishu" in connectors
     assert "lingzhu" in connectors
+    assert connectors["telegram"]["transport"] == "polling"
+    assert connectors["telegram"]["bot_token"] is None
     assert connectors["weixin"]["transport"] == "ilink_long_poll"
     assert connectors["weixin"]["base_url"] == "https://ilinkai.weixin.qq.com"
     assert connectors["weixin"]["cdn_base_url"] == "https://novac2c.cdn.weixin.qq.com/c2c"

@@ -22,7 +22,7 @@ def config_filename(name: str) -> str:
 
 
 def default_system_enabled_connectors() -> dict[str, bool]:
-    return {name: name in {"qq", "weixin", "lingzhu"} for name in SYSTEM_CONNECTOR_NAMES}
+    return {name: name in {"qq", "weixin", "telegram", "feishu", "whatsapp", "lingzhu"} for name in SYSTEM_CONNECTOR_NAMES}
 
 
 def default_config(home: Path) -> dict:

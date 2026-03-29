@@ -14,14 +14,10 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote
 
-try:
-    import fcntl
-except ImportError:  # pragma: no cover
-    fcntl = None
-
 from ..artifact.metrics import build_metrics_timeline, extract_latest_metric
 from ..config import ConfigManager
 from ..connector_runtime import conversation_identity_key, normalize_conversation_id, parse_conversation_id
+from ..file_lock import advisory_file_lock
 from ..gitops import current_branch, export_git_graph, head_commit, init_repo
 from ..home import repo_root
 from ..registries import BaselineRegistry
@@ -551,14 +547,8 @@ class QuestService:
     def _quest_id_state_lock(self):
         lock_path = self._quest_id_lock_path()
         ensure_dir(lock_path.parent)
-        with lock_path.open("a+", encoding="utf-8") as handle:
-            if fcntl is not None:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-            try:
-                yield
-            finally:
-                if fcntl is not None:
-                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        with advisory_file_lock(lock_path):
+            yield
 
     @contextmanager
     def _runtime_state_lock(self, quest_root: Path):
@@ -568,14 +558,8 @@ class QuestService:
         with thread_lock:
             lock_path = self._runtime_state_lock_path(quest_root)
             ensure_dir(lock_path.parent)
-            with lock_path.open("a+", encoding="utf-8") as handle:
-                if fcntl is not None:
-                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-                try:
-                    yield
-                finally:
-                    if fcntl is not None:
-                        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            with advisory_file_lock(lock_path):
+                yield
 
     def _scan_next_numeric_quest_id(self) -> int:
         max_numeric_id = 0

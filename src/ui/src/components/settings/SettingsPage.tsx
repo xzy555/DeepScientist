@@ -46,10 +46,10 @@ const CONFIG_META = {
     },
   },
   baselines: {
-    label: { en: 'Baselines', zh: 'Baseline' },
+    label: { en: 'Baselines', zh: '基线' },
     hint: {
       en: 'Reusable baseline registry entries and lifecycle management.',
-      zh: '可复用 baseline registry 条目，以及它们的生命周期管理。',
+      zh: '可复用基线条目及其生命周期管理。',
     },
   },
   plugins: {
@@ -608,24 +608,25 @@ export function SettingsPage({
     }
   }
 
-  const handleSave = async () => {
+  const handleSave = async (draftOverride?: Record<string, unknown>) => {
     if (!selectedName || !document) {
       return false
     }
     setSaving(true)
     try {
+      const effectiveDraft = draftOverride ?? structuredDraft
       const nextStructuredDraft =
         selectedName === 'config'
           ? {
-              ...structuredDraft,
+              ...effectiveDraft,
               bootstrap: {
-                ...(structuredDraft.bootstrap && typeof structuredDraft.bootstrap === 'object'
-                  ? (structuredDraft.bootstrap as Record<string, unknown>)
+                ...(effectiveDraft.bootstrap && typeof effectiveDraft.bootstrap === 'object'
+                  ? (effectiveDraft.bootstrap as Record<string, unknown>)
                   : {}),
                 locale_source: 'user',
               },
             }
-          : structuredDraft
+          : effectiveDraft
       const result = await client.saveConfig(
         selectedName,
         { structured: nextStructuredDraft, revision: document.revision }

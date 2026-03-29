@@ -41,6 +41,7 @@ import { useBashLogStream } from '@/lib/hooks/useBashLogStream'
 import { useBashSessionStream } from '@/lib/hooks/useBashSessionStream'
 import { EnhancedTerminal } from '@/lib/plugins/cli/components/EnhancedTerminal'
 import LabQuestGraphCanvas from '@/lib/plugins/lab/components/LabQuestGraphCanvas'
+import { useI18n } from '@/lib/i18n/useI18n'
 import { useLabCopilotStore } from '@/lib/stores/lab-copilot'
 import { useLabGraphSelectionStore } from '@/lib/stores/lab-graph-selection'
 import { cn } from '@/lib/utils'
@@ -1356,6 +1357,13 @@ type QuestTerminalConnection = {
   error?: string
 }
 
+function isNativeWindowsBrowser() {
+  if (typeof navigator === 'undefined') {
+    return false
+  }
+  return /windows/i.test(navigator.userAgent)
+}
+
 function QuestInteractiveTerminalPane({
   questId,
   onRefresh,
@@ -1370,6 +1378,7 @@ function QuestInteractiveTerminalPane({
   reloadSessions: () => Promise<void>
 }) {
   const { addToast } = useToast()
+  const { t } = useI18n('workspace')
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(null)
   const [logsLoading, setLogsLoading] = React.useState(false)
   const [logsError, setLogsError] = React.useState<string | null>(null)
@@ -1402,8 +1411,9 @@ function QuestInteractiveTerminalPane({
   }, [selectedSessionId, terminalSessions])
 
   const ensuredRef = React.useRef(false)
+  const shouldAutoEnsureTerminal = React.useMemo(() => !isNativeWindowsBrowser(), [])
   React.useEffect(() => {
-    if (!questId || ensuredRef.current) return
+    if (!questId || ensuredRef.current || !shouldAutoEnsureTerminal) return
     ensuredRef.current = true
     let cancelled = false
     void ensureTerminalSession(questId, { source: 'web-react' })
@@ -1416,14 +1426,14 @@ function QuestInteractiveTerminalPane({
         ensuredRef.current = false
         addToast({
           type: 'error',
-          title: 'Terminal unavailable',
-          description: error instanceof Error ? error.message : 'Unable to start terminal session.',
+          title: t('terminal_unavailable'),
+          description: error instanceof Error ? error.message : t('terminal_unavailable'),
         })
       })
     return () => {
       cancelled = true
     }
-  }, [addToast, questId, reloadSessions])
+  }, [addToast, questId, reloadSessions, shouldAutoEnsureTerminal])
 
   React.useEffect(() => {
     setSessionStatus(selectedSession?.status ?? null)
@@ -1778,6 +1788,25 @@ function QuestInteractiveTerminalPane({
     }
   }, [addToast, questId, reloadSessions, terminalSessions.length])
 
+  const handleStartDefaultTerminal = React.useCallback(async () => {
+    try {
+      const response = await ensureTerminalSession(questId, {
+        source: 'web-react',
+      })
+      await reloadSessions()
+      setSelectedSessionId(response.session.bash_id)
+      window.setTimeout(() => {
+        terminalHandlersRef.current?.focus()
+      }, 80)
+    } catch (error) {
+      addToast({
+        type: 'error',
+        title: t('terminal_start_failed'),
+        description: error instanceof Error ? error.message : t('terminal_start_failed'),
+      })
+    }
+  }, [addToast, questId, reloadSessions, t])
+
   const handleTerminalInput = React.useCallback(
     (data: string) => {
       if (!data || !selectedSession) return
@@ -1826,7 +1855,7 @@ function QuestInteractiveTerminalPane({
         <div className="w-[320px] shrink-0 border-r border-black/[0.08] bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(244,239,233,0.94))] p-3 shadow-card dark:border-white/[0.10] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))]">
           <div className="flex items-center justify-between gap-3 px-1 pb-3">
             <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Terminals
+              {t('terminal_panel_list_title')}
             </div>
             <div className="flex items-center gap-2">
               <StatusPill>{formatBashSessionStatus(connection.status)}</StatusPill>
@@ -1838,7 +1867,7 @@ function QuestInteractiveTerminalPane({
                   void handleNewTerminal()
                 }}
                 className="h-9 w-9 rounded-full border-black/[0.08] bg-white/[0.84] shadow-sm backdrop-blur hover:bg-white dark:border-white/[0.10] dark:bg-[rgba(18,18,18,0.72)]"
-                title="New terminal"
+                title={t('terminal_new')}
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -1848,7 +1877,27 @@ function QuestInteractiveTerminalPane({
           <div className="feed-scrollbar h-[calc(100%-3.25rem)] space-y-2 overflow-auto pr-1">
             {!terminalSessions.length ? (
               <div className="rounded-[20px] border border-dashed border-black/[0.10] px-3 py-4 text-sm text-muted-foreground dark:border-white/[0.12]">
-                No terminal sessions yet.
+                <div>{t('terminal_none')}</div>
+                {shouldAutoEnsureTerminal ? null : (
+                  <div className="mt-3 flex flex-col gap-2">
+                    <div className="text-xs leading-5 text-muted-foreground">
+                      {t('terminal_windows_manual_start')}
+                    </div>
+                    <div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          void handleStartDefaultTerminal()
+                        }}
+                        className="rounded-full"
+                      >
+                        {t('terminal_start')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               terminalSessions.map((session) => {
@@ -2620,6 +2669,7 @@ function QuestTerminalSurface({
   questId: string
   onRefresh: () => Promise<void>
 }) {
+  const { t } = useI18n('workspace')
   const {
     sessions,
     connection,
@@ -2662,23 +2712,23 @@ function QuestTerminalSurface({
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--lab-surface-muted)]">
       <div className="flex items-center justify-between gap-3 border-b border-black/[0.08] px-4 py-3 dark:border-white/[0.10]">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-foreground">Terminal workspace</div>
+          <div className="text-sm font-semibold text-foreground">{t('terminal_panel_title')}</div>
           <div className="text-xs text-muted-foreground">
-            Switch between the interactive terminal and DeepScientist&apos;s recorded bash sessions.
+            {t('terminal_panel_subtitle')}
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <TerminalModeButton
             active={mode === 'interactive'}
             icon={<Terminal className="h-4 w-4" />}
-            label="Terminal"
+            label={t('quest_workspace_terminal')}
             running={interactiveRunning}
             onClick={() => setMode('interactive')}
           />
           <TerminalModeButton
             active={mode === 'deepscientist-bash'}
             icon={<Sparkles className="h-4 w-4" />}
-            label="DeepScientist's bash session"
+            label={t('terminal_recorded_sessions')}
             running={execRunning}
             onClick={() => setMode('deepscientist-bash')}
           />

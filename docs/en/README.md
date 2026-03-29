@@ -50,6 +50,12 @@ This page is the shortest path to the right document.
 
 ## If you want to collaborate through external surfaces
 
+- [16 Telegram Connector Guide](./16_TELEGRAM_CONNECTOR_GUIDE.md)
+  Bind Telegram through the built-in polling runtime and continue quests from bot chats.
+- [17 WhatsApp Connector Guide](./17_WHATSAPP_CONNECTOR_GUIDE.md)
+  Bind WhatsApp through the local-session runtime and continue quests from local chat sessions.
+- [18 Feishu Connector Guide](./18_FEISHU_CONNECTOR_GUIDE.md)
+  Bind Feishu through the built-in long-connection runtime and continue quests from bot chats.
 - [10 Weixin Connector Guide](./10_WEIXIN_CONNECTOR_GUIDE.md)
   Bind personal WeChat through DeepScientist's built-in QR login and iLink runtime.
 - [03 QQ Connector Guide](./03_QQ_CONNECTOR_GUIDE.md)

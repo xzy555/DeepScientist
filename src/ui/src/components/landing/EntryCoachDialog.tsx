@@ -44,34 +44,34 @@ const COPY = {
   },
   zh: {
     title: '开始之前',
-    subtitle: '先配置一个外部 Connector，或先播放一次 guided demo。',
+    subtitle: '先配置一个外部连接器，或先播放一次引导演示。',
     connector: {
-      eyebrow: 'STEP 1',
-      title: '先绑定一个 Connector',
+      eyebrow: '步骤 1',
+      title: '先绑定一个连接器',
       body: {
         no_enabled:
-          '你现在还没有启用任何外部 Connector。建议先配置一个，这样研究过程中的里程碑、回复和进展可以直接发送到网页之外。',
+          '你现在还没有启用任何外部连接器。建议先配置一个，这样研究过程中的里程碑、回复和进展可以直接发送到网页之外。',
         no_target:
-          '你已经启用了 Connector，但还没有可选择的投递目标。建议先进入 Connector 设置页检查配置，或者先在对应 Connector 中发一条消息，再回来继续。',
+          '你已经启用了连接器，但还没有可选择的投递目标。建议先进入连接器设置页检查配置，或者先在对应连接器中发一条消息，再回来继续。',
         recommended:
-          '建议先确认一个默认 Connector 目标。这样之后 Start Research 和项目运行中的进展都可以直接同步出去。',
+          '建议先确认一个默认连接器目标。这样之后“开始研究”和项目运行中的进展都可以直接同步出去。',
       },
       cta: {
-        no_enabled: '前往 Connector 设置',
-        no_target: '检查 Connector 设置',
-        recommended: '绑定 Connector',
+        no_enabled: '前往连接器设置',
+        no_target: '检查连接器设置',
+        recommended: '绑定连接器',
       },
       note:
-        '只要还没有绑定外部 Connector，这个提醒在进入首页时就会继续出现，方便你在第一次真实运行前先完成投递配置。',
+        '只要还没有绑定外部连接器，这个提醒在进入首页时就会继续出现，方便你在第一次真实运行前先完成投递配置。',
     },
     tutorial: {
-      eyebrow: 'STEP 2',
+      eyebrow: '步骤 2',
       title: '播放首次 Demo',
       body:
-        '如果你想先安全地熟悉界面和工作流，可以先进入教程 demo。它会一步步带你理解 Start Research、Explorer、Canvas、Memory 和 Copilot。',
-      zh: '中文 Demo',
-      en: 'English Demo',
-      skip: '暂时跳过 Demo',
+        '如果你想先安全地熟悉界面和工作流，可以先进入教程演示。它会一步步带你理解“开始研究”、Explorer、Canvas、Memory 和 Copilot。',
+      zh: '中文演示',
+      en: '英文演示',
+      skip: '暂时跳过演示',
       never: '不再提醒',
     },
     close: '关闭',
@@ -81,27 +81,6 @@ const COPY = {
 function stepLabel(label: string, fallback: string, showBoth: boolean) {
   if (showBoth) return label
   return fallback
-}
-
-function BilingualBlock({
-  zh,
-  en,
-  className,
-  zhClassName,
-  enClassName,
-}: {
-  zh: string
-  en: string
-  className?: string
-  zhClassName?: string
-  enClassName?: string
-}) {
-  return (
-    <div className={cn('space-y-1.5', className)}>
-      <div className={cn('leading-7', zhClassName)}>{zh}</div>
-      <div className={cn('leading-7 opacity-88', enClassName)}>{en}</div>
-    </div>
-  )
 }
 
 export function EntryCoachDialog({
@@ -134,8 +113,6 @@ export function EntryCoachDialog({
   }
 
   const t = COPY[locale]
-  const zh = COPY.zh
-  const en = COPY.en
   const showBoth = showConnectorStep && showTutorialStep
 
   return (
@@ -150,13 +127,13 @@ export function EntryCoachDialog({
         <div className="flex items-start justify-between gap-4 border-b border-black/[0.06] px-6 py-5">
           <div className="min-w-0">
             <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[rgba(126,108,82,0.72)]">
-              Quick Start / 快速开始
+              {locale === 'zh' ? '快速开始' : 'Quick Start'}
             </div>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[rgba(38,36,33,0.96)]">
-              {zh.title} / {en.title}
+              {t.title}
             </h2>
             <div className="mt-2 max-w-2xl text-sm text-[rgba(86,82,77,0.86)]">
-              <BilingualBlock zh={zh.subtitle} en={en.subtitle} />
+              <div className="leading-7">{t.subtitle}</div>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -171,7 +148,7 @@ export function EntryCoachDialog({
                     : 'text-[rgba(86,82,77,0.82)] hover:bg-white'
                 )}
               >
-                中文
+                {locale === 'zh' ? '中文' : 'Chinese'}
               </button>
               <button
                 type="button"
@@ -183,7 +160,7 @@ export function EntryCoachDialog({
                     : 'text-[rgba(86,82,77,0.82)] hover:bg-white'
                 )}
               >
-                English
+                {locale === 'zh' ? '英文' : 'English'}
               </button>
             </div>
             <button
@@ -209,17 +186,13 @@ export function EntryCoachDialog({
               <div className="relative">
                 <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/74">
                   <Settings2 className="h-3.5 w-3.5" />
-                  {stepLabel(t.connector.eyebrow, 'STEP 1', showBoth)}
+                  {stepLabel(t.connector.eyebrow, locale === 'zh' ? '步骤 1' : 'STEP 1', showBoth)}
                 </div>
                 <h3 className="mt-4 text-2xl font-semibold tracking-tight">
-                  {zh.connector.title} / {en.connector.title}
+                  {t.connector.title}
                 </h3>
                 <div className="mt-3 text-sm text-white/82">
-                  <BilingualBlock
-                    zh={zh.connector.body[connectorMode]}
-                    en={en.connector.body[connectorMode]}
-                    enClassName="text-white/72"
-                  />
+                  <div className="leading-7">{t.connector.body[connectorMode]}</div>
                 </div>
                 <Button
                   type="button"
@@ -230,11 +203,7 @@ export function EntryCoachDialog({
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
                 <div className="mt-4 text-[12px] text-white/60">
-                  <BilingualBlock
-                    zh={zh.connector.note}
-                    en={en.connector.note}
-                    enClassName="text-white/56"
-                  />
+                  <div className="leading-6">{t.connector.note}</div>
                 </div>
               </div>
             </section>
@@ -244,13 +213,13 @@ export function EntryCoachDialog({
             <section className="px-6 py-6 lg:px-7 lg:py-7">
               <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(126,108,82,0.14)] bg-[rgba(244,239,233,0.72)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[rgba(126,108,82,0.78)]">
                 <GraduationCap className="h-3.5 w-3.5" />
-                {stepLabel(t.tutorial.eyebrow, 'STEP 1', showBoth)}
+                {stepLabel(t.tutorial.eyebrow, locale === 'zh' ? '步骤 1' : 'STEP 1', showBoth)}
               </div>
               <h3 className="mt-4 text-2xl font-semibold tracking-tight text-[rgba(38,36,33,0.96)]">
-                {zh.tutorial.title} / {en.tutorial.title}
+                {t.tutorial.title}
               </h3>
               <div className="mt-3 text-sm text-[rgba(86,82,77,0.86)]">
-                <BilingualBlock zh={zh.tutorial.body} en={en.tutorial.body} />
+                <div className="leading-7">{t.tutorial.body}</div>
               </div>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -265,7 +234,7 @@ export function EntryCoachDialog({
                   </div>
                   <div className="mt-1 text-[12px] leading-6 text-[rgba(86,82,77,0.82)]">
                     {locale === 'zh'
-                      ? '一步步熟悉首页、Start Research 和项目工作区。'
+                      ? '一步步熟悉首页、开始研究和项目工作区。'
                       : 'Walk through the landing page, Start Research, and workspace basics.'}
                   </div>
                 </button>
@@ -280,7 +249,7 @@ export function EntryCoachDialog({
                   </div>
                   <div className="mt-1 text-[12px] leading-6 text-[rgba(86,82,77,0.82)]">
                     {locale === 'zh'
-                      ? '使用英文引导完成同一套首次 demo。'
+                      ? '使用英文引导完成同一套首次演示。'
                       : 'Use the same guided flow in English.'}
                   </div>
                 </button>

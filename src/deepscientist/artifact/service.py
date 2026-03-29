@@ -1915,7 +1915,7 @@ class ArtifactService:
     def _copy_tree_contents(self, source_root: Path, target_root: Path) -> None:
         ensure_dir(target_root)
         for child in sorted(source_root.iterdir()):
-            if child.name in {"attachment.yaml", ".git"}:
+            if child.name == "attachment.yaml":
                 continue
             target = target_root / child.name
             if child.is_dir():
@@ -1923,153 +1923,6 @@ class ArtifactService:
                 continue
             ensure_dir(target.parent)
             shutil.copy2(child, target)
-
-    @staticmethod
-    def _baseline_source_snapshot_root(baseline_root: Path) -> Path:
-        return baseline_root / "source_snapshot"
-
-    @staticmethod
-    def _baseline_foundation_branch_name(quest_root: Path, baseline_id: str) -> str:
-        quest_id = str(quest_root.name or "quest").strip() or "quest"
-        return f"baseline/{quest_id}-{slugify(baseline_id, 'baseline')}"
-
-    @staticmethod
-    def _baseline_root_has_materialized_source(baseline_root: Path) -> bool:
-        ignored_names = {
-            "attachment.yaml",
-            "verification.md",
-            "reuse_eval_report.txt",
-            "setup.md",
-            "execution.md",
-            "STRUCTURE.md",
-            "json",
-            "source_snapshot",
-        }
-        for child in sorted(baseline_root.iterdir()):
-            if child.name in ignored_names:
-                continue
-            return True
-        return False
-
-    def _materialized_baseline_source_root(
-        self,
-        *,
-        baseline_root: Path,
-        attachment: dict[str, Any] | None,
-    ) -> Path | None:
-        snapshot_root = self._baseline_source_snapshot_root(baseline_root)
-        if snapshot_root.exists() and any(snapshot_root.iterdir()):
-            return snapshot_root
-        payload = dict(attachment or {}) if isinstance(attachment, dict) else {}
-        materialization = (
-            dict(payload.get("materialization") or {})
-            if isinstance(payload.get("materialization"), dict)
-            else {}
-        )
-        status = str(materialization.get("status") or "").strip().lower()
-        target_path = str(materialization.get("target_path") or "").strip()
-        if status == "ok" and target_path:
-            target_root = Path(target_path).expanduser()
-            if target_root.exists() and baseline_root.exists():
-                try:
-                    if target_root.resolve() == baseline_root.resolve() and self._baseline_root_has_materialized_source(baseline_root):
-                        return baseline_root
-                except OSError:
-                    pass
-        return None
-
-    def _baseline_external_source_root(
-        self,
-        *,
-        baseline_root: Path,
-        attachment: dict[str, Any] | None,
-    ) -> Path | None:
-        payload = dict(attachment or {}) if isinstance(attachment, dict) else {}
-        source_payload = dict(payload.get("source") or {}) if isinstance(payload.get("source"), dict) else {}
-        materialization = (
-            dict(payload.get("materialization") or {})
-            if isinstance(payload.get("materialization"), dict)
-            else {}
-        )
-        candidates = [
-            str(source_payload.get("root") or "").strip(),
-            str(materialization.get("source_path") or "").strip(),
-        ]
-        for raw in candidates:
-            if not raw:
-                continue
-            candidate = Path(raw).expanduser()
-            try:
-                resolved = candidate.resolve()
-            except OSError:
-                continue
-            if not resolved.exists() or not resolved.is_dir():
-                continue
-            try:
-                if resolved == baseline_root.resolve():
-                    continue
-            except OSError:
-                pass
-            return resolved
-        return None
-
-    def _ensure_baseline_source_snapshot(
-        self,
-        *,
-        quest_root: Path,
-        baseline_id: str,
-        baseline_root: Path,
-        source_mode: str,
-        attachment: dict[str, Any] | None,
-    ) -> dict[str, Any]:
-        if str(source_mode or "").strip().lower() == "local":
-            return {
-                "status": "ok",
-                "storage_mode": "quest_local",
-                "source_root": str(baseline_root),
-                "snapshot_root": str(baseline_root),
-                "snapshot_root_rel_path": self._workspace_relative(quest_root, baseline_root),
-                "copied": False,
-            }
-
-        existing_root = self._materialized_baseline_source_root(baseline_root=baseline_root, attachment=attachment)
-        if existing_root is not None:
-            return {
-                "status": "ok",
-                "storage_mode": "materialized_root" if existing_root == baseline_root else "source_snapshot",
-                "source_root": str(existing_root),
-                "snapshot_root": str(existing_root),
-                "snapshot_root_rel_path": self._workspace_relative(quest_root, existing_root),
-                "copied": False,
-            }
-
-        source_root = self._baseline_external_source_root(baseline_root=baseline_root, attachment=attachment)
-        if source_root is None:
-            raise FileNotFoundError(
-                f"Imported baseline `{baseline_id}` is missing a materialized source snapshot and has no readable source root."
-            )
-        snapshot_root = self._baseline_source_snapshot_root(baseline_root)
-        if snapshot_root.exists():
-            shutil.rmtree(snapshot_root)
-        self._copy_tree_contents(source_root, snapshot_root)
-        return {
-            "status": "ok",
-            "storage_mode": "source_snapshot",
-            "source_root": str(source_root),
-            "snapshot_root": str(snapshot_root),
-            "snapshot_root_rel_path": self._workspace_relative(quest_root, snapshot_root),
-            "copied": True,
-        }
-
-    @staticmethod
-    def _force_branch_to_head(repo: Path, branch_name: str) -> dict[str, Any]:
-        result = run_command(["git", "branch", "-f", branch_name, "HEAD"], cwd=repo, check=False)
-        return {
-            "ok": result.returncode == 0,
-            "branch": branch_name,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-        }
 
     def _materialize_baseline_attachment(self, quest_root: Path, attachment: dict[str, Any]) -> dict[str, Any]:
         baseline_id = str(attachment.get("source_baseline_id") or "").strip()
@@ -2530,26 +2383,15 @@ class ArtifactService:
             }
 
         if kind == "baseline":
-            quest_yaml = self.quest_service.read_quest_yaml(quest_root)
-            confirmed_ref = (
-                dict(quest_yaml.get("confirmed_baseline_ref") or {})
-                if isinstance(quest_yaml.get("confirmed_baseline_ref"), dict)
-                else {}
-            )
-            baseline_id = ref or str(confirmed_ref.get("baseline_id") or "").strip() or "baseline"
-            foundation_branch = str(confirmed_ref.get("baseline_branch") or "").strip()
-            if not foundation_branch:
-                raise ValueError(
-                    f"Confirmed baseline `{baseline_id}` is missing `baseline_branch`. Reconfirm the baseline before ideation."
-                )
+            snapshot = self.quest_service.snapshot(self._quest_id(quest_root))
+            baseline_id = ref or str(snapshot.get("active_baseline_id") or "").strip() or "baseline"
+            foundation_branch = current_branch(quest_root)
             return {
                 "kind": "baseline",
                 "ref": baseline_id,
                 "branch": foundation_branch,
                 "worktree_root": str(quest_root),
                 "baseline_id": baseline_id,
-                "baseline_root": str(confirmed_ref.get("baseline_path") or "").strip() or None,
-                "source_snapshot_root": str(confirmed_ref.get("source_snapshot_root") or "").strip() or None,
                 "label": f"Baseline foundation `{baseline_id}` on `{foundation_branch}`",
             }
 
@@ -2824,20 +2666,6 @@ class ArtifactService:
             or research_head_branch
             or current_branch(self._workspace_root_for(quest_root))
         )
-        quest_yaml = self.quest_service.read_quest_yaml(quest_root)
-        confirmed_ref = (
-            dict(quest_yaml.get("confirmed_baseline_ref") or {})
-            if isinstance(quest_yaml.get("confirmed_baseline_ref"), dict)
-            else {}
-        )
-        confirmed_baseline_id = str(confirmed_ref.get("baseline_id") or "").strip()
-        confirmed_baseline_branch = str(confirmed_ref.get("baseline_branch") or "").strip()
-        if confirmed_baseline_id and normalized_branch in {active_branch, confirmed_baseline_branch or active_branch}:
-            return self._resolve_idea_foundation(
-                quest_root,
-                state=state,
-                foundation_ref={"kind": "baseline", "ref": confirmed_baseline_id},
-            )
         if normalized_branch and active_branch and normalized_branch == active_branch:
             return self._resolve_idea_foundation(
                 quest_root,
@@ -2908,9 +2736,6 @@ class ArtifactService:
             state=effective_state,
             branch_name=parent_branch,
         )
-        foundation_branch = str(foundation.get("branch") or "").strip()
-        if foundation_branch:
-            parent_branch = foundation_branch
         return normalized_intent, parent_branch, foundation
 
     def list_research_branches(self, quest_root: Path) -> dict[str, Any]:
@@ -6978,28 +6803,6 @@ class ArtifactService:
             metric_contract_json_path=str(metric_contract_json.get("path") or ""),
             metric_contract_json_rel_path=str(metric_contract_json.get("rel_path") or ""),
         )
-        planned_baseline_branch = self._baseline_foundation_branch_name(quest_root, resolved_baseline_id)
-        source_snapshot = self._ensure_baseline_source_snapshot(
-            quest_root=quest_root,
-            baseline_id=resolved_baseline_id,
-            baseline_root=resolved_root,
-            source_mode=source_mode,
-            attachment=attachment,
-        )
-        attachment["source_snapshot"] = source_snapshot
-        attachment_confirmation = (
-            dict(attachment.get("confirmation") or {})
-            if isinstance(attachment.get("confirmation"), dict)
-            else {}
-        )
-        attachment["confirmation"] = {
-            **attachment_confirmation,
-            "baseline_branch": planned_baseline_branch,
-            "source_snapshot_root": str(source_snapshot.get("snapshot_root") or "").strip() or None,
-            "source_snapshot_root_rel_path": str(source_snapshot.get("snapshot_root_rel_path") or "").strip() or None,
-        }
-        attachment_path = quest_root / "baselines" / "imported" / resolved_baseline_id / "attachment.yaml"
-        write_yaml(attachment_path, attachment)
 
         summary_text = summary or f"Baseline `{resolved_baseline_id}` confirmed for downstream comparison."
         reason_text = comment if isinstance(comment, str) and comment.strip() else "Baseline gate confirmed."
@@ -7023,7 +6826,6 @@ class ArtifactService:
                     "baseline_root": str(resolved_root),
                     "attachment_yaml": str(quest_root / "baselines" / "imported" / resolved_baseline_id / "attachment.yaml"),
                     "metric_contract_json": str(metric_contract_json.get("path") or ""),
-                    "source_snapshot_root": str(source_snapshot.get("snapshot_root") or "").strip() or str(resolved_root),
                 },
                 "flow_type": "baseline_gate",
                 "protocol_step": "confirm",
@@ -7033,13 +6835,11 @@ class ArtifactService:
                     "baseline_root_rel_path": resolved_root_rel_path,
                     "metric_contract_json_rel_path": str(metric_contract_json.get("rel_path") or ""),
                     "source_mode": source_mode,
-                    "source_snapshot_root_rel_path": str(source_snapshot.get("snapshot_root_rel_path") or "").strip() or None,
-                    "baseline_branch": planned_baseline_branch,
                     "comment": comment,
                 },
                 "source": {"kind": "system", "role": "artifact"},
             },
-            checkpoint=False,
+            checkpoint=True,
         )
         confirmed_ref = {
             "baseline_id": resolved_baseline_id,
@@ -7049,9 +6849,6 @@ class ArtifactService:
             "metric_contract_json_path": str(metric_contract_json.get("path") or ""),
             "metric_contract_json_rel_path": str(metric_contract_json.get("rel_path") or ""),
             "source_mode": source_mode,
-            "source_snapshot_root": str(source_snapshot.get("snapshot_root") or "").strip() or str(resolved_root),
-            "source_snapshot_root_rel_path": str(source_snapshot.get("snapshot_root_rel_path") or "").strip() or resolved_root_rel_path,
-            "baseline_branch": planned_baseline_branch,
             "confirmed_at": utc_now(),
             "comment": comment,
         }
@@ -7071,47 +6868,6 @@ class ArtifactService:
             summary=summary_text,
             source_mode=source_mode,
         )
-        interaction = self.interact(
-            quest_root,
-            kind="milestone",
-            message=(
-                f"Baseline `{resolved_baseline_id}` is now confirmed.\n\n"
-                f"Primary comparator: `{(entry.get('primary_metric') or {}).get('detector') or resolved_baseline_id}`\n"
-                f"Foundation branch: `{planned_baseline_branch}`\n"
-                f"Source snapshot: `{str(source_snapshot.get('snapshot_root_rel_path') or resolved_root_rel_path)}`\n"
-                "Next route: move into idea selection from this confirmed baseline foundation."
-            ),
-            deliver_to_bound_conversations=True,
-            include_recent_inbound_messages=False,
-            checkpoint=False,
-            attachments=[
-                {
-                    "kind": "baseline_confirmation",
-                    "baseline_id": resolved_baseline_id,
-                    "variant_id": resolved_variant_id,
-                    "baseline_branch": planned_baseline_branch,
-                    "baseline_root": str(resolved_root),
-                    "metric_contract_json_path": str(metric_contract_json.get("path") or ""),
-                    "source_snapshot_root": str(source_snapshot.get("snapshot_root") or "").strip() or str(resolved_root),
-                }
-            ],
-        )
-        foundation_checkpoint = self._checkpoint_with_optional_push(
-            quest_root,
-            message=f"baseline: confirm {resolved_baseline_id}",
-        )
-        if not bool(foundation_checkpoint.get("committed")) and head_commit(quest_root) is None:
-            raise RuntimeError(
-                f"Baseline `{resolved_baseline_id}` could not create a durable git foundation commit: "
-                f"{str(foundation_checkpoint.get('stderr') or '').strip() or 'unknown git error'}"
-            )
-        branch_result = self._force_branch_to_head(quest_root, planned_baseline_branch)
-        if not bool(branch_result.get("ok")):
-            raise RuntimeError(
-                f"Baseline `{resolved_baseline_id}` could not update foundation branch `{planned_baseline_branch}`: "
-                f"{str(branch_result.get('stderr') or '').strip() or 'unknown git error'}"
-            )
-        export_git_graph(quest_root, ensure_dir(quest_root / "artifacts" / "graphs"))
         return {
             "ok": True,
             "guidance": artifact.get("guidance"),
@@ -7124,9 +6880,6 @@ class ArtifactService:
             "confirmed_baseline_ref": quest_state.get("confirmed_baseline_ref"),
             "attachment": attachment,
             "artifact": artifact,
-            "interaction": interaction,
-            "foundation_checkpoint": foundation_checkpoint,
-            "baseline_branch": planned_baseline_branch,
             "baseline_registry_entry": registry_entry,
             "snapshot": self.quest_service.snapshot(self._quest_id(quest_root)),
             "metric_details": canonical_baseline["metric_details"],
@@ -7284,7 +7037,6 @@ class ArtifactService:
         reply_schema: dict[str, Any] | None = None,
         reply_to_interaction_id: str | None = None,
         supersede_open_requests: bool = True,
-        checkpoint: bool | None = None,
     ) -> dict:
         durable_kind = {
             "progress": "progress",
@@ -7413,7 +7165,7 @@ class ArtifactService:
         artifact = self.record(
             quest_root,
             payload,
-            checkpoint=checkpoint if checkpoint is not None else durable_kind in {"milestone", "decision", "approval"},
+            checkpoint=durable_kind in {"milestone", "decision", "approval"},
         )
         request_state = self._update_interaction_state(
             quest_root,

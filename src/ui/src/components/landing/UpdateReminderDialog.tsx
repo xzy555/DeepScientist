@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { client } from '@/lib/api'
+import { loadSystemUpdateStatus } from '@/lib/system-update-status'
 import type { SystemUpdateStatus } from '@/types'
 
 import { SystemUpdateDialog } from '@/components/system-update/SystemUpdateDialog'
@@ -33,7 +34,7 @@ export function UpdateReminderDialog() {
 
     const loadStatus = async (initial = false) => {
       try {
-        const payload = await client.systemUpdateStatus()
+        const payload = await loadSystemUpdateStatus({ force: false, maxAgeMs: 5000 })
         if (cancelled) {
           return
         }

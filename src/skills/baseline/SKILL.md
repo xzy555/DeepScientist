@@ -20,8 +20,6 @@ The target is one trustworthy baseline line, not an endless reproduction diary.
 - no fabricated metrics, logs, run status, or success claims
 - do not skip baseline steps or silently simplify the route when that would change trust or comparability
 - do not claim a baseline is ready before verification is complete
-- for local directory, repository, or URL sources, do not stop at a thin attachment package; before confirmation, make sure the quest holds a quest-local source snapshot that is durably tracked by Git
-- if the upstream source is not already a Git repo, the quest-local snapshot still needs a real Git foundation before the baseline gate can open
 - do not infer missing commands, scripts, or parameters when the uncertainty could change the result
 - any unavoidable guess must be written down explicitly with expected impact
 - use web search for discovering papers or repos, but use `artifact.arxiv(paper_id=..., full_text=False)` for actually reading a source arXiv paper when it exists
@@ -112,7 +110,6 @@ Operationally:
 - call `artifact.confirm_baseline(...)` once the accepted baseline root and trusted comparison contract are clear
 - call `artifact.waive_baseline(...)` when the quest must continue without a baseline
 - attach, import, or publish alone do not open the downstream gate
-- the accepted baseline should leave a durable Git-tracked foundation branch or commit that later `idea` work can inherit from explicitly
 
 ## Required plan and checklist
 
@@ -183,13 +180,11 @@ Quest-local paths:
 
 - reproduced baseline root: `<quest_root>/baselines/local/<baseline_id>/`
 - attached or imported baseline root: `<quest_root>/baselines/imported/<baseline_id>/`
-- imported baseline source snapshot root: `<baseline_root>/source_snapshot/` when the source originated outside the quest
 - attachment record: `<quest_root>/baselines/imported/<baseline_id>/attachment.yaml`
 - canonical baseline metric contract JSON: `<baseline_root>/json/metric_contract.json`
 - baseline artifact record: `<quest_root>/artifacts/baselines/<artifact_id>.json`
 - baseline reports: `<quest_root>/artifacts/reports/<artifact_id>.json`
 - confirmed baseline reference: `quest.yaml -> confirmed_baseline_ref`
-- baseline foundation branch: `quest.yaml -> confirmed_baseline_ref.baseline_branch`
 
 Global reusable registry paths:
 
