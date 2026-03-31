@@ -144,6 +144,49 @@ def test_handlers_quest_layout_roundtrip(temp_home: Path) -> None:
     assert refreshed["layout_json"]["preferences"]["curveMode"] == "full"
 
 
+@pytest.mark.parametrize(
+    ("relative_path", "expected_mime", "content"),
+    [
+        ("paper/figures/generated/figure2.svg", "image/svg+xml", b"<svg xmlns='http://www.w3.org/2000/svg'></svg>"),
+        ("paper/figures/generated/figure2.png", "image/png", b"\x89PNG\r\n\x1a\nworktree-preview"),
+        ("paper/figures/generated/figure2.pdf", "application/pdf", b"%PDF-1.4\nworktree-preview"),
+    ],
+)
+def test_document_asset_resolves_path_documents_from_active_worktree(
+    temp_home: Path,
+    relative_path: str,
+    expected_mime: str,
+    content: bytes,
+) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    app = DaemonApp(temp_home)
+    quest = app.quest_service.create("worktree binary preview quest")
+    quest_id = quest["quest_id"]
+    quest_root = Path(quest["quest_root"])
+
+    worktree_root = quest_root / ".ds" / "worktrees" / "analysis-branch-001"
+    asset_path = worktree_root / relative_path
+    asset_path.parent.mkdir(parents=True, exist_ok=True)
+    asset_path.write_bytes(content)
+    (worktree_root / "brief.md").write_text("# Worktree brief\n", encoding="utf-8")
+    app.quest_service.update_research_state(
+        quest_root,
+        current_workspace_root=str(worktree_root),
+        research_head_worktree_root=str(worktree_root),
+    )
+
+    opened = app.handlers.document_open(quest_id, {"document_id": f"path::{relative_path}"})
+
+    assert opened["path"] == str(asset_path)
+
+    status, headers, body = app.handlers.document_asset(quest_id, opened["asset_url"])
+
+    assert status == 200
+    assert headers["Content-Type"] == expected_mime
+    assert body == content
+
+
 def test_handlers_workflow_includes_optimization_frontier_when_available(temp_home: Path) -> None:
     ensure_home_layout(temp_home)
     ConfigManager(temp_home).ensure_files()

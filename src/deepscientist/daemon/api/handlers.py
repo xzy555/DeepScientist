@@ -1390,10 +1390,7 @@ npm --prefix src/ui run build</pre>
             mime_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
             content = quest_service._read_git_bytes(quest_root, revision, relative)
             return 200, self._asset_headers(mime_type), content
-        path, _writable, _scope, _source_kind = quest_service._resolve_document(
-            quest_service._quest_root(quest_id),
-            document_id,
-        )
+        path, _writable, _scope, _source_kind = quest_service.resolve_document(quest_id, document_id)
         if not path.exists() or not path.is_file():
             return 404, {"Content-Type": "text/plain; charset=utf-8"}, b"Not Found"
         mime_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"

@@ -4285,23 +4285,7 @@ class QuestService:
                 },
             }
 
-        resolution_root = (
-            quest_root
-            if document_id.startswith(("questpath::", "memory::"))
-            else workspace_root
-        )
-        try:
-            path, writable, scope, source_kind = self._resolve_document(resolution_root, document_id)
-        except FileNotFoundError:
-            legacy_relative = None
-            if document_id.startswith("path::"):
-                legacy_relative = document_id.split("::", 1)[1].lstrip("/")
-            if legacy_relative and legacy_relative.startswith("literature/arxiv/"):
-                path, writable, scope, source_kind = self._resolve_document(
-                    quest_root, f"questpath::{legacy_relative}"
-                )
-            else:
-                raise
+        path, writable, scope, source_kind = self.resolve_document(quest_id, document_id)
         renderer_hint, mime_type = self._renderer_hint_for(path)
         is_text = self._is_text_document(path, mime_type, renderer_hint)
         content = read_text(path) if is_text else ""
@@ -4328,6 +4312,24 @@ class QuestService:
                 "renderer_hint": renderer_hint,
             },
         }
+
+    def resolve_document(self, quest_id: str, document_id: str) -> tuple[Path, bool, str, str]:
+        quest_root = self._quest_root(quest_id)
+        workspace_root = self.active_workspace_root(quest_root)
+        resolution_root = self._document_resolution_root(
+            quest_root=quest_root,
+            workspace_root=workspace_root,
+            document_id=document_id,
+        )
+        try:
+            return self._resolve_document(resolution_root, document_id)
+        except FileNotFoundError:
+            legacy_relative = None
+            if document_id.startswith("path::"):
+                legacy_relative = document_id.split("::", 1)[1].lstrip("/")
+            if legacy_relative and legacy_relative.startswith("literature/arxiv/"):
+                return self._resolve_document(quest_root, f"questpath::{legacy_relative}")
+            raise
 
     def save_document(self, quest_id: str, document_id: str, content: str, previous_revision: str | None = None) -> dict:
         current = self.open_document(quest_id, document_id)
@@ -5396,6 +5398,12 @@ class QuestService:
             "queued_message_count_before_delivery": len(pending),
             "queued_message_count_after_delivery": len(queue_payload.get("pending") or []),
         }
+
+    @staticmethod
+    def _document_resolution_root(quest_root: Path, workspace_root: Path, document_id: str) -> Path:
+        if document_id.startswith(("questpath::", "memory::")):
+            return quest_root
+        return workspace_root
 
     @staticmethod
     def _resolve_document(quest_root: Path, document_id: str) -> tuple[Path, bool, str, str]:
