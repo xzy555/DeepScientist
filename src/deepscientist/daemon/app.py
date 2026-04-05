@@ -97,6 +97,8 @@ from websockets.sync.server import ServerConnection, serve as websocket_serve
 
 TERMINAL_STREAM_IDLE_SLEEP_SECONDS = 0.02
 _AUTO_CONTINUE_DELAY_SECONDS = 0.2
+_STALLED_RUNNING_TURN_INACTIVITY_SECONDS = 30 * 60
+_STALLED_RUNNING_TURN_INTERRUPT_TIMEOUT_SECONDS = 5.0
 CODEX_RETRY_DEFAULT_MAX_ATTEMPTS = 5
 CODEX_RETRY_DEFAULT_INITIAL_BACKOFF_SEC = 10.0
 CODEX_RETRY_DEFAULT_BACKOFF_MULTIPLIER = 6.0
@@ -1312,6 +1314,7 @@ class DaemonApp:
         )
         snapshot = self.quest_service.snapshot(quest_id)
         snapshot = self._reconcile_stale_active_turn(quest_id, snapshot=snapshot)
+        snapshot = self._recover_stalled_running_turn(quest_id, snapshot=snapshot, turn_reason="user_message")
         runtime_status = str(snapshot.get("runtime_status") or snapshot.get("status") or "").strip()
         auto_resumed = previous_status in {"stopped", "paused", "completed"} and runtime_status not in {"stopped", "paused", "completed"}
         if auto_resumed:
@@ -1324,17 +1327,7 @@ class DaemonApp:
                 summary=f"Quest {quest_id} automatically resumed after a new user message.",
                 automated=True,
             )
-        turn_state = self._refresh_turn_worker_state(quest_id)
-        has_live_turn = bool(turn_state.get("running"))
-        if runtime_status == "running" and has_live_turn:
-            scheduled = {
-                "scheduled": True,
-                "started": False,
-                "queued": True,
-                "reason": "queued_for_artifact_interact",
-            }
-        else:
-            scheduled = self.schedule_turn(quest_id, reason="user_message")
+        scheduled = self.schedule_turn(quest_id, reason="user_message")
         return {
             "message": message,
             "auto_resumed": auto_resumed,
@@ -1495,6 +1488,9 @@ class DaemonApp:
         return snapshot
 
     def schedule_turn(self, quest_id: str, *, reason: str = "user_message") -> dict:
+        snapshot = self.quest_service.snapshot(quest_id)
+        snapshot = self._reconcile_stale_active_turn(quest_id, snapshot=snapshot)
+        snapshot = self._recover_stalled_running_turn(quest_id, snapshot=snapshot, turn_reason=reason)
         self._refresh_turn_worker_state(quest_id)
         with self._turn_lock:
             state = self._turn_state.setdefault(quest_id, {"running": False, "pending": False})
@@ -1506,7 +1502,7 @@ class DaemonApp:
                     "scheduled": True,
                     "started": False,
                     "queued": True,
-                    "reason": reason,
+                    "reason": "queued_for_artifact_interact" if reason == "user_message" else reason,
                 }
             state["running"] = True
             worker = threading.Thread(
@@ -1535,6 +1531,53 @@ class DaemonApp:
                 state["running"] = False
                 state.pop("worker", None)
             return dict(state)
+
+    def _wait_for_turn_worker_exit(self, quest_id: str, *, timeout_seconds: float) -> dict[str, object]:
+        deadline = time.monotonic() + max(0.0, float(timeout_seconds))
+        state = self._refresh_turn_worker_state(quest_id)
+        while state.get("running") and time.monotonic() < deadline:
+            time.sleep(0.05)
+            state = self._refresh_turn_worker_state(quest_id)
+        return state
+
+    def _stalled_running_turn_details(
+        self,
+        quest_id: str,
+        *,
+        snapshot: dict | None = None,
+        turn_state: dict[str, object] | None = None,
+        turn_reason: str,
+    ) -> dict[str, int] | None:
+        if str(turn_reason or "").strip() not in {"user_message", "queued_user_messages"}:
+            return None
+        snapshot = dict(snapshot or self.quest_service.snapshot(quest_id))
+        runtime_status = str(snapshot.get("runtime_status") or snapshot.get("status") or "").strip().lower()
+        active_run_id = str(snapshot.get("active_run_id") or "").strip()
+        if runtime_status != "running" or not active_run_id:
+            return None
+        state = dict(turn_state or self._refresh_turn_worker_state(quest_id))
+        if not state.get("running"):
+            return None
+        pending_user_count = int(snapshot.get("pending_user_message_count") or 0)
+        if pending_user_count <= 0:
+            return None
+        counts = snapshot.get("counts") if isinstance(snapshot.get("counts"), dict) else {}
+        if int(counts.get("bash_running_count") or 0) > 0:
+            return None
+        silent_seconds = snapshot.get("seconds_since_last_tool_activity")
+        if silent_seconds is None:
+            watchdog = snapshot.get("interaction_watchdog") if isinstance(snapshot.get("interaction_watchdog"), dict) else {}
+            silent_seconds = watchdog.get("seconds_since_last_tool_activity")
+        try:
+            silent_seconds_int = int(silent_seconds or 0)
+        except (TypeError, ValueError):
+            return None
+        if silent_seconds_int < _STALLED_RUNNING_TURN_INACTIVITY_SECONDS:
+            return None
+        return {
+            "pending_user_count": pending_user_count,
+            "silent_seconds": silent_seconds_int,
+        }
 
     def _reconcile_stale_active_turn(self, quest_id: str, *, snapshot: dict | None = None) -> dict:
         snapshot = dict(snapshot or self.quest_service.snapshot(quest_id))
@@ -1586,6 +1629,110 @@ class DaemonApp:
             exit_code=exit_code if isinstance(exit_code, int) else None,
         )
         return self.quest_service.mark_turn_finished(quest_id, status=normalized_status)
+
+    def _recover_stalled_running_turn(
+        self,
+        quest_id: str,
+        *,
+        snapshot: dict | None = None,
+        turn_reason: str,
+    ) -> dict:
+        snapshot = dict(snapshot or self.quest_service.snapshot(quest_id))
+        turn_state = self._refresh_turn_worker_state(quest_id)
+        details = self._stalled_running_turn_details(
+            quest_id,
+            snapshot=snapshot,
+            turn_state=turn_state,
+            turn_reason=turn_reason,
+        )
+        if details is None:
+            return snapshot
+
+        active_run_id = str(snapshot.get("active_run_id") or "").strip()
+        runner_name = self._runner_name_for(snapshot)
+        interrupted = False
+        try:
+            runner = self.get_runner(runner_name)
+        except KeyError:
+            runner = None
+        if runner is not None and hasattr(runner, "interrupt"):
+            interrupted = bool(getattr(runner, "interrupt")(quest_id))
+        with self._turn_lock:
+            state = self._turn_state.setdefault(quest_id, {"running": False, "pending": False})
+            state["pending"] = False
+            state["stop_requested"] = True
+        stopped_bash_session_ids = self._stop_active_bash_exec_sessions(
+            quest_id,
+            run_id=active_run_id or None,
+            reason="stalled_turn_recovery",
+            user_id="auto:stalled-turn-recovery",
+        )
+        turn_state = self._wait_for_turn_worker_exit(
+            quest_id,
+            timeout_seconds=_STALLED_RUNNING_TURN_INTERRUPT_TIMEOUT_SECONDS,
+        )
+        if turn_state.get("running"):
+            self.logger.log(
+                "warning",
+                "quest.turn_state_recovery_pending",
+                quest_id=quest_id,
+                abandoned_run_id=active_run_id or None,
+                reason=turn_reason,
+                silent_seconds=int(details.get("silent_seconds") or 0),
+                pending_user_message_count=int(details.get("pending_user_count") or 0),
+                interrupted=interrupted,
+            )
+            return snapshot
+
+        previous_status = (
+            str(snapshot.get("runtime_status") or snapshot.get("status") or snapshot.get("display_status") or "running").strip()
+            or "running"
+        )
+        normalized_status = "active" if previous_status == "running" else previous_status
+        summary = (
+            f"Recovered stalled running turn `{active_run_id}` after "
+            f"{int(details.get('silent_seconds') or 0)} seconds without tool activity while "
+            f"{int(details.get('pending_user_count') or 0)} queued user message(s) were waiting."
+        )
+        if interrupted:
+            summary = f"{summary} The active runner process was interrupted."
+        if stopped_bash_session_ids:
+            summary = f"{summary} Stopped {len(stopped_bash_session_ids)} bash_exec session(s)."
+        quest_root = self.quest_service._quest_root(quest_id)
+        append_jsonl(
+            quest_root / ".ds" / "events.jsonl",
+            {
+                "event_id": generate_id("evt"),
+                "type": "quest.turn_state_reconciled",
+                "quest_id": quest_id,
+                "abandoned_run_id": active_run_id or None,
+                "previous_status": previous_status,
+                "status": normalized_status,
+                "completed_at": None,
+                "exit_code": None,
+                "summary": summary,
+                "recovery_kind": "stalled_live_turn",
+                "interrupted": interrupted,
+                "stopped_bash_session_ids": stopped_bash_session_ids,
+                "created_at": utc_now(),
+            },
+        )
+        self.logger.log(
+            "warning",
+            "quest.turn_state_reconciled",
+            quest_id=quest_id,
+            abandoned_run_id=active_run_id or None,
+            previous_status=previous_status,
+            status=normalized_status,
+            recovery_kind="stalled_live_turn",
+            interrupted=interrupted,
+            stopped_bash_session_count=len(stopped_bash_session_ids),
+        )
+        snapshot = self.quest_service.mark_turn_finished(quest_id, status=normalized_status)
+        with self._turn_lock:
+            state = self._turn_state.setdefault(quest_id, {"running": False, "pending": False})
+            state["stop_requested"] = False
+        return snapshot
 
     def control_quest(self, quest_id: str, *, action: str, source: str = "local") -> dict:
         normalized_action = str(action or "").strip().lower()

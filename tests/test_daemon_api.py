@@ -24,7 +24,7 @@ from deepscientist.config import ConfigManager
 from deepscientist.connector.connector_profiles import list_connector_profiles
 from deepscientist.connector_runtime import format_conversation_id
 from deepscientist.daemon.api.router import match_route
-from deepscientist.daemon.app import DaemonApp
+from deepscientist.daemon.app import DaemonApp, _STALLED_RUNNING_TURN_INACTIVITY_SECONDS
 from deepscientist.prompts.builder import classify_turn_intent
 from deepscientist.home import ensure_home_layout
 from deepscientist.connector.lingzhu_support import generate_lingzhu_auth_ak, lingzhu_passive_conversation_id
@@ -3948,6 +3948,112 @@ def test_submit_user_message_reconciles_stale_active_turn_and_starts_new_run(tem
     assert any(
         item.get("type") == "quest.turn_state_reconciled"
         and item.get("abandoned_run_id") == stale_run_id
+        for item in events
+    )
+
+
+def test_submit_user_message_recovers_stalled_live_turn_and_starts_new_run(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    app = DaemonApp(temp_home)
+    quest = app.quest_service.create("stalled live turn recovery quest")
+    quest_id = quest["quest_id"]
+    quest_root = Path(quest["quest_root"])
+    app.quest_service.set_continuation_state(quest_root, policy="none")
+
+    class StalledRunner:
+        binary = ""
+
+        def __init__(self) -> None:
+            self.requests: list[dict[str, str]] = []
+            self.started = threading.Event()
+            self.interrupted = threading.Event()
+
+        def run(self, request):
+            self.requests.append({"run_id": request.run_id, "message": request.message})
+            history_root = ensure_dir(request.quest_root / ".ds" / "codex_history" / request.run_id)
+            run_root = ensure_dir(request.quest_root / ".ds" / "runs" / request.run_id)
+            if request.message == "Start long task.":
+                self.started.set()
+                assert self.interrupted.wait(timeout=3)
+                return RunResult(
+                    ok=True,
+                    run_id=request.run_id,
+                    model=request.model,
+                    output_text="stalled turn interrupted",
+                    exit_code=0,
+                    history_root=history_root,
+                    run_root=run_root,
+                    stderr_text="",
+                )
+            return RunResult(
+                ok=True,
+                run_id=request.run_id,
+                model=request.model,
+                output_text=f"Recovered: {request.message}",
+                exit_code=0,
+                history_root=history_root,
+                run_root=run_root,
+                stderr_text="",
+            )
+
+        def interrupt(self, quest_id_to_interrupt: str) -> bool:
+            assert quest_id_to_interrupt == quest_id
+            self.interrupted.set()
+            return True
+
+    runner = StalledRunner()
+    app.runners["codex"] = runner
+
+    first_payload = app.submit_user_message(
+        quest_id,
+        text="Start long task.",
+        source="web-react",
+    )
+    assert first_payload["started"] is True
+    assert runner.started.wait(timeout=3)
+
+    stale_at = (datetime.now(UTC) - timedelta(seconds=_STALLED_RUNNING_TURN_INACTIVITY_SECONDS + 60)).isoformat()
+    app.quest_service.update_runtime_state(
+        quest_root=quest_root,
+        last_tool_activity_at=stale_at,
+        last_tool_activity_name="artifact.read",
+    )
+
+    second_payload = app.submit_user_message(
+        quest_id,
+        text="Please continue after stall.",
+        source="web-react",
+    )
+
+    assert second_payload["started"] is True
+    assert second_payload["queued"] is False
+
+    deadline = time.time() + 3
+    while time.time() < deadline:
+        if len(runner.requests) >= 2:
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("stalled live turn was not recovered into a fresh run")
+
+    assert runner.requests[0]["message"] == "Start long task."
+    assert runner.requests[1]["message"] == "Please continue after stall."
+
+    deadline = time.time() + 3
+    while time.time() < deadline:
+        snapshot = app.quest_service.snapshot(quest_id)
+        if snapshot["active_run_id"] is None:
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("recovered run did not clear active_run_id after completing")
+
+    events = app.quest_service.events(quest_id)["events"]
+    assert any(
+        item.get("type") == "quest.turn_state_reconciled"
+        and item.get("recovery_kind") == "stalled_live_turn"
+        and "Please continue after stall." not in str(item.get("summary") or "")
         for item in events
     )
 
