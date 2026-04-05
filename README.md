@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/ResearAI/DeepScientist">GitHub</a> |
-  <a href="README_ZH.md">Chinese README</a> |
+  <a href="README_ZH.md">中文文档</a> |
   <a href="docs/en/README.md">English Docs</a> |
   <a href="https://openreview.net/forum?id=cZFgsLq8Gs">Paper</a> |
   <a href="https://deepscientist.cc/">Website</a>
@@ -152,8 +152,6 @@ Because this is not just a concept. It is a real system with public docs, a publ
 - `2026/02/01`: the paper went live on [OpenReview](https://openreview.net/forum?id=cZFgsLq8Gs) for `ICLR 2026`
 - npm install path is already available: [`@researai/deepscientist`](https://www.npmjs.com/package/@researai/deepscientist)
 - both Chinese and English docs are available, along with Web, TUI, and connector entry points
-
-> [TODO asset] If you can later add one public case summary such as "reproduce a baseline + finish multiple experimental rounds + draft a paper package," this section will become much more convincing.
 
 ## Product Preview
 
@@ -361,17 +359,6 @@ If this is your first run, prefer an isolated environment, a non-root user, and 
 - [English Docs Index](docs/en/README.md)
 - [Chinese Docs Index](docs/zh/README.md)
 
-## More From ResearAI
-
-If you like DeepScientist, you may also want to explore the rest of the ResearAI ecosystem:
-
-| Project | What it does |
-|---|---|
-| [AutoFigure](https://github.com/ResearAI/AutoFigure) | generate publication-ready figures |
-| [AutoFigure-Edit](https://github.com/ResearAI/AutoFigure-Edit) | generate editable vector paper figures |
-| [DeepReviewer-v2](https://github.com/ResearAI/DeepReviewer-v2) | review papers and suggest revisions |
-| [Awesome-AI-Scientist](https://github.com/ResearAI/Awesome-AI-Scientist) | curated AI scientist landscape |
-
 ## NLPCC 2026 AISB Challenge
 
 If you want to benchmark or extend AI scientist systems in the wild, the NLPCC 2026 AISB shared task is a natural next stop:
@@ -415,3 +402,14 @@ Welcome to join the WeChat group for discussion.
 <p align="center">
   <img src="assets/readme/wechat.jpg" alt="DeepScientist WeChat group" width="360" />
 </p>
+
+## More From ResearAI
+
+If you like DeepScientist, you may also want to explore the rest of the ResearAI ecosystem:
+
+| Project | What it does |
+|---|---|
+| [AutoFigure](https://github.com/ResearAI/AutoFigure) | generate publication-ready figures |
+| [AutoFigure-Edit](https://github.com/ResearAI/AutoFigure-Edit) | generate editable vector paper figures |
+| [DeepReviewer-v2](https://github.com/ResearAI/DeepReviewer-v2) | review papers and suggest revisions |
+| [Awesome-AI-Scientist](https://github.com/ResearAI/Awesome-AI-Scientist) | curated AI scientist landscape |

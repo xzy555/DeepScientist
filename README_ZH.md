@@ -150,8 +150,6 @@ DeepScientist 最容易让人持续使用的原因有四个：
 - 已提供 npm 安装路径：[`@researai/deepscientist`](https://www.npmjs.com/package/@researai/deepscientist)
 - 已提供中文、英文文档，以及 Web / TUI / Connector 使用入口
 
-> [TODO asset] 如果后面再补一条公开案例，比如“复现 baseline + 连续推进多轮实验 + 整理出论文包”，这里的说服力会更强。
-
 ## 产品预览
 
 ### 架构总览
