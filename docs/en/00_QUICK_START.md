@@ -204,6 +204,17 @@ ds --here
 
 This is equivalent to `ds --home "$PWD/DeepScientist"`.
 
+Important:  
+* if you start DeepScientist with `ds --here` or an explicit `--home <path>`, later management commands such as `ds --status` and `ds --stop` should use the same DeepScientist home  
+* otherwise, the CLI may fall back to the default `~/DeepScientist`, which can make a reachable daemon look like an unverified one  
+  
+For example, when using a non-default home, run:  
+
+```tbash
+ds --status --home /path/to/DeepScientist  
+ds --stop --home /path/to/DeepScientist
+```
+
 If you want another port, run:
 
 ```bash
@@ -421,12 +432,24 @@ Check status:
 ds --status
 ```
 
+If you started DeepScientist with a non-default home, specify it explicitly:  
+
+```bash
+ds --status --home /path/to/DeepScientist
+```
+
 This shows whether the local runtime is up.
 
 Stop the daemon:
 
 ```bash
 ds --stop
+```
+
+If you started DeepScientist with a non-default home, specify it explicitly:  
+
+```bash
+ds --stop --home /path/to/DeepScientist
 ```
 
 This stops the local DeepScientist daemon.
