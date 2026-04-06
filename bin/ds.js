@@ -2457,6 +2457,23 @@ function buildUvRuntimeEnv(home, extraEnv = {}) {
   for (const key of ['PYTHONPATH', 'PYTHONHOME', 'VIRTUAL_ENV', '__PYVENV_LAUNCHER__']) {
     delete env[key];
   }
+  for (const key of Object.keys(env)) {
+    if (key === 'CONDA_EXE' || key === 'CONDA_PYTHON_EXE' || key === '_CE_CONDA' || key === '_CE_M') {
+      delete env[key];
+      continue;
+    }
+    if (key === 'MAMBA_EXE' || key === 'MAMBA_ROOT_PREFIX') {
+      delete env[key];
+      continue;
+    }
+    if (key === 'CONDA_PREFIX' || key === 'CONDA_DEFAULT_ENV' || key === 'CONDA_PROMPT_MODIFIER' || key === 'CONDA_SHLVL') {
+      delete env[key];
+      continue;
+    }
+    if (/^CONDA_PREFIX_\d+$/.test(key)) {
+      delete env[key];
+    }
+  }
   return env;
 }
 

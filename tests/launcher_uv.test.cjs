@@ -87,6 +87,13 @@ test('buildUvRuntimeEnv pins uv state inside the DeepScientist runtime tree', ()
     PYTHONHOME: '/tmp/pythonhome',
     VIRTUAL_ENV: '/tmp/venv',
     __PYVENV_LAUNCHER__: '/tmp/launcher',
+    CONDA_PREFIX: '/opt/conda',
+    CONDA_DEFAULT_ENV: 'base',
+    CONDA_SHLVL: '1',
+    CONDA_PREFIX_1: '/opt/conda',
+    CONDA_PROMPT_MODIFIER: '(base) ',
+    CONDA_EXE: '/opt/conda/bin/conda',
+    CONDA_PYTHON_EXE: '/opt/conda/bin/python',
   });
 
   assert.equal(env.EXTRA_MARKER, '1');
@@ -97,6 +104,13 @@ test('buildUvRuntimeEnv pins uv state inside the DeepScientist runtime tree', ()
   assert.equal(env.PYTHONHOME, undefined);
   assert.equal(env.VIRTUAL_ENV, undefined);
   assert.equal(env.__PYVENV_LAUNCHER__, undefined);
+  assert.equal(env.CONDA_PREFIX, undefined);
+  assert.equal(env.CONDA_DEFAULT_ENV, undefined);
+  assert.equal(env.CONDA_SHLVL, undefined);
+  assert.equal(env.CONDA_PREFIX_1, undefined);
+  assert.equal(env.CONDA_PROMPT_MODIFIER, undefined);
+  assert.equal(env.CONDA_EXE, undefined);
+  assert.equal(env.CONDA_PYTHON_EXE, undefined);
 });
 
 test('buildUvSyncFailureGuidance points npm installs away from uv lock by default', () => {
