@@ -1021,8 +1021,13 @@ class WeixinConnectorBridge(BaseConnectorBridge):
     @classmethod
     def _retry_delays_for_item(cls, item: dict[str, Any], exc: Exception) -> tuple[float, ...]:
         message = str(exc or "").strip().lower()
-        if "ret=-2" in message and cls._item_type(item) in {4, 5}:
+        if "ret=-2" not in message:
+            return ()
+        item_type = cls._item_type(item)
+        if item_type in {4, 5}:
             return cls._MEDIA_SEND_RETRY_DELAYS_SECONDS
+        if item_type == 1:
+            return cls._TEXT_SEND_RETRY_DELAYS_SECONDS
         return ()
 
     def _send_items(
@@ -1044,7 +1049,8 @@ class WeixinConnectorBridge(BaseConnectorBridge):
             if media_item:
                 time.sleep(self._MEDIA_SEND_INITIAL_DELAY_SECONDS)
             retry_delays: tuple[float, ...] = ()
-            for attempt in range(1 + len(self._MEDIA_SEND_RETRY_DELAYS_SECONDS)):
+            max_retries = max(len(self._TEXT_SEND_RETRY_DELAYS_SECONDS), len(self._MEDIA_SEND_RETRY_DELAYS_SECONDS))
+            for attempt in range(1 + max_retries):
                 client_id = self._next_client_id()
                 try:
                     send_weixin_message(
