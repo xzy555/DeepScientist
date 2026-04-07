@@ -3911,6 +3911,7 @@ class QuestService:
         title: str | None = None,
         active_anchor: str | None = None,
         default_runner: str | None = None,
+        workspace_mode: str | None = None,
     ) -> dict:
         quest_root = self._quest_root(quest_id)
         quest_yaml_path = self._quest_yaml_path(quest_root)
@@ -3919,6 +3920,8 @@ class QuestService:
 
         quest_data = self.read_quest_yaml(quest_root)
         changed = False
+        research_state_updates: dict[str, Any] = {}
+        runtime_state_updates: dict[str, Any] = {}
 
         if title is not None:
             normalized_title = str(title).strip()
@@ -3956,9 +3959,35 @@ class QuestService:
                 quest_data["default_runner"] = normalized_runner
                 changed = True
 
+        if workspace_mode is not None:
+            normalized_workspace_mode = str(workspace_mode).strip().lower()
+            if normalized_workspace_mode not in {"copilot", "autonomous"}:
+                raise ValueError("Unsupported workspace mode. Allowed values: copilot, autonomous.")
+            startup_contract = (
+                dict(quest_data.get("startup_contract") or {})
+                if isinstance(quest_data.get("startup_contract"), dict)
+                else {}
+            )
+            if str(startup_contract.get("workspace_mode") or "").strip().lower() != normalized_workspace_mode:
+                startup_contract["workspace_mode"] = normalized_workspace_mode
+                quest_data["startup_contract"] = startup_contract
+                changed = True
+            if str(self.read_research_state(quest_root).get("workspace_mode") or "").strip().lower() != normalized_workspace_mode:
+                research_state_updates["workspace_mode"] = normalized_workspace_mode
+            runtime_state_updates["continuation_policy"] = (
+                "wait_for_user_or_resume" if normalized_workspace_mode == "copilot" else "auto"
+            )
+            runtime_state_updates["continuation_reason"] = (
+                "copilot_mode" if normalized_workspace_mode == "copilot" else "autonomous_mode"
+            )
+
         if changed:
             quest_data["updated_at"] = utc_now()
             write_yaml(quest_yaml_path, quest_data)
+        if research_state_updates:
+            self.update_research_state(quest_root, **research_state_updates)
+        if runtime_state_updates:
+            self.update_runtime_state(quest_root=quest_root, **runtime_state_updates)
 
         return self.snapshot(quest_id)
 

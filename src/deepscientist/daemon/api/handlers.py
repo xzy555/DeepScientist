@@ -539,6 +539,7 @@ npm --prefix src/ui run build</pre>
             "title": body.get("title") if "title" in body else None,
             "active_anchor": body.get("active_anchor") if "active_anchor" in body else None,
             "default_runner": body.get("default_runner") if "default_runner" in body else None,
+            "workspace_mode": body.get("workspace_mode") if "workspace_mode" in body else None,
         }
         if all(value is None for value in updates.values()):
             return {

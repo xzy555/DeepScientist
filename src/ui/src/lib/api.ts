@@ -149,6 +149,7 @@ export const client = {
       title?: string
       active_anchor?: string
       default_runner?: string
+      workspace_mode?: 'copilot' | 'autonomous'
     }
   ) =>
     api<{ ok: boolean; snapshot: QuestSummary }>(`/api/quests/${questId}/settings`, {

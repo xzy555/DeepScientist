@@ -29,6 +29,8 @@ type RunnerEnvRow = {
   value: string
 }
 
+type WorkspaceMode = 'copilot' | 'autonomous'
+
 const DEFAULT_CODEX_ENV_KEYS = ['OPENAI_BASE_URL', 'OPENAI_API_KEY'] as const
 
 function normalizeRunnerEnvRows(raw: unknown): RunnerEnvRow[] {
@@ -62,6 +64,10 @@ function runnerEnvRowsToPayload(rows: RunnerEnvRow[]): Record<string, string> {
     payload[key] = value
   }
   return payload
+}
+
+function normalizeWorkspaceMode(value: unknown): WorkspaceMode {
+  return String(value || '').trim().toLowerCase() === 'copilot' ? 'copilot' : 'autonomous'
 }
 
 function connectorLabel(connector: ConnectorSnapshot, fallbackConnectorLabel: string) {
@@ -174,6 +180,13 @@ export function QuestSettingsSurface({
   const [savedRunnerEnvRows, setSavedRunnerEnvRows] = React.useState<RunnerEnvRow[]>(() =>
     normalizeRunnerEnvRows({})
   )
+  const [workspaceMode, setWorkspaceMode] = React.useState<WorkspaceMode>(() =>
+    normalizeWorkspaceMode(snapshot?.workspace_mode)
+  )
+  const [savedWorkspaceMode, setSavedWorkspaceMode] = React.useState<WorkspaceMode>(() =>
+    normalizeWorkspaceMode(snapshot?.workspace_mode)
+  )
+  const [workspaceModeSaving, setWorkspaceModeSaving] = React.useState(false)
 
   const theme = useThemeStore((state) => state.theme)
   const setTheme = useThemeStore((state) => state.setTheme)
@@ -217,6 +230,12 @@ export function QuestSettingsSurface({
   React.useEffect(() => {
     void reloadRunnerEnv()
   }, [reloadRunnerEnv])
+
+  React.useEffect(() => {
+    const nextMode = normalizeWorkspaceMode(snapshot?.workspace_mode)
+    setWorkspaceMode(nextMode)
+    setSavedWorkspaceMode(nextMode)
+  }, [questId, snapshot?.workspace_mode])
 
   React.useEffect(() => {
     if (!connectors.length) {
@@ -441,6 +460,49 @@ export function QuestSettingsSurface({
     () => JSON.stringify(runnerEnvRows) !== JSON.stringify(savedRunnerEnvRows),
     [runnerEnvRows, savedRunnerEnvRows]
   )
+  const workspaceModeDirty = workspaceMode !== savedWorkspaceMode
+
+  const workspaceModeItems = React.useMemo(
+    () => [
+      { value: 'copilot' as WorkspaceMode, label: t('quest_settings_mode_copilot') },
+      { value: 'autonomous' as WorkspaceMode, label: t('quest_settings_mode_autonomous') },
+    ],
+    [t]
+  )
+
+  const saveWorkspaceMode = React.useCallback(async () => {
+    setWorkspaceModeSaving(true)
+    try {
+      const result = await client.updateQuestSettings(questId, {
+        workspace_mode: workspaceMode,
+      })
+      if (!result.ok) {
+        toast({
+          title: 'Save failed',
+          description: 'Unable to update workspace mode.',
+          variant: 'destructive',
+        })
+        return
+      }
+      setSavedWorkspaceMode(workspaceMode)
+      await onRefresh()
+      toast({
+        title: t('quest_settings_mode_saved_title'),
+        description:
+          workspaceMode === 'copilot'
+            ? t('quest_settings_mode_saved_desc_copilot')
+            : t('quest_settings_mode_saved_desc_autonomous'),
+      })
+    } catch (error) {
+      toast({
+        title: 'Save failed',
+        description: error instanceof Error ? error.message : 'Unable to update workspace mode.',
+        variant: 'destructive',
+      })
+    } finally {
+      setWorkspaceModeSaving(false)
+    }
+  }, [onRefresh, questId, t, toast, workspaceMode])
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-4 sm:p-5">
@@ -466,6 +528,50 @@ export function QuestSettingsSurface({
         </div>
 
         <div className="flex-1 min-h-0 overflow-auto pr-1 space-y-5">
+          <EnhancedCard
+            enableSpotlight={false}
+            className="border border-border/60 bg-[var(--ds-panel-elevated)]/70 backdrop-blur-xl shadow-[var(--ds-shadow-md)]"
+          >
+            <div className="p-4 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium text-foreground">{t('quest_settings_mode_title')}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {t('quest_settings_mode_desc')}
+                  </div>
+                  {workspaceModeDirty ? (
+                    <div className="mt-2 text-xs font-medium text-[var(--ds-brand)]">
+                      {t('quest_settings_mode_unsaved')}
+                    </div>
+                  ) : null}
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void saveWorkspaceMode()}
+                  disabled={workspaceModeSaving || !workspaceModeDirty}
+                >
+                  {t('quest_settings_mode_save')}
+                </Button>
+              </div>
+
+              <Separator className="bg-border/50" />
+
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-xs text-muted-foreground">
+                  {questId}
+                </div>
+                <SegmentedControl
+                  value={workspaceMode}
+                  onValueChange={(value) => setWorkspaceMode(value)}
+                  items={workspaceModeItems}
+                  size="sm"
+                  ariaLabel={t('quest_settings_mode_title')}
+                />
+              </div>
+            </div>
+          </EnhancedCard>
+
           <EnhancedCard
             enableSpotlight={false}
             className="border border-border/60 bg-[var(--ds-panel-elevated)]/70 backdrop-blur-xl shadow-[var(--ds-shadow-md)]"

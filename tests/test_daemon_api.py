@@ -2841,6 +2841,56 @@ def test_quest_settings_handler_updates_quest_yaml(temp_home: Path) -> None:
     assert quest_yaml["default_runner"] == "codex"
 
 
+def test_quest_settings_handler_updates_workspace_mode_and_research_state(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    app = DaemonApp(temp_home)
+    quest = app.quest_service.create("workspace mode settings quest")
+    quest_id = quest["quest_id"]
+
+    payload = app.handlers.quest_settings(
+        quest_id,
+        {
+            "workspace_mode": "copilot",
+        },
+    )
+
+    assert isinstance(payload, dict)
+    assert payload["ok"] is True
+    assert payload["snapshot"]["workspace_mode"] == "copilot"
+    assert payload["snapshot"]["continuation_policy"] == "wait_for_user_or_resume"
+    assert payload["snapshot"]["continuation_reason"] == "copilot_mode"
+
+    quest_yaml = read_yaml(temp_home / "quests" / quest_id / "quest.yaml", {})
+    startup_contract = dict(quest_yaml.get("startup_contract") or {})
+    assert startup_contract["workspace_mode"] == "copilot"
+
+    research_state = read_json(temp_home / "quests" / quest_id / ".ds" / "research_state.json", {})
+    assert research_state["workspace_mode"] == "copilot"
+
+    runtime_state = read_json(temp_home / "quests" / quest_id / ".ds" / "runtime_state.json", {})
+    assert runtime_state["continuation_policy"] == "wait_for_user_or_resume"
+    assert runtime_state["continuation_reason"] == "copilot_mode"
+
+
+def test_quest_settings_handler_rejects_invalid_workspace_mode(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    app = DaemonApp(temp_home)
+    quest = app.quest_service.create("invalid workspace mode quest")
+
+    status_code, payload = app.handlers.quest_settings(
+        quest["quest_id"],
+        {
+            "workspace_mode": "invalid-mode",
+        },
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert "workspace mode" in str(payload["message"]).lower()
+
+
 def test_quest_settings_handler_rejects_invalid_anchor(temp_home: Path) -> None:
     ensure_home_layout(temp_home)
     ConfigManager(temp_home).ensure_files()
