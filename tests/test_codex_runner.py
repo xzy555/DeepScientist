@@ -526,6 +526,8 @@ model_provider = "minimax"
     assert "single_tool_call_per_turn_rule" in prompt
     assert "no_batched_mcp_rule" in prompt
     assert "no_immediate_repeat_rule" in prompt
+    assert "state_recovery_preference_rule" in prompt
+    assert "bash_exec_after_context_rule" in prompt
 
 
 def test_codex_runner_skips_single_tool_guard_for_non_chat_profile(temp_home) -> None:  # type: ignore[no-untyped-def]

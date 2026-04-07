@@ -1101,6 +1101,8 @@ class CodexRunner:
             "tool_call_serialization_rule: after each tool result, decide whether to make the next tool call or produce the answer.",
             "no_batched_mcp_rule: never bundle multiple `artifact.*`, `memory.*`, or `bash_exec.*` calls into the same response, even when the reads look independent.",
             "no_immediate_repeat_rule: if a tool already returned the information needed for the current subtask, do not immediately call that same tool again; move to the next tool or answer.",
+            "state_recovery_preference_rule: on a fresh quest turn, prefer `artifact.get_quest_state`, `artifact.read_quest_documents`, and `memory.list_recent` to recover context before reaching for `bash_exec`.",
+            "bash_exec_after_context_rule: use `bash_exec` only after you know the exact command you need and why the `artifact` / `memory` path is insufficient.",
             "tool_call_json_rule: every tool call must contain exactly one complete JSON object argument with no trailing characters.",
         ]
         guard_block = "\n".join(guard_lines)
