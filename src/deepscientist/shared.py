@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any, Iterator
 from uuid import uuid4
 
+from .process_control import process_session_popen_kwargs
+
 try:
     import yaml
 except ModuleNotFoundError as exc:  # pragma: no cover
@@ -168,6 +170,23 @@ def run_command(
         check=check,
         text=True,
         capture_output=True,
+        **process_session_popen_kwargs(hide_window=True, new_process_group=False),
+    )
+
+
+def run_command_bytes(
+    args: list[str],
+    *,
+    cwd: Path | None = None,
+    check: bool = True,
+) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(
+        args,
+        cwd=str(cwd) if cwd else None,
+        check=check,
+        text=False,
+        capture_output=True,
+        **process_session_popen_kwargs(hide_window=True, new_process_group=False),
     )
 
 

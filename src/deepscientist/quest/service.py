@@ -9,7 +9,6 @@ import json
 import mimetypes
 import re
 import shutil
-import subprocess
 import threading
 import time
 from pathlib import Path, PurePosixPath
@@ -28,7 +27,7 @@ from ..file_lock import advisory_file_lock
 from ..gitops import current_branch, export_git_graph, head_commit, init_repo, list_branch_canvas, list_commit_canvas
 from ..home import repo_root
 from ..registries import BaselineRegistry
-from ..shared import append_jsonl, ensure_dir, generate_id, iter_jsonl, read_json, read_jsonl, read_jsonl_tail, read_text, read_yaml, resolve_within, run_command, sha256_text, slugify, utc_now, write_json, write_text, write_yaml
+from ..shared import append_jsonl, ensure_dir, generate_id, iter_jsonl, read_json, read_jsonl, read_jsonl_tail, read_text, read_yaml, resolve_within, run_command, run_command_bytes, sha256_text, slugify, utc_now, write_json, write_text, write_yaml
 from ..skills import SkillInstaller
 from ..web_search import extract_web_search_payload
 from .layout import (
@@ -6238,12 +6237,10 @@ class QuestService:
 
     @staticmethod
     def _read_git_bytes(quest_root: Path, revision: str, relative: str) -> bytes:
-        result = subprocess.run(
+        result = run_command_bytes(
             ["git", "show", f"{revision}:{relative}"],
-            cwd=str(quest_root),
+            cwd=quest_root,
             check=False,
-            text=False,
-            capture_output=True,
         )
         if result.returncode != 0:
             raise FileNotFoundError(f"File `{relative}` does not exist at `{revision}`.")

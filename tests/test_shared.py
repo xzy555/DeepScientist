@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 from deepscientist import shared
 
@@ -56,3 +57,64 @@ def test_resolve_runner_binary_uses_bundled_codex_as_fallback(monkeypatch, tmp_p
     monkeypatch.setattr(shared, "_codex_repo_roots", lambda: [bundled_root])
 
     assert shared.resolve_runner_binary("codex", runner_name="codex") == str(bundled_binary)
+
+
+def test_run_command_hides_windows_console(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_process_session_popen_kwargs(*, hide_window: bool = False, new_process_group: bool = True):  # noqa: ANN001
+        captured["hide_window"] = hide_window
+        captured["new_process_group"] = new_process_group
+        return {"creationflags": 1536}
+
+    def fake_run(args, **kwargs):  # noqa: ANN001
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(shared, "process_session_popen_kwargs", fake_process_session_popen_kwargs)
+    monkeypatch.setattr(shared.subprocess, "run", fake_run)
+
+    result = shared.run_command(["git", "status"], cwd=tmp_path, check=False)
+
+    assert result.returncode == 0
+    assert captured["hide_window"] is True
+    assert captured["new_process_group"] is False
+    assert captured["kwargs"] == {
+        "cwd": str(tmp_path),
+        "check": False,
+        "text": True,
+        "capture_output": True,
+        "creationflags": 1536,
+    }
+
+
+def test_run_command_bytes_hides_windows_console(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_process_session_popen_kwargs(*, hide_window: bool = False, new_process_group: bool = True):  # noqa: ANN001
+        captured["hide_window"] = hide_window
+        captured["new_process_group"] = new_process_group
+        return {"creationflags": 1536}
+
+    def fake_run(args, **kwargs):  # noqa: ANN001
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout=b"ok", stderr=b"")
+
+    monkeypatch.setattr(shared, "process_session_popen_kwargs", fake_process_session_popen_kwargs)
+    monkeypatch.setattr(shared.subprocess, "run", fake_run)
+
+    result = shared.run_command_bytes(["git", "show", "HEAD:README.md"], cwd=tmp_path, check=False)
+
+    assert result.returncode == 0
+    assert result.stdout == b"ok"
+    assert captured["hide_window"] is True
+    assert captured["new_process_group"] is False
+    assert captured["kwargs"] == {
+        "cwd": str(tmp_path),
+        "check": False,
+        "text": False,
+        "capture_output": True,
+        "creationflags": 1536,
+    }
