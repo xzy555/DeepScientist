@@ -101,6 +101,7 @@ def _iter_jsonl_records_safely(
         prefix = bytearray()
         current_bytes = 0
         oversized = False
+        cursor = 0
         while True:
             chunk = handle.read(_JSONL_STREAM_CHUNK_BYTES)
             if not chunk:
@@ -114,7 +115,8 @@ def _iter_jsonl_records_safely(
                 if oversized:
                     current_bytes += len(segment)
                     if has_newline:
-                        yield _oversized_event_placeholder(prefix=bytes(prefix), line_bytes=current_bytes)
+                        cursor += 1
+                        yield cursor, _oversized_event_placeholder(prefix=bytes(prefix), line_bytes=current_bytes)
                         prefix = bytearray()
                         current_bytes = 0
                         oversized = False
@@ -133,7 +135,8 @@ def _iter_jsonl_records_safely(
                     current_bytes = next_bytes
                     oversized = True
                     if has_newline:
-                        yield _oversized_event_placeholder(prefix=bytes(prefix), line_bytes=current_bytes)
+                        cursor += 1
+                        yield cursor, _oversized_event_placeholder(prefix=bytes(prefix), line_bytes=current_bytes)
                         prefix = bytearray()
                         current_bytes = 0
                         oversized = False
@@ -148,28 +151,27 @@ def _iter_jsonl_records_safely(
                     buffer.clear()
                     line_bytes = current_bytes
                     current_bytes = 0
-                    if raw:
-                        try:
-                            payload = json.loads(raw)
-                        except json.JSONDecodeError:
-                            payload = None
-                        if isinstance(payload, dict):
-                            yield payload
+                    cursor += 1
+                    payload = _parse_jsonl_record_line_safely(
+                        raw,
+                        oversized_line_bytes=oversized_line_bytes,
+                    )
+                    yield cursor, payload
                     start = newline_index + 1
                     continue
                 break
 
         if oversized:
-            yield _oversized_event_placeholder(prefix=bytes(prefix), line_bytes=current_bytes)
+            cursor += 1
+            yield cursor, _oversized_event_placeholder(prefix=bytes(prefix), line_bytes=current_bytes)
         elif buffer:
             raw = bytes(buffer).strip()
-            if raw:
-                try:
-                    payload = json.loads(raw)
-                except json.JSONDecodeError:
-                    payload = None
-                if isinstance(payload, dict):
-                    yield payload
+            cursor += 1
+            payload = _parse_jsonl_record_line_safely(
+                raw,
+                oversized_line_bytes=oversized_line_bytes,
+            )
+            yield cursor, payload
 
 
 def _parse_jsonl_record_line_safely(
@@ -188,7 +190,7 @@ def _parse_jsonl_record_line_safely(
         )
     try:
         payload = json.loads(raw)
-    except json.JSONDecodeError:
+    except (UnicodeDecodeError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
 
@@ -284,13 +286,12 @@ def _iter_jsonl_records_from_offset_safely(
         return
     with path.open("rb") as handle:
         handle.seek(max(int(start_offset or 0), 0))
-        for raw_line in handle:
+        for relative_cursor, raw_line in enumerate(handle, start=1):
             payload = _parse_jsonl_record_line_safely(
                 raw_line,
                 oversized_line_bytes=oversized_line_bytes,
             )
-            if isinstance(payload, dict):
-                yield payload
+            yield relative_cursor, payload
 
 
 class QuestService:
@@ -3142,18 +3143,18 @@ class QuestService:
                 self._jsonl_tail_cache.pop(cache_key, None)
             return [], 0, False
         if normalized_limit <= 0:
-            total = sum(1 for _ in _iter_jsonl_records_safely(path))
+            total = _count_jsonl_lines_fast(path)
             return [], total, False
 
         if before is not None:
-            stop_cursor = max(int(before) - 1, 0)
             window: deque[tuple[int, dict[str, Any]]] = deque(maxlen=normalized_limit)
             total = 0
-            for payload in _iter_jsonl_records_safely(path):
-                total += 1
-                if total >= before:
+            for cursor, payload in _iter_jsonl_records_safely(path):
+                total = cursor
+                if cursor >= before:
                     break
-                window.append((total, payload))
+                if isinstance(payload, dict):
+                    window.append((cursor, payload))
             has_more = bool(window and window[0][0] > 1)
             return list(window), total, has_more
 
@@ -3196,11 +3197,11 @@ class QuestService:
                     )
                 )
                 if appended_records:
-                    next_cursor = cached_total + 1
-                    for payload in appended_records:
-                        window.append((next_cursor, payload))
-                        next_cursor += 1
-                    total = cached_total + len(appended_records)
+                    total = cached_total
+                    for relative_cursor, payload in appended_records:
+                        total = cached_total + relative_cursor
+                        if isinstance(payload, dict):
+                            window.append((total, payload))
                 else:
                     total = cached_total
                 stored_records = list(window)
@@ -3230,12 +3231,14 @@ class QuestService:
         total = 0
         saw_more = False
         normalized_after = max(int(after or 0), 0)
-        for payload in _iter_jsonl_records_safely(path):
-            total += 1
-            if total <= normalized_after:
+        for cursor, payload in _iter_jsonl_records_safely(path):
+            total = cursor
+            if cursor <= normalized_after:
+                continue
+            if not isinstance(payload, dict):
                 continue
             if len(collected) < normalized_limit:
-                collected.append((total, payload))
+                collected.append((cursor, payload))
                 continue
             saw_more = True
         return collected, total, saw_more

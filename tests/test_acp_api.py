@@ -123,6 +123,69 @@ def test_acp_event_polling_supports_loading_older_pages(temp_home: Path) -> None
     assert older_messages == ["message-3", "message-4"]
 
 
+def test_acp_event_polling_skips_corrupted_older_history_lines(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    quest = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home)).create("acp corrupted older quest")
+    quest_id = quest["quest_id"]
+    quest_root = Path(quest["quest_root"])
+    app = DaemonApp(temp_home)
+
+    for index in range(1, 8):
+        app.quest_service.append_message(
+            quest_id,
+            role="assistant" if index % 2 == 0 else "user",
+            content=f"message-{index}",
+            source="local:default",
+        )
+
+    events_path = quest_root / ".ds" / "events.jsonl"
+    lines = events_path.read_bytes().splitlines()
+    corrupted_line = b"\x00\x00\xfe\xff\x00\x11\x00\x00"
+    events_path.write_bytes(b"\n".join(lines[:4] + [corrupted_line] + lines[4:]) + b"\n")
+
+    latest_payload = app.handlers.quest_events(
+        quest_id,
+        path=f"/api/quests/{quest_id}/events?format=acp&session_id=session:test&limit=3&tail=1",
+    )
+    assert latest_payload["direction"] == "tail"
+    assert latest_payload["oldest_cursor"] == 6
+    assert latest_payload["newest_cursor"] == 8
+    assert latest_payload["has_more"] is True
+
+    older_payload = app.handlers.quest_events(
+        quest_id,
+        path=f"/api/quests/{quest_id}/events?format=acp&session_id=session:test&limit=2&before=6",
+    )
+    older_messages = [
+        update["params"]["update"]["message"]["content"]
+        for update in older_payload["acp_updates"]
+        if update["params"]["update"]["kind"] == "message"
+    ]
+    assert older_messages == ["message-3", "message-4"]
+    assert older_payload["oldest_cursor"] == 3
+    assert older_payload["newest_cursor"] == 4
+    assert older_payload["has_more"] is True
+
+    app.quest_service.append_message(
+        quest_id,
+        role="assistant",
+        content="message-8",
+        source="local:default",
+    )
+    after_payload = app.handlers.quest_events(
+        quest_id,
+        path=f"/api/quests/{quest_id}/events?format=acp&session_id=session:test&after=8",
+    )
+    after_messages = [
+        update["params"]["update"]["message"]["content"]
+        for update in after_payload["acp_updates"]
+        if update["params"]["update"]["kind"] == "message"
+    ]
+    assert after_messages == ["message-8"]
+    assert after_payload["cursor"] == 9
+
+
 def test_acp_artifact_update_exposes_interaction_metadata(temp_home: Path) -> None:
     ensure_home_layout(temp_home)
     ConfigManager(temp_home).ensure_files()
