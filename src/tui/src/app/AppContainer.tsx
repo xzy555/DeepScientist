@@ -2909,11 +2909,11 @@ export const AppContainer: React.FC<{ baseUrl: string; initialQuestId?: string |
         return
       }
     }
-    if (key.upArrow && ((configMode === 'browse') || canBrowseHomeQuests)) {
+    if (key.upArrow && (configMode === 'browse') && !questPanelMode) {
       cycleQuest(-1)
       return
     }
-    if ((key.downArrow || key.tab) && ((configMode === 'browse') || canBrowseHomeQuests)) {
+    if ((key.downArrow || key.tab) && (configMode === 'browse') && !questPanelMode) {
       cycleQuest(1)
       return
     }
