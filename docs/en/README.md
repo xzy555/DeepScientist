@@ -111,5 +111,5 @@ This page is the shortest path to the right document.
 Welcome to join the WeChat group for discussion.
 
 <p align="center">
-  <img src="../../assets/readme/wechat4.jpg" alt="DeepScientist WeChat group" width="360" />
+  <img src="../../assets/readme/wechat6.jpg" alt="DeepScientist WeChat group" width="360" />
 </p>
