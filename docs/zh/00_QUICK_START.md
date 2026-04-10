@@ -209,9 +209,10 @@ ds --here
 
 重要提醒：
 
-- 如果你是通过 `ds --here` 或显式的 `--home <path>` 启动 DeepScientist，后续像 `ds --status`、`ds --stop` 这样的管理命令，也应该使用同一个 DeepScientist home
+- 现在如果你是在某个目录里用 `ds --here` 启动，后续直接在同一目录执行 `ds --status`、`ds --stop`、`ds --restart`，launcher 通常会优先识别当前目录下的 `./DeepScientist`
+- 如果你是通过显式的 `--home <path>`，或者机器上同时存在多个 DeepScientist home，仍然建议后续管理命令继续显式使用同一个 home
 - 如果你是通过 `DEEPSCIENTIST_HOME` 或 `DS_HOME` 环境变量固定 home，只要后续命令继续使用同一个环境变量配置，也可以
-- 否则 CLI 可能会回退到默认的 `~/DeepScientist`，从而把一个实际上可访问的 daemon 误判成“不是当前 home 下的受管 daemon”
+- 当存在多个非默认 home 时，显式指定 `--home` 仍然是最稳妥的做法
 
 例如，当你使用的是非默认 home 时，应这样执行：
 

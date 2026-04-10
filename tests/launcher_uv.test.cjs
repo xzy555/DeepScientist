@@ -299,6 +299,71 @@ test('resolveHome uses ./DeepScientist under the current working directory when 
   }
 });
 
+test('resolveManagementHome prefers ./DeepScientist when the current directory has managed daemon state', () => {
+  const originalCwd = process.cwd();
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-manage-here-'));
+  const hereHome = path.join(tempDir, 'DeepScientist');
+  fs.mkdirSync(path.join(hereHome, 'runtime'), { recursive: true });
+  fs.writeFileSync(
+    path.join(hereHome, 'runtime', 'daemon.json'),
+    `${JSON.stringify({ daemon_id: 'daemon-here', pid: 12345, home: hereHome }, null, 2)}\n`,
+    'utf8'
+  );
+  process.chdir(tempDir);
+  try {
+    assert.equal(__internal.resolveManagementHome(['--stop'], { stop: true }), hereHome);
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('resolveManagementHome falls back to the only indexed managed home when no explicit selector is present', () => {
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-manage-index-'));
+  const tempUserHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-manage-userhome-'));
+  const indexRoot = path.join(os.homedir(), '.deepscientist');
+  const indexPath = path.join(indexRoot, 'install-index.json');
+  const backupPath = `${indexPath}.bak-test`;
+  const hadIndex = fs.existsSync(indexPath);
+  const originalHome = process.env.HOME;
+  const originalUserProfile = process.env.USERPROFILE;
+  if (hadIndex) {
+    fs.copyFileSync(indexPath, backupPath);
+  }
+  process.env.HOME = tempUserHome;
+  process.env.USERPROFILE = tempUserHome;
+  const redirectedIndexRoot = path.join(tempUserHome, '.deepscientist');
+  const redirectedIndexPath = path.join(redirectedIndexRoot, 'install-index.json');
+  fs.mkdirSync(path.join(tempHome, 'runtime'), { recursive: true });
+  fs.writeFileSync(
+    path.join(tempHome, 'runtime', 'daemon.json'),
+    `${JSON.stringify({ daemon_id: 'daemon-index', pid: 23456, home: tempHome }, null, 2)}\n`,
+    'utf8'
+  );
+  fs.mkdirSync(redirectedIndexRoot, { recursive: true });
+  fs.writeFileSync(
+    redirectedIndexPath,
+    `${JSON.stringify({ installs: [{ home: tempHome, package_root: '/tmp/repo', launcher_path: '/tmp/repo/bin/ds.js' }] }, null, 2)}\n`,
+    'utf8'
+  );
+  try {
+    assert.equal(__internal.resolveManagementHome(['--stop'], { stop: true }), tempHome);
+  } finally {
+    if (typeof originalHome === 'string') process.env.HOME = originalHome;
+    else delete process.env.HOME;
+    if (typeof originalUserProfile === 'string') process.env.USERPROFILE = originalUserProfile;
+    else delete process.env.USERPROFILE;
+    if (hadIndex) {
+      fs.copyFileSync(backupPath, indexPath);
+      fs.rmSync(backupPath, { force: true });
+    } else {
+      fs.rmSync(indexPath, { force: true });
+    }
+    fs.rmSync(tempHome, { recursive: true, force: true });
+    fs.rmSync(tempUserHome, { recursive: true, force: true });
+  }
+});
+
 test('parseLauncherArgs accepts --proxy without treating its URL as a positional command', () => {
   const parsed = __internal.parseLauncherArgs([
     '--port',

@@ -610,6 +610,54 @@ function resolveHome(args) {
   return path.join(os.homedir(), 'DeepScientist');
 }
 
+function hasManagedDaemonState(home) {
+  const state = readDaemonState(home);
+  return Boolean(
+    state
+    && typeof state === 'object'
+    && (
+      state.daemon_id
+      || state.pid
+      || state.url
+      || state.launch_url
+      || state.home
+    )
+  );
+}
+
+function resolveManagementHome(rawArgs, options = {}) {
+  if (
+    options.home
+    || rawArgs.includes('--here')
+    || process.env.DEEPSCIENTIST_HOME
+    || process.env.DS_HOME
+  ) {
+    return options.home || resolveHome(rawArgs);
+  }
+
+  const cwdHome = normalizeHomePath(path.join(process.cwd(), 'DeepScientist'));
+  if (hasManagedDaemonState(cwdHome)) {
+    return cwdHome;
+  }
+
+  const defaultHome = normalizeHomePath(resolveHome(rawArgs));
+  if (hasManagedDaemonState(defaultHome)) {
+    return defaultHome;
+  }
+
+  const installs = readInstallIndex()
+    .installs
+    .map((item) => normalizeInstallRecord(item))
+    .filter(Boolean);
+  const indexedHomes = [...new Set(installs.map((item) => item.home).filter(Boolean))];
+  const managedHomes = indexedHomes.filter((home) => hasManagedDaemonState(home));
+  if (managedHomes.length === 1) {
+    return managedHomes[0];
+  }
+
+  return defaultHome;
+}
+
 function formatHttpHost(host) {
   const normalized = String(host || '').trim();
   if (!normalized) {
@@ -5162,7 +5210,9 @@ async function launcherMain(rawArgs) {
     process.exit(1);
   }
 
-  const home = options.home || resolveHome(rawArgs);
+  const home = (options.stop || options.status || options.restart)
+    ? resolveManagementHome(rawArgs, options)
+    : (options.home || resolveHome(rawArgs));
   applyLauncherProxy(options.proxy);
   ensureDir(home);
   registerCurrentInstall(home);
@@ -5349,6 +5399,7 @@ module.exports = {
     legacyVenvRootPath,
     resolveUvBinary,
     resolveHome,
+    resolveManagementHome,
     parseLauncherArgs,
     generateBrowserAuthToken,
     appendBrowserAuthToken,
