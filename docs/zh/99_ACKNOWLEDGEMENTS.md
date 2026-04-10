@@ -6,16 +6,17 @@ DeepScientist 的构思、架构设计与实现过程中，受到了许多优秀
 
 特别感谢以下项目为 DeepScientist 提供的重要启发、参考与研究背景：
 
-- The AI Scientist
-- The AI Scientist v2
-- AlphaEvolve
-- OpenEvolve
-- EvoScientist
-- Orchestra-Research
-- Orchestra-Research/AI-Research-SKILLs
-- Overleaf / overleaf/overleaf
-- Monaco Editor / microsoft/monaco-editor
-- Novel / steven-tey/novel
+- [The AI Scientist](https://github.com/SakanaAI/AI-Scientist)
+- [The AI Scientist v2](https://github.com/SakanaAI/AI-Scientist-v2)
+- [AlphaEvolve](https://deepmind.google/blog/alphaevolve-a-gemini-powered-coding-agent-for-designing-advanced-algorithms/)
+- [OpenEvolve](https://github.com/algorithmicsuperintelligence/openevolve)
+- [EvoScientist](https://github.com/EvoScientist/EvoScientist)
+- [AutoSOTA](https://github.com/tsinghua-fib-lab/AutoSOTA)
+- [Orchestra-Research](https://www.orchestra-research.com/)
+- [Orchestra-Research/AI-Research-SKILLs](https://github.com/Orchestra-Research/AI-Research-SKILLs)
+- [Overleaf / overleaf/overleaf](https://github.com/overleaf/overleaf)
+- [Monaco Editor / microsoft/monaco-editor](https://github.com/microsoft/monaco-editor)
+- [Novel / steven-tey/novel](https://github.com/steven-tey/novel)
 
 这些项目在自动化科研、开放式探索、进化式搜索、实验组织、智能研究代理、协作式 LaTeX 编辑工作流、浏览器端代码编辑体验，以及富文本 notebook 式写作交互等方向上的探索，为 DeepScientist 的设计提供了重要参照。
 
@@ -23,12 +24,14 @@ DeepScientist 的构思、架构设计与实现过程中，受到了许多优秀
 
 同时，特别感谢以下老师和同学的支持、讨论、启发与贡献：
 
-- Shichen Li
-- Guangsheng Bao
-- Fuchen Shen
-- Wenyang Gao
-- Luodan Zhang
-- Junshu Pan
-- Panzhong Lu
+为保持格式统一、同时避免误链到不稳定或错误的个人主页，下面的个人条目统一链接到公开搜索页。
+
+- [Shichen Li](https://www.google.com/search?q=%22Shichen+Li%22)
+- [Guangsheng Bao](https://www.google.com/search?q=%22Guangsheng+Bao%22)
+- [Fuchen Shen](https://www.google.com/search?q=%22Fuchen+Shen%22)
+- [Wenyang Gao](https://www.google.com/search?q=%22Wenyang+Gao%22)
+- [Luodan Zhang](https://www.google.com/search?q=%22Luodan+Zhang%22)
+- [Junshu Pan](https://www.google.com/search?q=%22Junshu+Pan%22)
+- [Panzhong Lu](https://www.google.com/search?q=%22Panzhong+Lu%22)
 
 谨向以上项目与个人致以感谢。

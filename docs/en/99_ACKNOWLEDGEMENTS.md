@@ -6,16 +6,17 @@ DeepScientist was shaped by many prior systems, open-source efforts, and researc
 
 We especially thank the following projects for their ideas, research direction, and systems inspiration:
 
-- The AI Scientist
-- The AI Scientist v2
-- AlphaEvolve
-- OpenEvolve
-- EvoScientist
-- Orchestra-Research
-- Orchestra-Research/AI-Research-SKILLs
-- Overleaf / overleaf/overleaf
-- Monaco Editor / microsoft/monaco-editor
-- Novel / steven-tey/novel
+- [The AI Scientist](https://github.com/SakanaAI/AI-Scientist)
+- [The AI Scientist v2](https://github.com/SakanaAI/AI-Scientist-v2)
+- [AlphaEvolve](https://deepmind.google/blog/alphaevolve-a-gemini-powered-coding-agent-for-designing-advanced-algorithms/)
+- [OpenEvolve](https://github.com/algorithmicsuperintelligence/openevolve)
+- [EvoScientist](https://github.com/EvoScientist/EvoScientist)
+- [AutoSOTA](https://github.com/tsinghua-fib-lab/AutoSOTA)
+- [Orchestra-Research](https://www.orchestra-research.com/)
+- [Orchestra-Research/AI-Research-SKILLs](https://github.com/Orchestra-Research/AI-Research-SKILLs)
+- [Overleaf / overleaf/overleaf](https://github.com/overleaf/overleaf)
+- [Monaco Editor / microsoft/monaco-editor](https://github.com/microsoft/monaco-editor)
+- [Novel / steven-tey/novel](https://github.com/steven-tey/novel)
 
 These projects have been important references for thinking about automated research, open-ended exploration, evolutionary search, experiment organization, long-horizon research agents, collaborative LaTeX editing workflows, browser-based code editing experiences, and rich notebook-style writing interactions.
 
@@ -23,12 +24,14 @@ These projects have been important references for thinking about automated resea
 
 We also sincerely thank the following researchers, collaborators, and supporters:
 
-- Shichen Li
-- Guangsheng Bao
-- Fuchen Shen
-- Wenyang Gao
-- Luodan Zhang
-- Junshu Pan
-- Panzhong Lu
+To keep the format consistent without guessing unstable personal homepages, the personal entries below link to public search pages.
+
+- [Shichen Li](https://www.google.com/search?q=%22Shichen+Li%22)
+- [Guangsheng Bao](https://www.google.com/search?q=%22Guangsheng+Bao%22)
+- [Fuchen Shen](https://www.google.com/search?q=%22Fuchen+Shen%22)
+- [Wenyang Gao](https://www.google.com/search?q=%22Wenyang+Gao%22)
+- [Luodan Zhang](https://www.google.com/search?q=%22Luodan+Zhang%22)
+- [Junshu Pan](https://www.google.com/search?q=%22Junshu+Pan%22)
+- [Panzhong Lu](https://www.google.com/search?q=%22Panzhong+Lu%22)
 
 We are grateful to all of the above projects and individuals.
