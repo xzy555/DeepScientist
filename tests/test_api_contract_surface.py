@@ -449,8 +449,8 @@ def test_runner_settings_surface_exposes_reasoning_and_retry_controls() -> None:
     settings_form_source = _read("src/ui/src/components/settings/RegistrySettingsForm.tsx")
     config_service_source = _read("src/deepscientist/config/service.py")
 
-    assert "{ label: 'Claude', value: 'claude' }" not in settings_catalog_source
-    assert "not runnable yet" in settings_catalog_source
+    assert "{ label: 'Claude', value: 'claude' }" in settings_catalog_source
+    assert "Experimental Claude-compatible runner" in settings_catalog_source
     assert "key: 'model_reasoning_effort'" in settings_catalog_source
     assert "key: 'retry_on_failure'" in settings_catalog_source
     assert "key: 'retry_max_attempts'" in settings_catalog_source
@@ -465,7 +465,7 @@ def test_runner_settings_surface_exposes_reasoning_and_retry_controls() -> None:
     assert "codex.retry_on_failure: true" in config_service_source
     assert "at most `5` total attempts" in config_service_source
     assert "10s / 6x / 1800s max" in config_service_source
-    assert "not runnable yet" in config_service_source
+    assert "experimental runner" in config_service_source
 
 
 def test_ui_font_loading_uses_single_stylesheet_entrypoint() -> None:

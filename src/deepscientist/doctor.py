@@ -235,22 +235,29 @@ def _check_runner_support(config_manager: ConfigManager) -> dict[str, Any]:
     default_runner = str(config_payload.get("default_runner") or "codex").strip().lower() or "codex"
     codex_cfg = runners_payload.get("codex") if isinstance(runners_payload.get("codex"), dict) else {}
     claude_cfg = runners_payload.get("claude") if isinstance(runners_payload.get("claude"), dict) else {}
+    supported_runners = {"codex", "claude"}
+    enabled_runners = {
+        name
+        for name, cfg in (("codex", codex_cfg), ("claude", claude_cfg))
+        if isinstance(cfg, dict) and bool(cfg.get("enabled", False))
+    }
 
     errors: list[str] = []
     warnings: list[str] = []
     guidance: list[str] = []
 
-    if default_runner != "codex":
-        errors.append("Current open-source release supports `codex` as the runnable default runner.")
-        guidance.append("Set `default_runner: codex` in `~/DeepScientist/config/config.yaml`.")
-    if not bool(codex_cfg.get("enabled", False)):
-        errors.append("`runners.codex.enabled` must stay `true` in the current release.")
-        guidance.append("Set `runners.codex.enabled: true` in `~/DeepScientist/config/runners.yaml`.")
-    if bool(claude_cfg.get("enabled", False)):
-        errors.append("`claude` is still TODO in the current release and should stay disabled.")
-        guidance.append("Set `runners.claude.enabled: false` in `~/DeepScientist/config/runners.yaml`.")
-    else:
-        warnings.append("`claude` remains a TODO/reserved runner slot and is not runnable yet.")
+    if default_runner not in supported_runners:
+        allowed = ", ".join(sorted(supported_runners))
+        errors.append(f"Unsupported `default_runner` value `{default_runner}`.")
+        guidance.append(f"Set `default_runner` to one of: {allowed}.")
+    if not enabled_runners:
+        errors.append("At least one runnable runner must be enabled.")
+        guidance.append("Set `runners.codex.enabled: true` or `runners.claude.enabled: true` in `~/DeepScientist/config/runners.yaml`.")
+    if default_runner in supported_runners and default_runner not in enabled_runners:
+        errors.append(f"`default_runner` is `{default_runner}`, but `runners.{default_runner}.enabled` is false.")
+        guidance.append(f"Set `runners.{default_runner}.enabled: true`, or switch `default_runner` back to an enabled runner.")
+    if "claude" not in enabled_runners:
+        warnings.append("`claude` is disabled. Enable it only when a compatible Claude/Kimi Code CLI path is configured.")
 
     return _make_check(
         check_id="runner_support",
@@ -265,8 +272,19 @@ def _check_runner_support(config_manager: ConfigManager) -> dict[str, Any]:
 
 
 def _check_codex(config_manager: ConfigManager) -> dict[str, Any]:
+    config_payload = config_manager.load_named_normalized("config")
     runners_payload = config_manager.load_named_normalized("runners")
     codex_cfg = runners_payload.get("codex") if isinstance(runners_payload.get("codex"), dict) else {}
+    enabled = bool(codex_cfg.get("enabled", False))
+    default_runner = str(config_payload.get("default_runner") or "codex").strip().lower() or "codex"
+    if not enabled and default_runner != "codex":
+        return _make_check(
+            check_id="codex",
+            label="Codex CLI",
+            ok=True,
+            summary="Codex runner is disabled.",
+            warnings=["Codex validation was skipped because this installation is not using Codex as the active runner."],
+        )
     binary = str(codex_cfg.get("binary") or "codex").strip() or "codex"
     resolved_binary = resolve_runner_binary(binary, runner_name="codex")
 
@@ -321,6 +339,70 @@ def _check_codex(config_manager: ConfigManager) -> dict[str, Any]:
         evidence=(
             [f"matched: {diagnosis.matched_text}"] if diagnosis is not None and diagnosis.matched_text else None
         ),
+    )
+
+
+def _check_claude(config_manager: ConfigManager) -> dict[str, Any]:
+    config_payload = config_manager.load_named_normalized("config")
+    runners_payload = config_manager.load_named_normalized("runners")
+    claude_cfg = runners_payload.get("claude") if isinstance(runners_payload.get("claude"), dict) else {}
+    enabled = bool(claude_cfg.get("enabled", False))
+    default_runner = str(config_payload.get("default_runner") or "codex").strip().lower() or "codex"
+    if not enabled and default_runner != "claude":
+        return _make_check(
+            check_id="claude",
+            label="Claude-compatible CLI",
+            ok=True,
+            summary="Claude runner is disabled.",
+            warnings=["Claude validation was skipped because this installation is not using the Claude-compatible runner."],
+        )
+
+    binary = str(claude_cfg.get("binary") or "claude").strip() or "claude"
+    resolved_binary = resolve_runner_binary(binary, runner_name="claude")
+    if not resolved_binary:
+        return _make_check(
+            check_id="claude",
+            label="Claude-compatible CLI",
+            ok=False,
+            summary="Claude-compatible CLI is not available to DeepScientist.",
+            errors=[f"Runner binary `{binary}` could not be resolved."],
+            guidance=config_manager._claude_missing_binary_guidance(claude_cfg),
+            details={"binary": binary},
+        )
+
+    probe = config_manager.probe_claude_bootstrap(persist=False, payload=runners_payload)
+    probe_errors = [str(value) for value in probe.get("errors") or []]
+    probe_warnings = [str(value) for value in probe.get("warnings") or []]
+    probe_guidance = [str(value) for value in probe.get("guidance") or []]
+    summary = str(probe.get("summary") or "Claude runner startup probe completed.")
+    probe_details = probe.get("details") if isinstance(probe.get("details"), dict) else {}
+    diagnosis = diagnose_runner_failure(
+        runner_name="claude",
+        summary="\n".join([summary, *probe_errors]),
+        stderr_text=str(probe_details.get("stderr_excerpt") or ""),
+        output_text=str(probe_details.get("stdout_excerpt") or ""),
+    )
+    if probe.get("ok"):
+        return _make_check(
+            check_id="claude",
+            label="Claude-compatible CLI",
+            ok=True,
+            summary=summary,
+            warnings=probe_warnings,
+            details={"resolved_binary": resolved_binary},
+        )
+    return _make_check(
+        check_id="claude",
+        label="Claude-compatible CLI",
+        ok=False,
+        summary=diagnosis.problem if diagnosis is not None else summary,
+        warnings=probe_warnings,
+        errors=probe_errors or ["Claude-compatible runner startup probe did not succeed."],
+        guidance=probe_guidance or config_manager._claude_probe_failure_guidance(claude_cfg),
+        details={"resolved_binary": resolved_binary},
+        problem=diagnosis.problem if diagnosis is not None else None,
+        why=diagnosis.why if diagnosis is not None else None,
+        fix=list(diagnosis.guidance) if diagnosis is not None else None,
     )
 
 
@@ -682,6 +764,7 @@ def run_doctor(home: Path, *, repo_root: Path) -> dict[str, Any]:
         _check_config_validation(config_manager),
         _check_runner_support(config_manager),
         _check_codex(config_manager),
+        _check_claude(config_manager),
         _check_recent_runtime_failures(home),
         _check_latex_runtime(home),
         _check_bundles(repo_root),

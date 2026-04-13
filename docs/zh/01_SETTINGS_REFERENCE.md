@@ -113,7 +113,7 @@ acp:
 - 页面标签：`Default runner`
 - 作用：当项目没有单独覆盖 runner 时，默认走这里指定的 runner。
 - 何时修改：只有在你真的接通并启用了其他 runner 时才需要改。
-- 注意事项：当前仓库的真实主路径仍然是 `codex`；`claude` 仍是预留位。
+- 注意事项：`codex` 仍然是默认主路径；`claude` 现在是实验性的第二 runner，可用于兼容 Claude Code / Kimi Code 的后端。
 
 **`default_locale`**
 
@@ -430,7 +430,7 @@ acp:
 `runners.yaml` 定义项目实际由哪个 runner 执行，以及 runner 的模型默认值、审批策略、沙箱策略和失败重试策略。在当前开源版本中：
 
 - `codex`：主路径，默认启用。
-- `claude`：TODO / 预留条目，默认禁用，暂时不能运行。
+- `claude`：实验性第二路径，默认禁用；接好兼容的 Claude 风格 CLI / 后端后可以运行。
 
 ### 结构
 
@@ -589,7 +589,7 @@ claude:
 **`status`**
 
 - 类型：`string`
-- 默认值：`claude=reserved_todo`
+- 默认值：`claude=experimental`
 - 页面标签：`Status note`
 - 作用：写给操作者的备注，例如 `reserved_todo`、`experimental`、`disabled_by_policy`。
 
@@ -612,8 +612,8 @@ claude:
 
 ### 常见建议
 
-- 第一版部署一般保持 `codex.enabled: true`、`claude.enabled: false`。
-- 当前版本不要把 `default_runner` 从 `codex` 改走。
+- 大多数部署仍建议保持 `codex.enabled: true`；只有在 `ds doctor` 验证通过后再启用 `claude`。
+- 现在允许把 `default_runner` 改成 `claude`，但前提是对应 runner 已启用并且启动探测通过。
 - 如果你不希望任何自动审批，才把 `approval_policy` 调成更严格模式。
 - 如果项目经常需要长时间工具调用，不要随意把 `mcp_tool_timeout_sec` 改小。
 

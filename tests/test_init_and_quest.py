@@ -32,6 +32,8 @@ def test_init_creates_required_files(temp_home: Path) -> None:
     assert config["ui"]["auto_open_browser"] is True
     assert config["bootstrap"]["codex_ready"] is False
     assert config["bootstrap"]["codex_last_checked_at"] is None
+    assert config["bootstrap"]["claude_ready"] is False
+    assert config["bootstrap"]["claude_last_checked_at"] is None
     assert config["bootstrap"]["locale_source"] == "default"
     assert config["bootstrap"]["locale_initialized_from_browser"] is False
     assert config["bootstrap"]["locale_initialized_at"] is None
@@ -50,6 +52,9 @@ def test_init_creates_required_files(temp_home: Path) -> None:
     assert runners["codex"]["retry_initial_backoff_sec"] == 10.0
     assert runners["codex"]["retry_backoff_multiplier"] == 6.0
     assert runners["codex"]["retry_max_backoff_sec"] == 1800.0
+    assert runners["claude"]["enabled"] is False
+    assert runners["claude"]["binary"] == "claude"
+    assert runners["claude"]["status"] == "experimental"
 
 
 def test_legacy_codex_retry_profile_is_upgraded_when_loading_normalized_runners(temp_home: Path) -> None:
@@ -102,6 +107,20 @@ def test_new_creates_standalone_git_repo(temp_home: Path) -> None:
     assert snapshot["runner"] == "codex"
     assert "paths" in snapshot
     assert snapshot["summary"]["status_line"] == "Quest created. Waiting for baseline setup or reuse."
+
+
+def test_quest_settings_accept_claude_as_default_runner(temp_home: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    service = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home))
+    snapshot = service.create("claude runner quest")
+    monkeypatch.setattr("deepscientist.runners.list_runner_names", lambda: ["codex", "claude"])
+
+    updated = service.update_settings(snapshot["quest_id"], default_runner="claude")
+
+    assert updated["runner"] == "claude"
+    quest_yaml = service.read_quest_yaml(Path(updated["quest_root"]))
+    assert quest_yaml["default_runner"] == "claude"
 
 
 def test_sync_quest_prompts_backs_up_previous_active_tree(temp_home: Path) -> None:

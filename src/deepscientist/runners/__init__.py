@@ -5,6 +5,7 @@ from .registry import get_runner_factory, list_runner_names, register_runner
 
 __all__ = [
     "CodexRunner",
+    "ClaudeRunner",
     "RunRequest",
     "RunResult",
     "get_runner_factory",
@@ -19,6 +20,10 @@ def __getattr__(name: str):
         from .codex import CodexRunner
 
         return CodexRunner
+    if name == "ClaudeRunner":
+        from .claude import ClaudeRunner
+
+        return ClaudeRunner
     if name == "register_builtin_runners":
         from .builtins import register_builtin_runners
 

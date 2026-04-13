@@ -22,7 +22,7 @@ from .network import configure_runtime_proxy, urlopen_with_proxy as urlopen
 from .prompts import PromptBuilder
 from .quest import QuestService
 from .registries import BaselineRegistry
-from .runners import CodexRunner, RunRequest, get_runner_factory, register_builtin_runners
+from .runners import ClaudeRunner, CodexRunner, RunRequest, get_runner_factory, register_builtin_runners
 from .runtime_tools import RuntimeToolService
 from .runtime_logs import JsonlLogger
 from .shared import ensure_dir, read_json, read_yaml
@@ -338,7 +338,20 @@ def run_command(
         ),
         artifact_service=ArtifactService(home),
     )
-    register_builtin_runners(codex_runner=runner)
+    claude_cfg = runners.get("claude", {})
+    claude_runner = ClaudeRunner(
+        home=home,
+        repo_root=repo_root(),
+        binary=claude_cfg.get("binary", "claude"),
+        logger=logger,
+        prompt_builder=PromptBuilder(
+            repo_root(),
+            home,
+            prompt_version_selection=str(prompt_version or "").strip() or None,
+        ),
+        artifact_service=ArtifactService(home),
+    )
+    register_builtin_runners(codex_runner=runner, claude_runner=claude_runner)
     runner_name = str(config.get("default_runner", "codex")).strip().lower()
     runner_cfg = runners.get(runner_name, {})
     if runner_cfg.get("enabled") is False:

@@ -112,7 +112,7 @@ acp:
 - Allowed values: currently `codex`, `claude`
 - UI label: `Default runner`
 - Meaning: runner used when a project does not override it.
-- Notes: in the current branch, `codex` is the primary path and `claude` remains a reserved slot.
+- Notes: `codex` is still the primary default path, while `claude` is an experimental secondary runner for Claude-compatible backends such as Kimi Code.
 
 **`default_locale`**
 
@@ -416,7 +416,7 @@ These settings are compatibility knobs for ACP-style external consumers.
 `runners.yaml` defines which runner executes projects and what its default model, approval policy, sandbox, and retry behavior should be. In the current open-source release:
 
 - `codex`: primary path, enabled by default
-- `claude`: TODO / reserved slot, disabled by default, not runnable yet
+- `claude`: experimental secondary path, disabled by default, runnable with a compatible Claude-style CLI/backend
 
 ### Schema
 
@@ -574,7 +574,7 @@ claude:
 **`status`**
 
 - Type: `string`
-- Default: `claude=reserved_todo`
+- Default: `claude=experimental`
 - UI label: `Status note`
 - Meaning: operator-facing note such as `reserved_todo` or `experimental`.
 
@@ -595,8 +595,8 @@ claude:
 
 ### Practical guidance
 
-- For most installs, keep `codex.enabled: true` and `claude.enabled: false`.
-- Do not switch `default_runner` away from `codex` in the current release.
+- For most installs, keep `codex.enabled: true`. Enable `claude` only after its startup probe succeeds.
+- Switching `default_runner` to `claude` is supported, but only after `ds doctor` confirms the Claude-compatible runner is healthy.
 - Do not lower `mcp_tool_timeout_sec` casually if your workflow uses long-running tools.
 - Keep retry timing close to `1s / 2x / 8s max` unless you have a specific reason to slow recovery down.
 

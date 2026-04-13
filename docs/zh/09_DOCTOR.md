@@ -233,16 +233,15 @@ git config --global user.name "Your Name"
 git config --global user.email "you@example.com"
 ```
 
-### 误开启了 Claude
+### 验证 Claude 兼容 runner
 
-当前开源版本里，`claude` 仍然只是 TODO / 预留位，并不能正常运行。
-请在：
+`claude` 现在是实验性 runner。只有在你已经配置好兼容的 Claude Code / Kimi Code CLI，并且 `ds doctor` 的启动探测通过后，才建议启用它。
+
+配置位置：
 
 ```text
 ~/DeepScientist/config/runners.yaml
 ```
-
-里把它重新设为禁用。
 
 ## 说明
 

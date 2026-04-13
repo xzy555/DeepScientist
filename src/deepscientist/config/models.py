@@ -73,6 +73,9 @@ def default_config(home: Path) -> dict:
             "codex_ready": False,
             "codex_last_checked_at": None,
             "codex_last_result": {},
+            "claude_ready": False,
+            "claude_last_checked_at": None,
+            "claude_last_result": {},
             "locale_source": "default",
             "locale_initialized_from_browser": False,
             "locale_initialized_at": None,
@@ -130,7 +133,7 @@ def default_runners() -> dict:
             "model": "inherit",
             "model_reasoning_effort": "",
             "env": {},
-            "status": "reserved_todo",
+            "status": "experimental",
         },
     }
 

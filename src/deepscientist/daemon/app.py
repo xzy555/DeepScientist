@@ -79,7 +79,7 @@ from ..prompts import PromptBuilder
 from ..prompts.builder import classify_turn_intent, current_standard_skills
 from ..connector.qq_profiles import list_qq_profiles, merge_qq_profile_config, normalize_qq_connector_config
 from ..quest import QuestService
-from ..runners import CodexRunner, RunRequest, get_runner_factory, register_builtin_runners
+from ..runners import ClaudeRunner, CodexRunner, RunRequest, get_runner_factory, register_builtin_runners
 from ..runtime_logs import JsonlLogger
 from ..shared import append_jsonl, ensure_dir, generate_id, iter_jsonl, read_json, read_jsonl, read_jsonl_tail, read_text, resolve_within, run_command, slugify, utc_now, which, write_json
 from ..skills import SkillInstaller
@@ -236,11 +236,20 @@ class DaemonApp:
             prompt_builder=self.prompt_builder,
             artifact_service=self.artifact_service,
         )
-        register_builtin_runners(codex_runner=self.codex_runner)
+        self.claude_runner = ClaudeRunner(
+            home=home,
+            repo_root=self.repo_root,
+            binary=self.runners_config.get("claude", {}).get("binary", "claude"),
+            logger=self.logger,
+            prompt_builder=self.prompt_builder,
+            artifact_service=self.artifact_service,
+        )
+        register_builtin_runners(codex_runner=self.codex_runner, claude_runner=self.claude_runner)
         register_builtin_connector_bridges()
         register_builtin_channels(home=home, connectors_config=self.connectors_config)
         self.runners = {
             "codex": self._create_runner("codex"),
+            "claude": self._create_runner("claude"),
         }
         self.channels = {name: self._create_channel(name) for name in list_channel_names()}
         self.sessions = SessionStore()
@@ -1567,8 +1576,11 @@ class DaemonApp:
     def reload_runners_config(self) -> dict[str, object]:
         self.runners_config = self.config_manager.load_runners_config()
         codex_config = self.runners_config.get("codex", {})
+        claude_config = self.runners_config.get("claude", {})
         if isinstance(codex_config, dict):
             self.codex_runner.binary = str(codex_config.get("binary") or "codex")
+        if isinstance(claude_config, dict):
+            self.claude_runner.binary = str(claude_config.get("binary") or "claude")
         return {
             "ok": True,
             "runners": sorted(name for name, config in self.runners_config.items() if isinstance(config, dict)),
@@ -1577,6 +1589,10 @@ class DaemonApp:
                 "approval_policy": codex_config.get("approval_policy") if isinstance(codex_config, dict) else None,
                 "sandbox_mode": codex_config.get("sandbox_mode") if isinstance(codex_config, dict) else None,
                 "mcp_tool_timeout_sec": codex_config.get("mcp_tool_timeout_sec") if isinstance(codex_config, dict) else None,
+            },
+            "claude": {
+                "binary": self.claude_runner.binary,
+                "status": claude_config.get("status") if isinstance(claude_config, dict) else None,
             },
         }
 

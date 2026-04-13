@@ -231,10 +231,11 @@ git config --global user.name "Your Name"
 git config --global user.email "you@example.com"
 ```
 
-### Claude was enabled by mistake
+### Validating the Claude-compatible runner
 
-Current open-source releases keep `claude` as a TODO/reserved slot only.
-Set it back to disabled in:
+`claude` is an experimental runner. Keep it disabled unless you have a compatible Claude Code / Kimi Code CLI path configured and `ds doctor` can complete the startup probe successfully.
+
+Configure it in:
 
 ```text
 ~/DeepScientist/config/runners.yaml

@@ -89,12 +89,13 @@ def diagnose_runner_failure(
         )
 
     if "missing environment variable" in lower:
+        env_path = f"`runners.{normalized_runner}.env`" if normalized_runner else "`runners.<runner>.env`"
         return FailureDiagnosis(
             code="provider_env_missing",
             problem="A required provider environment variable is missing.",
             why="The configured model provider expects an API key or env var that was not present in the runner environment.",
             guidance=(
-                "Set the required key in `~/DeepScientist/config/runners.yaml` under `runners.codex.env`.",
+                f"Set the required key in `~/DeepScientist/config/runners.yaml` under {env_path}.",
                 "If you launch from a shell, export the provider key in that same shell before starting `ds`.",
             ),
             retriable=False,

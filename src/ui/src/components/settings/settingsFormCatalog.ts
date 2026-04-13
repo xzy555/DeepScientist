@@ -45,6 +45,7 @@ export const configSections: SettingsSection[] = [
         whereToGet: 'Choose the runner id that should execute projects most of the time.',
         options: [
           { label: 'Codex', value: 'codex' },
+          { label: 'Claude', value: 'claude' },
         ],
       },
       {
@@ -497,7 +498,7 @@ export const runnerCatalog: RunnerCatalogEntry[] = [
   {
     name: 'claude',
     label: 'Claude',
-    description: 'TODO / reserved runner slot. Keep disabled in the current release because it is not runnable yet.',
+    description: 'Experimental Claude-compatible runner. Use this with a compatible Claude Code or Kimi Code CLI/backend.',
   },
 ]
 
@@ -624,7 +625,7 @@ export const runnerFields: SettingsField[] = [
     key: 'status',
     label: 'Status note',
     kind: 'text',
-    placeholder: 'reserved_todo',
+    placeholder: 'experimental',
     description: 'Optional operator note about the state of this runner integration.',
     whereToGet: 'Use this for reminders like reserved, experimental, or pending setup.',
   },
