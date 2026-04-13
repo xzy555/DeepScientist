@@ -1,0 +1,83 @@
+schema_version: 1
+id: aisb.t3.032_ptsolver
+name: 'Personal Travel Solver: A Preference-Driven LLM-Solver System for Travel Planning'
+version: 0.1.0
+one_line: Package the RealTravel data foundation used by preference-aware travel planning systems.
+task_description: This packaged benchmark is a data foundation package for preference-aware travel planning
+  rather than a fully bundled planner implementation. The task context revolves around user-profile extraction,
+  point-of-interest summaries, and structured travel data preparation that would feed a downstream travel-planning
+  system.
+capability_tags:
+- research_code_optimization
+- travel_planning
+- llm_tooling
+- constraint_solving
+- personalization
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: low
+time_band: 1-2h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a planning task that mixes symbolic constraints, user
+  preferences, and travel databases without heavyweight GPU training.
+not_recommended_when: Do not use this if you need a benchmark focused on large-scale model finetuning
+  or multimodal data.
+paper:
+  title: 'Personal Travel Solver: A Preference-Driven LLM-Solver System for Travel Planning'
+  venue: ACL 2025
+  year: 2025
+  url: https://aclanthology.org/2025.acl-long.1339/
+download:
+  url: https://deepscientist.cc/AISB/032_ptsolver
+  archive_type: zip
+  local_dir_name: paper-32-PTSolver
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 20
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 16
+    ram_gb: 32
+    disk_gb: 50
+    gpu_count: 0
+    gpu_vram_gb: 0
+commercial:
+  annual_fee: null
+display:
+  palette_seed: sand-teal-itinerary
+  art_style: trip-planner
+  accent_priority: medium
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - The local repository primarily exposes the RealTravel data release rather than a full solver walkthrough.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/032_aisb.t3.032_ptsolver.jpg
+snapshot_status: data_only
+support_level: recovery
+primary_outputs:
+- user_profiles
+- poi_summaries
+- structured_travel_data
+launch_profiles:
+- id: data_prep
+  label: Data Prep
+  description: Run the preserved data-preparation scripts for user and POI processing.
+- id: planner_restore
+  label: Planner Restore
+  description: Restore the downstream planning system before treating this benchmark as runnable.

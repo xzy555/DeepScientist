@@ -1,0 +1,83 @@
+schema_version: 1
+id: aisb.t3.040_graniteguardian
+name: 'Granite Guardian: Comprehensive LLM Safeguarding'
+version: 0.1.0
+one_line: Optimize a multi-head LLM safeguard that scores jailbreaks, hallucinations, and other risks
+  under configurable criteria.
+task_description: This packaged benchmark covers Granite Guardian style LLM safeguarding across harms
+  such as jailbreaks, hallucinations, and unsafe responses. The task is to combine or calibrate multiple
+  risk heads so that safety detection metrics improve, while the current local package mainly preserves
+  cookbook-style usage routes rather than a bundled XSTEST evaluator.
+capability_tags:
+- research_code_optimization
+- llm_safety
+- guardrails
+- classification
+- evaluation
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 2-6h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a practical LLM-safeguard task with configurable criteria
+  and production-style monitoring use cases.
+not_recommended_when: Do not use this if you need a benchmark focused on generative quality rather than
+  safety and verification.
+paper:
+  title: 'Granite Guardian: Comprehensive LLM Safeguarding'
+  venue: NAACL 2025 Industry Track
+  year: 2025
+  url: https://arxiv.org/abs/2412.07724
+download:
+  url: https://deepscientist.cc/AISB/040_graniteguardian
+  archive_type: zip
+  local_dir_name: paper-40-GraniteGuardian
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 24
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 48
+commercial:
+  annual_fee: null
+display:
+  palette_seed: indigo-sand-shield
+  art_style: safety-console
+  accent_priority: high
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/040_aisb.t3.040_graniteguardian.jpg
+snapshot_status: external_eval_required
+support_level: recovery
+primary_outputs:
+- xstest_rh_auc
+- xstest_rh_f1
+- risk_scoring_examples
+launch_profiles:
+- id: cookbook_demo
+  label: Cookbook Demo
+  description: Run the packaged Granite Guardian cookbooks to verify model usage and risk scoring behavior.
+- id: restore_eval
+  label: Restore Eval Route
+  description: Restore or attach the missing XSTEST-style evaluator before treating this benchmark as
+    a faithful metric reproduction route.

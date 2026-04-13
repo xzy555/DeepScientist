@@ -1,0 +1,79 @@
+schema_version: 1
+id: aisb.t3.054_timebase
+name: 'TimeBase: The Power of Minimalism in Efficient Long-term Time Series Forecasting'
+version: 0.1.0
+one_line: Optimize an ultra-lightweight long-term forecasting model built around basis extraction and
+  segment-level prediction.
+task_description: This packaged benchmark covers an ultra-lightweight long-term forecasting model built
+  around basis extraction and segment-level prediction. The task is to preserve accuracy while keeping
+  the forecasting architecture simple, fast, and efficient on long-horizon benchmarks.
+capability_tags:
+- research_code_optimization
+- time_series_forecasting
+- efficient_models
+- forecasting
+- scientific_ml
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a forecasting task focused on efficiency and long-horizon
+  public benchmarks.
+not_recommended_when: Do not use this if you need a multimodal benchmark or a task dominated by giant
+  foundation models.
+paper:
+  title: 'TimeBase: The Power of Minimalism in Efficient Long-term Time Series Forecasting'
+  venue: ICML 2025 Spotlight
+  year: 2025
+  url: https://proceedings.mlr.press/v267/huang25az.html
+download:
+  url: https://deepscientist.cc/AISB/054_timebase
+  archive_type: zip
+  local_dir_name: paper-54-TimeBase
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 100
+    gpu_count: 1
+    gpu_vram_gb: 12
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 1000
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: ivory-blue-minimal
+  art_style: minimal-forecast
+  accent_priority: medium
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - Recommended disk is higher because the README also covers several very large-scale datasets.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/054_aisb.t3.054_timebase.jpg
+snapshot_status: runnable
+support_level: turnkey
+primary_outputs:
+- avg_mse
+- avg_mae
+- forecast_report
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run the packaged TimeBase benchmark evaluation route.

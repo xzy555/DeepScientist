@@ -1,0 +1,90 @@
+schema_version: 1
+id: aisb.t3.029_cdqgeoembed
+name: Conditional Dichotomy Quantification via Geometric Embedding
+version: 0.1.0
+one_line: Optimize opposite-aware embeddings and evaluation fusion for conditional dichotomy quantification.
+task_description: This packaged benchmark is intended to cover opposite-aware embeddings and evaluation
+  fusion for conditional dichotomy quantification. The task itself is to train or evaluate embeddings
+  that capture opposition and contrastive structure, but the current local snapshot lacks the executable
+  training and evaluation code and should be treated as a restoration target.
+capability_tags:
+- research_code_optimization
+- text_embeddings
+- contrastive_nlp
+- evaluation
+- classification
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: analysis_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this entry when you want paper-backed planning or upstream restoration for the opposition-aware
+  geo-embedding route.
+not_recommended_when: Do not treat this local package as a ready-to-run embedding benchmark; the executable
+  training and evaluation code is absent from the staged snapshot.
+paper:
+  title: Conditional Dichotomy Quantification via Geometric Embedding
+  venue: ACL 2025 Oral
+  year: 2025
+  url: https://aclanthology.org/2025.acl-long.383/
+download:
+  url: https://deepscientist.cc/AISB/029_cdqgeoembed
+  archive_type: zip
+  local_dir_name: paper-29-CDQGeoEmbed
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 16
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: cedar-blue-opposition
+  art_style: semantic-cartography
+  accent_priority: high
+environment:
+  python: '3.10'
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages:
+  - opposite-score==0.0.1
+  notes:
+  - The current local package does not preserve executable setup files or runnable source code; environment
+    hints here should be treated as provisional until upstream restoration.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/029_aisb.t3.029_cdqgeoembed.jpg
+risk_flags:
+- source_snapshot_incomplete
+- route_caveat
+dataset_download:
+  notes:
+  - The current local package does not preserve an executable benchmark route; treat dataset setup as
+    part of upstream restoration rather than a bundled run path.
+snapshot_status: restore_needed
+support_level: recovery
+primary_outputs:
+- avg_dcf
+launch_profiles:
+- id: analysis_only
+  label: Analysis Only
+  description: Review the preserved metadata and audit materials for the geo-embedding benchmark.
+- id: restore_first
+  label: Restore First
+  description: Recover the upstream training and evaluation source tree before treating this benchmark
+    as runnable.

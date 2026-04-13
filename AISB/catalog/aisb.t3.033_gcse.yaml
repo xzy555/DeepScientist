@@ -1,0 +1,86 @@
+schema_version: 1
+id: aisb.t3.033_gcse
+name: Enhancing Unsupervised Sentence Embeddings via Knowledge-Driven Data Augmentation and Gaussian-Decayed
+  Contrastive Learning
+version: 0.1.0
+one_line: Optimize unsupervised sentence embeddings with knowledge-guided augmentation and noise-aware
+  contrastive learning.
+task_description: This packaged benchmark covers unsupervised sentence embeddings trained with knowledge-guided
+  augmentation and noise-aware contrastive learning. The task is to improve general-purpose sentence representation
+  quality across retrieval or semantic similarity benchmarks while keeping the unsupervised training route
+  stable.
+capability_tags:
+- research_code_optimization
+- sentence_embeddings
+- representation_learning
+- data_augmentation
+- nlp
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a moderate-scale NLP training task around semantic
+  similarity and embedding robustness.
+not_recommended_when: Do not use this if you need a fully CPU-only workflow or a benchmark centered on
+  full autoregressive generation.
+paper:
+  title: Enhancing Unsupervised Sentence Embeddings via Knowledge-Driven Data Augmentation and Gaussian-Decayed
+    Contrastive Learning
+  venue: ACL 2025
+  year: 2025
+  url: https://aclanthology.org/2025.acl-long.244/
+download:
+  url: https://deepscientist.cc/AISB/033_gcse
+  archive_type: zip
+  local_dir_name: paper-33-GCSE
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 16
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: mint-slate-semantic
+  art_style: embedding-atlas
+  accent_priority: medium
+environment:
+  python: '3.12'
+  cuda: '12.0'
+  pytorch: '2.0'
+  flash_attn: null
+  key_packages:
+  - transformers==4.44.1
+  notes:
+  - The README explicitly recommends a separate vLLM environment for data synthesis.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/033_aisb.t3.033_gcse.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- avg_sts
+- embedding_checkpoint
+- contrastive_eval_report
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run one packaged sentence-embedding evaluation route.
+- id: full_train_eval
+  label: Full Train + Eval
+  description: Train the GCSE embedding model and run the packaged semantic evaluation suite.

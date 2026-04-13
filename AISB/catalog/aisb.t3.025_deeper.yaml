@@ -1,0 +1,84 @@
+schema_version: 1
+id: aisb.t3.025_deeper
+name: 'DEEPER: Directed Persona Refinement for Dynamic Persona Modeling'
+version: 0.1.0
+one_line: Optimize dynamic persona modeling with offline reinforcement learning and discrepancy-driven
+  refinement.
+task_description: This packaged benchmark covers dynamic persona modeling with offline reinforcement learning
+  and discrepancy-driven refinement. The task is to model evolving user personas, refine policies or representations
+  over offline interaction data, and improve the benchmark's persona-sensitive objective.
+capability_tags:
+- research_code_optimization
+- personalization
+- offline_rl
+- user_modeling
+- large_language_models
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 1d+
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a personalization task that mixes behavior modeling,
+  preference optimization, and cross-domain generalization.
+not_recommended_when: Do not use this if you cannot host 8B-class models or if you need a small non-RL
+  baseline task.
+paper:
+  title: 'DEEPER: Directed Persona Refinement for Dynamic Persona Modeling'
+  venue: ACL 2025
+  year: 2025
+  url: https://arxiv.org/abs/2502.11078
+download:
+  url: https://deepscientist.cc/AISB/025_deeper
+  archive_type: zip
+  local_dir_name: paper-25-DEEPER
+resources:
+  minimum:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 48
+  recommended:
+    cpu_cores: 32
+    ram_gb: 128
+    disk_gb: 300
+    gpu_count: 2
+    gpu_vram_gb: 80
+commercial:
+  annual_fee: null
+display:
+  palette_seed: plum-sand-persona
+  art_style: human-centered
+  accent_priority: high
+environment:
+  python: '3.10'
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages:
+  - transformers==4.45.0
+  - vllm==0.7.3
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/025_aisb.t3.025_deeper.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- mae_round4
+- persona_refinement_model
+- evaluation_report
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run one packaged evaluation pass on the DEEPER persona modeling stack.
+- id: full_refinement
+  label: Full Refinement
+  description: Run the packaged persona refinement workflow including offline training and downstream
+    evaluation.

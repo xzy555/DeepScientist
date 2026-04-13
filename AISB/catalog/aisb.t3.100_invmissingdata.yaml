@@ -1,0 +1,67 @@
+schema_version: 1
+id: aisb.t3.100_invmissingdata
+name: Inverse Methods for Missing Data Imputation
+version: 0.1.0
+one_line: Optimize iterative missing-data imputation with kernel point adaptation and oracle-feature supervision.
+task_description: This packaged benchmark covers iterative missing-data imputation with kernel point adaptation
+  and oracle-feature supervision. The task is to fill missing values more accurately than simpler imputers
+  while exploiting kernel-adapted geometry and privileged supervision.
+capability_tags:
+- research_code_optimization
+- missing_data
+- imputation
+- kernel_methods
+- tabular_ml
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 2-6h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a missing-data benchmark that focuses on flexible nonparametric
+  imputation behavior.
+not_recommended_when: Do not use this if you need a heavy multimodal benchmark.
+paper:
+  title: Inverse Methods for Missing Data Imputation
+  venue: ICML 2025
+  year: 2025
+  url: https://proceedings.mlr.press/v267/kim25ag.html
+download:
+  url: https://deepscientist.cc/AISB/100_invmissingdata
+  archive_type: zip
+  local_dir_name: paper-100-InvMissingData
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 30
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 16
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 8
+commercial:
+  annual_fee: null
+display:
+  palette_seed: bone-blue-impute
+  art_style: imputation-lab
+  accent_priority: medium
+environment:
+  python: '3.10'
+  cuda: null
+  pytorch: 2.7.1
+  flash_attn: null
+  key_packages: []
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/100_aisb.t3.100_invmissingdata.jpg

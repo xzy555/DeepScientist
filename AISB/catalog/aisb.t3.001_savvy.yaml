@@ -1,0 +1,138 @@
+schema_version: 1
+id: aisb.t3.001_savvy
+name: 'SAVVY: Spatial Awareness via Audio-Visual LLMs through Seeing and Hearing'
+version: 0.1.0
+one_line: Optimize the bundled SAVVY audio-visual spatial reasoning stack and SAVVY-Bench evaluation workflow.
+task_description: This packaged benchmark covers SAVVY's training-free spatial reasoning pipeline together
+  with SAVVY-Bench evaluation for dynamic 3D audio-visual question answering. The task is to recover object
+  trajectories from video, audio, and text-guided segmentation cues, build a unified global 3D map, and
+  answer egocentric or allocentric spatial questions on benchmark clips. Primary staged metrics track
+  overall benchmark accuracy plus the evaluator's spatial AVQA and relative-accuracy outputs.
+capability_tags:
+- research_code_optimization
+- multimodal_reasoning
+- audio_visual_learning
+- spatial_reasoning
+- benchmark_evaluation
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 1-2d
+difficulty: hard
+data_access: public
+risk_flags:
+- route_caveat
+- licensed_data_route
+- multi_env_benchmark
+risk_notes:
+- The core SAVVY algorithm is training-free, but a full paper-faithful route spans separate SAVVY and
+  SAVVY-Bench components plus per-model evaluation environments.
+- The public Hugging Face SAVVY-Bench helps, but the raw preprocessing route still references Project
+  Aria licensed data and hundreds of GB of multimodal assets.
+- The pipeline depends on third-party models and tools such as ZoeDepth, EfficientViT segmentation components,
+  and Gemini-based snapshot-descriptor scripts.
+recommended_when: Use this benchmark when you want a training-free but systems-heavy AV-LLM spatial reasoning
+  benchmark with both pipeline execution and benchmark evaluation.
+not_recommended_when: Do not use this if you need a single-env benchmark, low local storage, or a route
+  with no external model and API dependencies.
+paper:
+  title: 'SAVVY: Spatial Awareness via Audio-Visual LLMs through Seeing and Hearing'
+  venue: NeurIPS 2025 Oral
+  year: 2025
+  url: https://arxiv.org/abs/2506.05414
+download:
+  url: https://deepscientist.cc/AISB/001_savvy
+  archive_type: zip
+  local_dir_name: paper-1-SAVVY
+dataset_download:
+  primary_method: mixed
+  sources:
+  - kind: huggingface
+    url: https://huggingface.co/datasets/uwneuroai/SAVVY-Bench
+    access: public
+    note: '| **SAVVY-Bench Dataset** | [HuggingFace](https://huggingface.co/datasets/uwneuroai/SAVVY-Bench)
+      | Preview QA pairs in the Hugging Face Data Studio|'
+  - kind: github_repo
+    url: https://github.com/shlizee/savvy/tree/main/SAVVY
+    access: public
+    note: '- Data preprocessing scripts available in the [SAVVY repository](https://github.com/shlizee/savvy/tree/main/SAVVY)
+      under `data_utils/` folder'
+  - kind: github_repo
+    url: https://github.com/shlizee/savvy/tree/main/SAVVY-Bench
+    access: public
+    note: '**Run Benchmarks**: Visit the [SAVVY-Bench evaluation repository](https://github.com/shlizee/savvy/tree/main/SAVVY-Bench)
+      for setup instructions and evaluation scripts.'
+  - kind: github_repo
+    url: https://github.com/shlizee/savvy/tree/main/SAVVY-Bench/
+    access: public
+    note: '| **Evaluation Code** | [SAVVY-Bench](https://github.com/shlizee/savvy/tree/main/SAVVY-Bench/)
+      | Multi-model benchmarking framework |'
+  - kind: github_repo
+    url: https://github.com/shlizee/savvy/tree/main/SAVVY/
+    access: public
+    note: '| **SAVVY Algorithm** | [SAVVY](https://github.com/shlizee/savvy/tree/main/SAVVY/) | Training-free
+      spatial reasoning pipeline; data preprocessing tools, benchmark data, annotations |'
+  notes:
+  - A public Hugging Face SAVVY-Bench route exists for benchmark evaluation, but the raw preprocessing
+    route still depends on Project Aria data access and substantial storage.
+  - The benchmark and algorithm repositories are split, so a faithful setup usually requires both the
+    packaged code and additional external assets or model environments.
+credential_requirements:
+  mode: none
+  items: []
+  notes:
+  - No explicit dataset or API credential variable was detected in the bundled source snapshot.
+resources:
+  minimum:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 250
+    gpu_count: 1
+    gpu_vram_gb: 24
+  recommended:
+    cpu_cores: 32
+    ram_gb: 128
+    disk_gb: 500
+    gpu_count: 2
+    gpu_vram_gb: 48
+commercial:
+  annual_fee: null
+display:
+  palette_seed: ember-cyan-signal
+  art_style: cinematic-technical
+  accent_priority: high
+environment:
+  python: '3.12'
+  cuda: null
+  pytorch: 2.8.0
+  flash_attn: null
+  key_packages:
+  - transformers==4.57.0
+  - torch==2.8.0
+  - open3d==0.19.0
+  - google-generativeai
+  notes:
+  - The packaged SAVVY install script creates a Python 3.12 environment and separately clones ZoeDepth
+    and EfficientViT helper repositories.
+  - The SAVVY-Bench README explicitly recommends separate environments for different AV-LLM evaluators
+    because their dependency stacks diverge.
+image_path: ../../../AISB/image/001_aisb.t3.001_savvy.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- overall_accuracy
+- spatial_avqa_score
+- predavmap_json
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run the packaged SAVVY evaluation route on the available benchmark assets.
+- id: full_pipeline
+  label: Full Pipeline
+  description: Run the full training-free SAVVY reasoning pipeline plus benchmark evaluation.

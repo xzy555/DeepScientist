@@ -1,0 +1,84 @@
+schema_version: 1
+id: aisb.t3.070_certifiedunlearning
+name: Certified Unlearning for Neural Networks
+version: 0.1.0
+one_line: Optimize privacy-aware neural network unlearning under certified guarantees and constrained
+  retraining budgets.
+task_description: This packaged benchmark covers privacy-aware neural network unlearning under certified
+  guarantees and constrained retraining budgets. The task is to forget selected data or behaviors while
+  preserving utility and maintaining benchmark-level unlearning guarantees.
+capability_tags:
+- research_code_optimization
+- machine_unlearning
+- privacy
+- neural_networks
+- certification
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a privacy-and-unlearning task with measurable optimization
+  efficiency targets.
+not_recommended_when: Do not use this if you only need standard image-classification training without
+  privacy or unlearning constraints.
+paper:
+  title: Certified Unlearning for Neural Networks
+  venue: ICML 2025
+  year: 2025
+  url: https://arxiv.org/abs/2506.06985
+download:
+  url: https://deepscientist.cc/AISB/070_certifiedunlearning
+  archive_type: zip
+  local_dir_name: paper-70-CertifiedUnlearning
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 12
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 2
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: silver-plum-unlearn
+  art_style: privacy-lab
+  accent_priority: high
+environment:
+  python: '3.8'
+  cuda: null
+  pytorch: 2.6.0
+  flash_attn: null
+  key_packages:
+  - jax==0.5.2
+  - flax==0.10.4
+  - transformers==4.49.0
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/070_aisb.t3.070_certifiedunlearning.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- epochs_to_50pct_val_acc
+- unlearning_checkpoint
+- certification_report
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run one packaged certified unlearning evaluation route.
+- id: full_unlearning
+  label: Full Unlearning
+  description: Run the packaged privacy-aware unlearning training and certification workflow.

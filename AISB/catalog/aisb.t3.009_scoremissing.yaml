@@ -1,0 +1,86 @@
+schema_version: 1
+id: aisb.t3.009_scoremissing
+name: Score Matching with Missing Data
+version: 0.1.0
+one_line: Optimize missing-data score matching and structured probabilistic estimation across simulated
+  and real-world experiments.
+task_description: This packaged benchmark covers missing-data score matching for structured probabilistic
+  estimation on both simulated and real-world experiments. The task is to model partially observed variables
+  with score-based objectives, recover missing values or latent distributions, and improve likelihood-style
+  or error-based benchmark metrics under controlled missingness.
+capability_tags:
+- research_code_optimization
+- missing_data
+- probabilistic_modeling
+- score_matching
+- tabular_ml
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a probabilistic missing-data task with both synthetic
+  and real-world evaluation scripts.
+not_recommended_when: Do not use this if you need a lightweight single-framework project or a benchmark
+  centered on large pretrained foundation models.
+paper:
+  title: Score Matching with Missing Data
+  venue: ICML 2025 Spotlight
+  year: 2025
+  url: https://arxiv.org/abs/2506.00557
+download:
+  url: https://deepscientist.cc/AISB/009_scoremissing
+  archive_type: zip
+  local_dir_name: paper-9-ScoreMissing
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 16
+commercial:
+  annual_fee: null
+display:
+  palette_seed: moss-indigo-density
+  art_style: statistical-notebook
+  accent_priority: medium
+environment:
+  python: '3.10'
+  cuda: null
+  pytorch: 1.12.1
+  flash_attn: null
+  key_packages:
+  - jax==0.3.25
+  - jaxlib==0.3.25
+  - tensorflow==2.11.0
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/009_aisb.t3.009_scoremissing.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- auc
+- accuracy
+- structure_recovery_report
+launch_profiles:
+- id: quick_check
+  label: Quick Check
+  description: Run one score-matching experiment script on a reduced missing-data setting.
+- id: full_experiments
+  label: Full Experiments
+  description: Run the broader simulated and real-world score-matching experiments preserved in the package.

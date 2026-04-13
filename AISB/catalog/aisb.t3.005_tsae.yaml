@@ -1,0 +1,83 @@
+schema_version: 1
+id: aisb.t3.005_tsae
+name: 'Temporal Sparse Autoencoders: Leveraging the Sequential Nature of Language for Interpretability'
+version: 0.1.0
+one_line: Optimize temporal sparse autoencoders and SAEBench-style interpretability evaluation for language
+  models.
+task_description: This packaged benchmark covers temporal sparse autoencoders for language-model representations
+  together with SAEBench-style interpretability evaluation. The task is to train sparse feature dictionaries
+  over temporal activations, audit feature quality and sparsity behavior, and improve interpretability
+  metrics on the benchmark route.
+capability_tags:
+- research_code_optimization
+- mechanistic_interpretability
+- sparse_autoencoders
+- large_language_models
+- evaluation
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 1d+
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a mechanistic-interpretability task with both SAE training
+  and judge-model evaluation components.
+not_recommended_when: Do not use this if you need a lightweight CPU-only benchmark or cannot host LLM
+  checkpoints locally.
+paper:
+  title: 'Temporal Sparse Autoencoders: Leveraging the Sequential Nature of Language for Interpretability'
+  venue: arXiv preprint
+  year: 2025
+  url: https://arxiv.org/abs/2511.05541
+download:
+  url: https://deepscientist.cc/AISB/005_tsae
+  archive_type: zip
+  local_dir_name: paper-5-TSAE
+resources:
+  minimum:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 100
+    gpu_count: 1
+    gpu_vram_gb: 24
+  recommended:
+    cpu_cores: 32
+    ram_gb: 128
+    disk_gb: 200
+    gpu_count: 1
+    gpu_vram_gb: 48
+commercial:
+  annual_fee: null
+display:
+  palette_seed: amber-ink-latent
+  art_style: editorial-technical
+  accent_priority: high
+environment:
+  python: '3.11'
+  cuda: '12.8'
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - Poetry-managed environment; torch wheels are pulled from the cu128 index.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/005_aisb.t3.005_tsae.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- autointerp_score
+- sae_checkpoint
+- interpretability_report
+launch_profiles:
+- id: quick_check
+  label: Quick Check
+  description: Run a small temporal SAE training or evaluation pass to verify the pipeline.
+- id: autointerp_eval
+  label: Autointerp Eval
+  description: Train temporal sparse autoencoders and evaluate them with the packaged SAEBench-style route.

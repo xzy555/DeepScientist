@@ -1,0 +1,70 @@
+schema_version: 1
+id: aisb.t3.097_wassersteintl
+name: Wasserstein Transfer Learning
+version: 0.1.0
+one_line: Optimize Wasserstein-based transfer estimators for distributional learning across source and
+  target populations.
+task_description: This packaged benchmark covers Wasserstein-based transfer estimators for distributional
+  learning across source and target populations. The task is to estimate target distributions or prediction
+  risk from multiple related source populations, then improve RMSPR and per-point runtime on the benchmark
+  route.
+capability_tags:
+- research_code_optimization
+- transfer_learning
+- wasserstein_geometry
+- distributional_learning
+- statistical_modeling
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: low
+time_band: 2-6h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a statistics-heavy transfer-learning task that runs
+  mainly in R rather than on GPUs.
+not_recommended_when: Do not use this if you need a neural-network benchmark or CUDA-heavy training.
+paper:
+  title: Wasserstein Transfer Learning
+  venue: arXiv preprint
+  year: 2025
+  url: https://arxiv.org/abs/2505.17404
+download:
+  url: https://deepscientist.cc/AISB/097_wassersteintl
+  archive_type: zip
+  local_dir_name: paper-97-WassersteinTL
+resources:
+  minimum:
+    cpu_cores: 4
+    ram_gb: 8
+    disk_gb: 10
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 20
+    gpu_count: 0
+    gpu_vram_gb: 0
+commercial:
+  annual_fee: null
+display:
+  palette_seed: teal-stone-wasserstein
+  art_style: statistical-transport
+  accent_priority: medium
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - This workflow is R-centric rather than PyTorch-centric.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/097_aisb.t3.097_wassersteintl.jpg

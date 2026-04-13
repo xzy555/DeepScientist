@@ -1,0 +1,83 @@
+schema_version: 1
+id: aisb.t3.015_frspec
+name: 'FR-Spec: Accelerating Large-Vocabulary Language Models via Frequency-Ranked Speculative Sampling'
+version: 0.1.0
+one_line: Optimize speculative decoding kernels and tree-shape controls for faster large-vocabulary LLM
+  inference.
+task_description: This packaged benchmark covers speculative decoding kernels and tree-shape controls
+  for faster large-vocabulary LLM inference. The task is to improve latency and throughput through speculation
+  strategy, cache behavior, or CUDA-level optimization while keeping generation quality and acceptance
+  rates stable.
+capability_tags:
+- research_code_optimization
+- large_language_models
+- speculative_decoding
+- cuda_kernels
+- inference_acceleration
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want an LLM-systems task focused on custom CUDA builds and
+  inference-speed measurement.
+not_recommended_when: Do not use this if you lack a modern NVIDIA GPU or cannot compile custom CUDA extensions.
+paper:
+  title: 'FR-Spec: Accelerating Large-Vocabulary Language Models via Frequency-Ranked Speculative Sampling'
+  venue: ACL 2025 Main
+  year: 2025
+  url: https://arxiv.org/abs/2502.14856
+download:
+  url: https://deepscientist.cc/AISB/015_frspec
+  archive_type: zip
+  local_dir_name: paper-15-FRSpec
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 100
+    gpu_count: 1
+    gpu_vram_gb: 24
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 200
+    gpu_count: 1
+    gpu_vram_gb: 48
+commercial:
+  annual_fee: null
+display:
+  palette_seed: neon-slate-kernel
+  art_style: systems-benchmark
+  accent_priority: high
+environment:
+  python: '3.11'
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages:
+  - transformers==4.46.2
+  notes:
+  - Building the fast kernels requires nvcc and a matching CUDA architecture configuration.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/015_aisb.t3.015_frspec.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- mt_bench_tokens_per_second
+- task_throughput_report
+- speed_benchmark
+launch_profiles:
+- id: quick_check
+  label: Quick Check
+  description: Run one packaged speed benchmark to verify FR-Spec throughput gains.
+- id: full_speed_suite
+  label: Full Speed Suite
+  description: Run the broader packaged throughput benchmarks across mt-bench and local tasks.

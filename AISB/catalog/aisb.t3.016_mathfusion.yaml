@@ -1,0 +1,125 @@
+schema_version: 1
+id: aisb.t3.016_mathfusion
+name: 'MathFusion: Enhancing Mathematical Problem-solving of LLM through Instruction Fusion'
+version: 0.1.0
+one_line: Optimize instruction-fused math reasoning models and evaluation prompts for 7B to 8B LLM backbones.
+task_description: This packaged benchmark covers MathFusion's instruction-fusion pipeline for mathematical
+  reasoning models. The task is to train a 7B to 8B base model on MathFusionQA using the sequential, parallel,
+  and conditional fusion data splits, then evaluate the resulting model with the included Qwen2.5-Math
+  and DART-Math-based scripts across math reasoning benchmarks. The primary staged metric is benchmark
+  accuracy.
+capability_tags:
+- research_code_optimization
+- mathematical_reasoning
+- large_language_models
+- instruction_tuning
+- evaluation
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 2-4d
+difficulty: hard
+data_access: public
+risk_flags: []
+risk_notes: []
+recommended_when: Use this benchmark when you want a full-parameter math SFT route with dataset synthesis,
+  model training, and six-benchmark evaluation.
+not_recommended_when: Do not use this if you only need inference-only prompting or cannot support long-context
+  full-parameter SFT plus external math evaluation harnesses.
+paper:
+  title: 'MathFusion: Enhancing Mathematical Problem-solving of LLM through Instruction Fusion'
+  venue: ACL 2025 Main
+  year: 2025
+  url: https://arxiv.org/abs/2503.16212
+download:
+  url: https://deepscientist.cc/AISB/016_mathfusion
+  archive_type: zip
+  local_dir_name: paper-16-MathFusion
+dataset_download:
+  primary_method: mixed
+  sources:
+  - kind: huggingface
+    url: https://huggingface.co/datasets/QizhiPei/MathFusionQA
+    access: public
+    note: '| MathFusionQA | - | - | - | [link](https://huggingface.co/datasets/QizhiPei/MathFusionQA)
+      |'
+  - kind: github_repo
+    url: https://github.com/QwenLM/Qwen2.5-Math
+    access: public
+    note: Our evaluation codes are adapted from [Qwen2.5-Math](https://github.com/QwenLM/Qwen2.5-Math)
+      (for in-domain datasets) and [DART-Math](https://github.com/hkust-nlp/dart-math) (for out-of-domain
+      datasets).
+  - kind: github_repo
+    url: https://github.com/hiyouga/LLaMA-Factory
+    access: public
+    note: Load the data from [MathFusionQA](https://huggingface.co/datasets/QizhiPei/MathFusionQA), then
+      convert each split to `.json` file according to [LLaMA-Factory](https://github.com/hiyouga/LLaMA-Factory).
+      The training pr...
+  - kind: github_repo
+    url: https://github.com/hkust-nlp/dart-math
+    access: public
+    note: Our evaluation codes are adapted from [Qwen2.5-Math](https://github.com/QwenLM/Qwen2.5-Math)
+      (for in-domain datasets) and [DART-Math](https://github.com/hkust-nlp/dart-math) (for out-of-domain
+      datasets).
+  notes:
+  - Reproduction requires MathFusionQA plus conversion into LLaMA-Factory JSON files before training.
+  - Evaluation spans six benchmarks and depends on additional external harness components from Qwen2.5-Math
+    and DART-Math.
+credential_requirements:
+  mode: none
+  items: []
+  notes:
+  - No explicit dataset or API credential variable was detected in the bundled source snapshot.
+resources:
+  minimum:
+    cpu_cores: 16
+    ram_gb: 128
+    disk_gb: 300
+    gpu_count: 2
+    gpu_vram_gb: 80
+  recommended:
+    cpu_cores: 64
+    ram_gb: 256
+    disk_gb: 500
+    gpu_count: 8
+    gpu_vram_gb: 80
+commercial:
+  annual_fee: null
+display:
+  palette_seed: chalk-indigo-proof
+  art_style: academic-modern
+  accent_priority: high
+environment:
+  python: '3.10'
+  cuda: '12.1'
+  pytorch: 2.3.1
+  flash_attn: null
+  key_packages:
+  - deepspeed==0.15.4
+  - vllm==0.5.3.post1
+  - transformers==4.46.1
+  notes:
+  - The training route is full-parameter SFT in LLaMA-Factory with DeepSpeed, flash-attn FA2, bf16, and
+    a cutoff length of 4096.
+  - The ACL paper appendix reports 3 training epochs with batch size 128 on 8x NVIDIA A100 GPUs for both
+    baselines and MathFusion runs.
+image_path: ../../../AISB/image/016_aisb.t3.016_mathfusion.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- accuracy
+- finetuned_checkpoint
+- benchmark_report
+launch_profiles:
+- id: quick_check
+  label: Quick Check
+  description: Run a lightweight evaluation or short sanity route on the packaged MathFusion stack.
+- id: full_train_eval
+  label: Full Train + Eval
+  description: Train on MathFusionQA and run the packaged math benchmark evaluation workflow.

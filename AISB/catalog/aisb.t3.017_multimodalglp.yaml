@@ -1,0 +1,83 @@
+schema_version: 1
+id: aisb.t3.017_multimodalglp
+name: Synergizing LLMs with Global Label Propagation for Multimodal Fake News Detection
+version: 0.1.0
+one_line: Optimize multimodal fake-news detection with graph label propagation and LLM-derived pseudo
+  labels.
+task_description: This packaged benchmark covers multimodal fake-news detection with graph label propagation
+  and LLM-derived pseudo labels. The task is to combine textual, visual, and graph-structured evidence
+  so that fake-news classification improves under weak or partially labeled supervision.
+capability_tags:
+- research_code_optimization
+- multimodal_learning
+- fake_news_detection
+- graph_learning
+- classification
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a multimodal graph-learning task with social-media
+  data and pseudo-label refinement.
+not_recommended_when: Do not use this if you need a tiny text-only benchmark or cannot host multimodal
+  benchmark data locally.
+paper:
+  title: Synergizing LLMs with Global Label Propagation for Multimodal Fake News Detection
+  venue: ACL 2025
+  year: 2025
+  url: https://arxiv.org/abs/2506.00488
+download:
+  url: https://deepscientist.cc/AISB/017_multimodalglp
+  archive_type: zip
+  local_dir_name: paper-17-MultimodalGLP
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 100
+    gpu_count: 1
+    gpu_vram_gb: 16
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 200
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: ruby-graph-signal
+  art_style: social-graph
+  accent_priority: high
+environment:
+  python: null
+  cuda: null
+  pytorch: 2.7.1
+  flash_attn: null
+  key_packages:
+  - torch-geometric==2.6.1
+  - dgl==2.1.0
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/017_aisb.t3.017_multimodalglp.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- accuracy
+- pseudo_label_artifacts
+- benchmark_report
+launch_profiles:
+- id: quick_check
+  label: Quick Check
+  description: Run one packaged fake-news training/eval pass to verify the code path.
+- id: full_train_eval
+  label: Full Train + Eval
+  description: Run the graph label propagation and multimodal fake-news detection workflow end to end.

@@ -1,0 +1,79 @@
+schema_version: 1
+id: aisb.t3.076_aanet
+name: 'AANet: Virtual Screening under Structural Uncertainty via Alignment and Aggregation'
+version: 0.1.0
+one_line: Optimize structure-based virtual screening with uncertainty-aware pocket alignment and aggregation.
+task_description: This packaged benchmark covers structure-based virtual screening with uncertainty-aware
+  pocket alignment and aggregation. The task is to score or rank candidate binders by combining structural
+  alignment, uncertainty estimates, and downstream screening metrics.
+capability_tags:
+- research_code_optimization
+- drug_discovery
+- virtual_screening
+- protein_ligand_modeling
+- structural_biology
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 1d+
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a structure-based drug discovery task with docking
+  channels, protein pockets, and screening metrics.
+not_recommended_when: Do not use this if you cannot handle molecular data and heavy structural preprocessing.
+paper:
+  title: 'AANet: Virtual Screening under Structural Uncertainty via Alignment and Aggregation'
+  venue: NeurIPS 2025
+  year: 2025
+  url: https://openreview.net/forum?id=TUh4GDposM
+download:
+  url: https://deepscientist.cc/AISB/076_aanet
+  archive_type: zip
+  local_dir_name: paper-76-AANet
+resources:
+  minimum:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+  recommended:
+    cpu_cores: 32
+    ram_gb: 128
+    disk_gb: 300
+    gpu_count: 1
+    gpu_vram_gb: 48
+commercial:
+  annual_fee: null
+display:
+  palette_seed: emerald-bone-pocket
+  art_style: molecular-discovery
+  accent_priority: high
+environment:
+  python: null
+  cuda: '11.3'
+  pytorch: 1.11.0
+  flash_attn: null
+  key_packages: []
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/076_aisb.t3.076_aanet.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- bedroc
+- virtual_screening_scores
+- screening_checkpoint
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run one packaged DUDE or PCBA evaluation route with the released checkpoint.
+- id: two_phase_train
+  label: Two-Phase Train
+  description: Run the packaged AANet alignment and aggregation training workflow before evaluation.

@@ -1,0 +1,84 @@
+schema_version: 1
+id: aisb.t3.012_efficientqat
+name: 'EfficientQAT: Efficient Quantization-Aware Training for Large Language Models'
+version: 0.1.0
+one_line: Optimize low-bit LLM quantization-aware training and post-hoc calibration for 7B to 70B model
+  families.
+task_description: This packaged benchmark covers low-bit LLM quantization-aware training and post-hoc
+  calibration across 7B to 70B model families. The task is to preserve model quality under aggressive
+  quantization, tune QAT or calibration routes, and compare perplexity or task metrics against stronger
+  full-precision baselines.
+capability_tags:
+- research_code_optimization
+- large_language_models
+- quantization
+- model_compression
+- efficient_inference
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 1d+
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want an LLM-systems task centered on quantization-aware
+  training, calibration, and low-bit deployment.
+not_recommended_when: Do not use this if you do not have access to high-memory GPUs or if you need a small-model-only
+  benchmark.
+paper:
+  title: 'EfficientQAT: Efficient Quantization-Aware Training for Large Language Models'
+  venue: ACL 2025 Main
+  year: 2025
+  url: https://arxiv.org/abs/2407.11062
+download:
+  url: https://deepscientist.cc/AISB/012_efficientqat
+  archive_type: zip
+  local_dir_name: paper-12-EfficientQAT
+resources:
+  minimum:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 200
+    gpu_count: 1
+    gpu_vram_gb: 48
+  recommended:
+    cpu_cores: 32
+    ram_gb: 128
+    disk_gb: 500
+    gpu_count: 2
+    gpu_vram_gb: 80
+commercial:
+  annual_fee: null
+display:
+  palette_seed: amber-steel-llm
+  art_style: hardware-editorial
+  accent_priority: high
+environment:
+  python: '3.11'
+  cuda: null
+  pytorch: 2.2.2
+  flash_attn: null
+  key_packages:
+  - bitsandbytes==0.41.0
+  - transformers==4.40.1
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/012_aisb.t3.012_efficientqat.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- wikitext2_ppl
+- c4_ppl
+- quantized_checkpoint
+launch_profiles:
+- id: calibration_only
+  label: Calibration Only
+  description: Run the packaged calibration route without full quantization-aware retraining.
+- id: qat_eval
+  label: QAT Eval
+  description: Run the packaged EfficientQAT training and evaluation workflow for the target model family.

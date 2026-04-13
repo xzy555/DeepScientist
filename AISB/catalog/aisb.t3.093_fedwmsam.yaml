@@ -1,0 +1,71 @@
+schema_version: 1
+id: aisb.t3.093_fedwmsam
+name: 'FedWMSAM: Fast and Flat Federated Learning via Weighted Momentum and Sharpness-Aware
+  Minimization'
+version: 0.1.0
+one_line: Optimize federated optimization under non-IID data with weighted momentum
+  and SAM-style updates.
+task_description: This packaged benchmark covers federated optimization under non-IID
+  data with weighted momentum and SAM-style updates. The task is to stabilize federated
+  training, improve generalization, and outperform standard optimizers on the benchmark
+  route.
+capability_tags:
+- research_code_optimization
+- federated_learning
+- sharpness_aware_minimization
+- image_classification
+- optimization
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a federated-learning task focused
+  on stable optimization under heterogeneity.
+not_recommended_when: Do not use this if you need a centralized training benchmark.
+paper:
+  title: 'FedWMSAM: Fast and Flat Federated Learning via Weighted Momentum and Sharpness-Aware
+    Minimization'
+  venue: NeurIPS 2025
+  year: 2025
+  url: https://openreview.net/forum?id=75JiIa0fU1
+download:
+  url: https://deepscientist.cc/AISB/093_fedwmsam
+  archive_type: zip
+  local_dir_name: paper-93-FedWMSAM
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 50
+    gpu_count: 1
+    gpu_vram_gb: 12
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 100
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: terracotta-blue-federated
+  art_style: optimization-dashboard
+  accent_priority: high
+environment:
+  python: '3.8'
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages:
+  - torchsampler==0.1.0
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/093_aisb.t3.093_fedwmsam.jpg

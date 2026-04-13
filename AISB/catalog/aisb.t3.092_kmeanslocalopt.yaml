@@ -1,0 +1,67 @@
+schema_version: 1
+id: aisb.t3.092_kmeanslocalopt
+name: Modified K-means Algorithm with Local Optimality Guarantees
+version: 0.1.0
+one_line: Optimize k-means with guaranteed local optimality while preserving classic algorithmic simplicity.
+task_description: This packaged benchmark covers k-means with guaranteed local optimality while preserving
+  classic algorithmic simplicity. The task is to improve clustering quality or convergence guarantees
+  without abandoning the core simplicity of the k-means route.
+capability_tags:
+- research_code_optimization
+- clustering
+- optimization
+- cplusplus
+- tabular_ml
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: low
+time_band: 1-2h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a classic clustering task with strong algorithmic clarity
+  and modest hardware needs.
+not_recommended_when: Do not use this if you need a deep-learning-heavy benchmark.
+paper:
+  title: Modified K-means Algorithm with Local Optimality Guarantees
+  venue: ICML 2025
+  year: 2025
+  url: https://proceedings.mlr.press/v267/li25bt.html
+download:
+  url: https://deepscientist.cc/AISB/092_kmeanslocalopt
+  archive_type: zip
+  local_dir_name: paper-92-KmeansLocalOpt
+resources:
+  minimum:
+    cpu_cores: 4
+    ram_gb: 8
+    disk_gb: 10
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 20
+    gpu_count: 0
+    gpu_vram_gb: 0
+commercial:
+  annual_fee: null
+display:
+  palette_seed: sand-slate-centroid
+  art_style: algorithmic-minimal
+  accent_priority: medium
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/092_aisb.t3.092_kmeanslocalopt.jpg

@@ -1,0 +1,71 @@
+schema_version: 1
+id: aisb.t3.105_binaryclasseval
+name: 'Aligning Evaluation with Clinical Priorities: Calibration, Label Shift, and Error Costs'
+version: 0.1.0
+one_line: Optimize subgroup-aware binary classifier evaluation under label shift, calibration mismatch,
+  and asymmetric costs.
+task_description: This packaged benchmark covers subgroup-aware binary classifier evaluation under label
+  shift, calibration mismatch, and asymmetric decision costs. The task is to evaluate binary systems more
+  faithfully than aggregate metrics alone by exposing subgroup behavior, miscalibration, and cost-sensitive
+  tradeoffs.
+capability_tags:
+- research_code_optimization
+- clinical_ai
+- evaluation
+- calibration
+- label_shift
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: low
+time_band: 1-2h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a clinically grounded evaluation task without retraining
+  the underlying predictor.
+not_recommended_when: Do not use this if you want a model-training benchmark rather than an evaluation-and-analysis
+  benchmark.
+paper:
+  title: 'Aligning Evaluation with Clinical Priorities: Calibration, Label Shift, and Error Costs'
+  venue: NeurIPS 2025
+  year: 2025
+  url: https://arxiv.org/abs/2506.14540
+download:
+  url: https://deepscientist.cc/AISB/105_binaryclasseval
+  archive_type: zip
+  local_dir_name: paper-105-BinaryClassEval
+resources:
+  minimum:
+    cpu_cores: 4
+    ram_gb: 8
+    disk_gb: 10
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 20
+    gpu_count: 0
+    gpu_vram_gb: 0
+commercial:
+  annual_fee: null
+display:
+  palette_seed: rose-slate-clinical
+  art_style: clinical-evaluation
+  accent_priority: medium
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - This repository is evaluation-only and does not train the underlying APACHE predictor.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/105_aisb.t3.105_binaryclasseval.jpg

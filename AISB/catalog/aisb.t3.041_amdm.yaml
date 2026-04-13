@@ -1,0 +1,82 @@
+schema_version: 1
+id: aisb.t3.041_amdm
+name: Auto-Regressive Moving Diffusion Models for Time Series Forecasting
+version: 0.1.0
+one_line: Optimize diffusion-based time-series forecasting with auto-regressive moving structure and scheduler-aware
+  training.
+task_description: This packaged benchmark covers diffusion-based time-series forecasting with auto-regressive
+  moving structure and scheduler-aware training. The task is to tune the diffusion schedule and moving
+  dynamics so that probabilistic forecasts improve on the public benchmark suites.
+capability_tags:
+- research_code_optimization
+- time_series_forecasting
+- diffusion_models
+- forecasting
+- scientific_ml
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a diffusion-style forecasting task with standard public
+  time-series datasets.
+not_recommended_when: Do not use this if you need a tiny CPU-only benchmark or a non-generative forecasting
+  setup.
+paper:
+  title: Auto-Regressive Moving Diffusion Models for Time Series Forecasting
+  venue: arXiv preprint
+  year: 2024
+  url: https://arxiv.org/abs/2412.09328
+download:
+  url: https://deepscientist.cc/AISB/041_amdm
+  archive_type: zip
+  local_dir_name: paper-41-AMDM
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 16
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: midnight-amber-diffusion
+  art_style: sequential-lab
+  accent_priority: high
+environment:
+  python: '3.10'
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/041_aisb.t3.041_amdm.jpg
+snapshot_status: partial
+support_level: recovery
+primary_outputs:
+- mse
+- mae
+- forecast_samples
+launch_profiles:
+- id: analysis_only
+  label: Analysis Only
+  description: Inspect the preserved diffusion forecasting code and configs before a full run.
+- id: restore_first
+  label: Restore First
+  description: Restore the missing main entry files referenced by the README before treating this package
+    as runnable.

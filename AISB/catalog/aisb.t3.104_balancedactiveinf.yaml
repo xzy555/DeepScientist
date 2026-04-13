@@ -1,0 +1,69 @@
+schema_version: 1
+id: aisb.t3.104_balancedactiveinf
+name: Balanced Active Inference
+version: 0.1.0
+one_line: Optimize active inference for regression estimation with balanced sampling and calibrated uncertainty.
+task_description: This packaged benchmark covers active inference for regression estimation with balanced
+  sampling and calibrated uncertainty. The task is to choose informative samples actively so that regression
+  quality improves with fewer labels while uncertainty estimates stay useful.
+capability_tags:
+- research_code_optimization
+- active_learning
+- regression
+- xgboost
+- statistical_estimation
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: low
+time_band: 1-2h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a CPU-friendly active-inference and variance-estimation
+  task.
+not_recommended_when: Do not use this if you need a large real-world multimodal benchmark.
+paper:
+  title: Balanced Active Inference
+  venue: NeurIPS 2025
+  year: 2025
+  url: https://neurips.cc/virtual/2025/poster/117263
+download:
+  url: https://deepscientist.cc/AISB/104_balancedactiveinf
+  archive_type: zip
+  local_dir_name: paper-104-BalancedActiveInf
+resources:
+  minimum:
+    cpu_cores: 4
+    ram_gb: 8
+    disk_gb: 10
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 20
+    gpu_count: 0
+    gpu_vram_gb: 0
+commercial:
+  annual_fee: null
+display:
+  palette_seed: lemon-slate-balance
+  art_style: active-estimation
+  accent_priority: medium
+environment:
+  python: '3.8'
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages:
+  - xgboost==1.5.0
+  - rpy2==3.4.0
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/104_aisb.t3.104_balancedactiveinf.jpg

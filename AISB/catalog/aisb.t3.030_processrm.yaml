@@ -1,0 +1,86 @@
+schema_version: 1
+id: aisb.t3.030_processrm
+name: An Efficient and Precise Training Data Construction Framework for Process-supervised Reward Model
+  in Mathematical Reasoning
+version: 0.1.0
+one_line: Optimize process reward model data construction and verifier calibration for mathematical reasoning.
+task_description: This packaged benchmark covers process reward model data construction and verifier calibration
+  for mathematical reasoning. The task is to build higher-quality intermediate supervision for reasoning
+  traces, calibrate the verifier or reward signal, and improve process-level judgment quality on math
+  reasoning benchmarks.
+capability_tags:
+- research_code_optimization
+- process_reward_modeling
+- mathematical_reasoning
+- large_language_models
+- data_construction
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 1d+
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a reward-model task that includes data construction,
+  verifier training, and math-reasoning evaluation.
+not_recommended_when: Do not use this if you cannot support deepspeed-style reward-model training or if
+  you only need prompt-only evaluation.
+paper:
+  title: An Efficient and Precise Training Data Construction Framework for Process-supervised Reward Model
+    in Mathematical Reasoning
+  venue: ACL 2025
+  year: 2025
+  url: https://aclanthology.org/2025.acl-long.216/
+download:
+  url: https://deepscientist.cc/AISB/030_processrm
+  archive_type: zip
+  local_dir_name: paper-30-ProcessRM
+resources:
+  minimum:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+  recommended:
+    cpu_cores: 32
+    ram_gb: 128
+    disk_gb: 300
+    gpu_count: 2
+    gpu_vram_gb: 48
+commercial:
+  annual_fee: null
+display:
+  palette_seed: bronze-indigo-verifier
+  art_style: math-lab
+  accent_priority: high
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages:
+  - deepspeed==0.15.4
+  notes:
+  - The bundled project includes deepspeed launch configurations for reward-model training.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/030_aisb.t3.030_processrm.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- f1_gsm8k
+- process_reward_dataset
+- verifier_checkpoint
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run the packaged verifier or reward-model evaluation route on one target benchmark.
+- id: full_pipeline
+  label: Full Pipeline
+  description: Construct process-level supervision, train the verifier stack, and run the packaged math
+    reasoning evaluation workflow.

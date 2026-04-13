@@ -1,0 +1,80 @@
+schema_version: 1
+id: aisb.t3.062_visionts
+name: 'VisionTS: Visual Masked Autoencoders Are Free-Lunch Zero-Shot Time Series Forecasters'
+version: 0.1.0
+one_line: Optimize zero-shot time-series forecasting by repurposing a visual masked autoencoder.
+task_description: This packaged benchmark covers zero-shot time-series forecasting by repurposing a visual
+  masked autoencoder. The task is to cast time-series forecasting into a visual-style masked modeling
+  setup and improve zero-shot forecast accuracy on benchmark datasets.
+capability_tags:
+- research_code_optimization
+- time_series_forecasting
+- vision_models
+- zero_shot_learning
+- foundation_models
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a cross-modality forecasting task with strong zero-shot
+  behavior and public datasets.
+not_recommended_when: Do not use this if you need a purely text-native foundation model benchmark.
+paper:
+  title: 'VisionTS: Visual Masked Autoencoders Are Free-Lunch Zero-Shot Time Series Forecasters'
+  venue: ICML 2025
+  year: 2025
+  url: https://arxiv.org/abs/2408.17253
+download:
+  url: https://deepscientist.cc/AISB/062_visionts
+  archive_type: zip
+  local_dir_name: paper-62-VisionTS
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 16
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: ivory-emerald-vision
+  art_style: image-to-signal
+  accent_priority: high
+environment:
+  python: 3.8.18
+  cuda: null
+  pytorch: 1.7.1
+  flash_attn: null
+  key_packages:
+  - timm==0.3.2
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/062_aisb.t3.062_visionts.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- avg_mse
+- avg_mae
+- zeroshot_forecast_report
+launch_profiles:
+- id: quick_demo
+  label: Quick Demo
+  description: Run the packaged VisionTS demo or one zero-shot script on a prepared dataset.
+- id: full_zeroshot_eval
+  label: Full Zero-Shot Eval
+  description: Run the full packaged zero-shot forecasting benchmark workflow across the supported datasets.

@@ -1,0 +1,83 @@
+schema_version: 1
+id: aisb.t3.011_osd
+name: Orthogonal Subspace Decomposition for Generalizable AI-Generated Image Detection
+version: 0.1.0
+one_line: Optimize CLIP-based AI-generated image detection across DeepfakeBench and generalized image-forgery
+  settings.
+task_description: This packaged benchmark covers CLIP-based AI-generated image detection across DeepfakeBench
+  and more generalized image-forgery settings. The task is to tune visual detection heads, scoring logic,
+  and cross-dataset robustness so that generated-image detection improves without overfitting to one forgery
+  family.
+capability_tags:
+- research_code_optimization
+- computer_vision
+- deepfake_detection
+- image_forensics
+- benchmark_evaluation
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 1d+
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a realistic image-forensics task with large vision
+  datasets and checkpoint-based evaluation.
+not_recommended_when: Do not use this if you cannot provision significant dataset storage or if you need
+  a lightweight CPU-first benchmark.
+paper:
+  title: Orthogonal Subspace Decomposition for Generalizable AI-Generated Image Detection
+  venue: ICML 2025 Oral
+  year: 2025
+  url: https://arxiv.org/abs/2411.15633
+download:
+  url: https://deepscientist.cc/AISB/011_osd
+  archive_type: zip
+  local_dir_name: paper-11-OSD
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 16
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 300
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: obsidian-coral-vision
+  art_style: forensic-clean
+  accent_priority: high
+environment:
+  python: 3.7.2
+  cuda: null
+  pytorch: '1.11'
+  flash_attn: null
+  key_packages: []
+  notes:
+  - The repo README explicitly targets Python 3.7.2 and PyTorch 1.11.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/011_aisb.t3.011_osd.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- biggan_accuracy
+- detection_scores
+- benchmark_report
+launch_profiles:
+- id: quick_check
+  label: Quick Check
+  description: Run one packaged detector evaluation to verify the OSD route.
+- id: cross_benchmark_eval
+  label: Cross-Benchmark Eval
+  description: Evaluate the packaged detector stack across the bundled fake-image benchmarks.

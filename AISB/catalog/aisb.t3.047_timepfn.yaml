@@ -1,0 +1,82 @@
+schema_version: 1
+id: aisb.t3.047_timepfn
+name: 'TimePFN: Effective Multivariate Time Series Forecasting with Synthetic Data'
+version: 0.1.0
+one_line: Optimize PFN-style multivariate time-series forecasting with synthetic pretraining and schedule-sensitive
+  finetuning.
+task_description: This packaged benchmark covers PFN-style multivariate time-series forecasting with synthetic
+  pretraining and schedule-sensitive fine-tuning. The task is to transfer PFN-style in-context generalization
+  into practical forecasting quality on the benchmark datasets.
+capability_tags:
+- research_code_optimization
+- time_series_forecasting
+- foundation_models
+- synthetic_data
+- forecasting
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a foundation-model-style forecasting task with synthetic
+  pretraining and public downstream benchmarks.
+not_recommended_when: Do not use this if you need a trivial forecasting baseline or cannot support GPU
+  training.
+paper:
+  title: 'TimePFN: Effective Multivariate Time Series Forecasting with Synthetic Data'
+  venue: AAAI 2025
+  year: 2025
+  url: https://arxiv.org/abs/2502.16294
+download:
+  url: https://deepscientist.cc/AISB/047_timepfn
+  archive_type: zip
+  local_dir_name: paper-47-TimePFN
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 100
+    gpu_count: 1
+    gpu_vram_gb: 16
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 200
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: jade-navy-pfn
+  art_style: foundation-signal
+  accent_priority: high
+environment:
+  python: null
+  cuda: null
+  pytorch: 2.2.1
+  flash_attn: null
+  key_packages:
+  - transformers==4.41.1
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/047_aisb.t3.047_timepfn.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- mse
+- mae
+- pfn_checkpoint
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run one downstream TimePFN forecasting evaluation route.
+- id: pretrain_and_eval
+  label: Pretrain + Eval
+  description: Run the packaged synthetic pretraining and downstream multivariate forecasting workflow.

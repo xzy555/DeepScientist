@@ -1,0 +1,66 @@
+schema_version: 1
+id: aisb.t3.101_acia
+name: Measure-Theoretic Anti-Causal Representation Learning
+version: 0.1.0
+one_line: Optimize anti-causal invariant abstractions for multi-environment representation learning.
+task_description: This packaged benchmark covers anti-causal invariant abstractions for multi-environment
+  representation learning. The task is to learn representations that remain predictive across environments
+  while separating causal and anti-causal effects under intervention-style evaluation.
+capability_tags:
+- research_code_optimization
+- causal_representation_learning
+- invariant_learning
+- image_classification
+- multi_environment_learning
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 2-6h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a causal-invariance task with clear environment labels
+  and structured regularization.
+not_recommended_when: Do not use this if you need a large multimodal or generative benchmark.
+paper:
+  title: Measure-Theoretic Anti-Causal Representation Learning
+  venue: NeurIPS 2025
+  year: 2025
+  url: https://openreview.net/forum?id=lp6XOoQ4VL
+download:
+  url: https://deepscientist.cc/AISB/101_acia
+  archive_type: zip
+  local_dir_name: paper-101-ACIA
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 30
+    gpu_count: 1
+    gpu_vram_gb: 8
+  recommended:
+    cpu_cores: 16
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 16
+commercial:
+  annual_fee: null
+display:
+  palette_seed: violet-sand-invariant
+  art_style: causal-abstraction
+  accent_priority: medium
+environment:
+  python: '3.8'
+  cuda: null
+  pytorch: 1.12.0
+  flash_attn: null
+  key_packages: []
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/101_aisb.t3.101_acia.jpg

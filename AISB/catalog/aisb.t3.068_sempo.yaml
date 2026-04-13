@@ -1,0 +1,82 @@
+schema_version: 1
+id: aisb.t3.068_sempo
+name: 'SEMPO: Lightweight Foundation Models for Time Series Forecasting'
+version: 0.1.0
+one_line: Optimize a lightweight time-series foundation model with spectral decomposition and prompt-based
+  experts.
+task_description: This packaged benchmark covers a lightweight time-series foundation model with spectral
+  decomposition and prompt-based experts. The task is to combine spectral structure and expert prompting
+  so that one compact model handles diverse forecasting benchmarks well.
+capability_tags:
+- research_code_optimization
+- time_series_forecasting
+- foundation_models
+- prompt_mixture_models
+- forecasting
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a compact foundation-model forecasting task with single-GPU
+  pretraining support.
+not_recommended_when: Do not use this if you require large-cluster pretraining scale as the main difficulty
+  driver.
+paper:
+  title: 'SEMPO: Lightweight Foundation Models for Time Series Forecasting'
+  venue: NeurIPS 2025 Poster
+  year: 2025
+  url: https://arxiv.org/abs/2510.19710
+download:
+  url: https://deepscientist.cc/AISB/068_sempo
+  archive_type: zip
+  local_dir_name: paper-68-SEMPO
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 100
+    gpu_count: 1
+    gpu_vram_gb: 16
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 200
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: ivory-lime-spectrum
+  art_style: lightweight-foundation
+  accent_priority: medium
+environment:
+  python: '3.10'
+  cuda: '11.8'
+  pytorch: 2.1.2
+  flash_attn: null
+  key_packages:
+  - transformers==4.40.1
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/068_aisb.t3.068_sempo.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- mse
+- mae
+- forecast_checkpoint
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run one packaged SEMPO forecasting benchmark route.
+- id: pretrain_and_eval
+  label: Pretrain + Eval
+  description: Run the full packaged lightweight foundation-model forecasting workflow.

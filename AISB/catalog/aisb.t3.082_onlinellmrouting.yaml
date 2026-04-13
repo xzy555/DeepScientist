@@ -1,0 +1,70 @@
+schema_version: 1
+id: aisb.t3.082_onlinellmrouting
+name: Efficient Training-Free Online Routing for High-Volume Multi-LLM Serving
+version: 0.1.0
+one_line: Optimize a training-free online router that allocates prompts across multiple LLMs under budget
+  constraints.
+task_description: This packaged benchmark covers a training-free online router that allocates prompts
+  across multiple LLMs under budget constraints. The task is to choose which model should answer each
+  query so that overall quality-cost tradeoffs improve without retraining the underlying models.
+capability_tags:
+- research_code_optimization
+- llm_routing
+- approximate_nearest_neighbors
+- serving_systems
+- online_optimization
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: low
+time_band: 1-2h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a systems-routing task that is mostly about retrieval,
+  optimization, and budget allocation.
+not_recommended_when: Do not use this if you specifically need local GPU finetuning of language models.
+paper:
+  title: Efficient Training-Free Online Routing for High-Volume Multi-LLM Serving
+  venue: NeurIPS 2025
+  year: 2025
+  url: https://openreview.net/forum?id=d4mZyZB5I9
+download:
+  url: https://deepscientist.cc/AISB/082_onlinellmrouting
+  archive_type: zip
+  local_dir_name: paper-82-OnlineLLMRouting
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 30
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 16
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 0
+    gpu_vram_gb: 0
+commercial:
+  annual_fee: null
+display:
+  palette_seed: silver-blue-router
+  art_style: serving-console
+  accent_priority: high
+environment:
+  python: null
+  cuda: null
+  pytorch: 2.6.0
+  flash_attn: null
+  key_packages:
+  - faiss_cpu==1.10.0
+  - transformers==4.51.0
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/082_aisb.t3.082_onlinellmrouting.jpg

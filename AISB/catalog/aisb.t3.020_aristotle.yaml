@@ -1,0 +1,84 @@
+schema_version: 1
+id: aisb.t3.020_aristotle
+name: 'Aristotle: Mastering Logical Reasoning with A Logic-Complete Decompose-Search-Resolve Framework'
+version: 0.1.0
+one_line: Optimize a logic-complete reasoning framework that decomposes, searches, and resolves formal
+  reasoning paths.
+task_description: This packaged benchmark covers a logic-complete reasoning framework that decomposes,
+  searches, negates, and resolves formal reasoning paths. The task is to improve the end-to-end reasoning
+  workflow over its symbolic search components while preserving logical soundness on the target benchmark.
+capability_tags:
+- research_code_optimization
+- logical_reasoning
+- llm_tooling
+- evaluation
+- symbolic_reasoning
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: low
+time_band: 1-2h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a structured logical-reasoning task driven by API-backed
+  decomposition, search, and resolution stages.
+not_recommended_when: Do not use this if you need a fully offline benchmark or a task centered on GPU
+  training.
+paper:
+  title: 'Aristotle: Mastering Logical Reasoning with A Logic-Complete Decompose-Search-Resolve Framework'
+  venue: ACL 2025
+  year: 2025
+  url: https://arxiv.org/abs/2412.16953
+download:
+  url: https://deepscientist.cc/AISB/020_aristotle
+  archive_type: zip
+  local_dir_name: paper-20-Aristotle
+resources:
+  minimum:
+    cpu_cores: 4
+    ram_gb: 8
+    disk_gb: 10
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 20
+    gpu_count: 0
+    gpu_vram_gb: 0
+commercial:
+  annual_fee: null
+display:
+  palette_seed: parchment-navy-logic
+  art_style: structured-proof
+  accent_priority: medium
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages:
+  - openai==0.27.9
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - This workflow depends on external OpenAI-style APIs rather than local GPU training.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/020_aisb.t3.020_aristotle.jpg
+snapshot_status: runnable
+support_level: turnkey
+primary_outputs:
+- accuracy
+- reasoning_traces
+- evaluation_report
+launch_profiles:
+- id: quick_check
+  label: Quick Check
+  description: Run one packaged decompose-search-resolve evaluation example.
+- id: benchmark_eval
+  label: Benchmark Eval
+  description: Run the packaged Aristotle logical reasoning workflow on the benchmark suite.

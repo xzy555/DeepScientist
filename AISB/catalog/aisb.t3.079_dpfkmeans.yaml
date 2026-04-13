@@ -1,0 +1,90 @@
+schema_version: 1
+id: aisb.t3.079_dpfkmeans
+name: Differentially Private Federated k-Means Clustering with Server-Side Data
+version: 0.1.0
+one_line: Optimize federated k-means under differential privacy with server-side auxiliary data.
+task_description: This packaged benchmark is intended to cover differentially private federated k-means
+  with server-side auxiliary data. The task itself is to cluster distributed data under privacy constraints
+  while using auxiliary information to stabilize training, but the local snapshot currently needs upstream
+  source restoration before it becomes runnable.
+capability_tags:
+- research_code_optimization
+- federated_learning
+- differential_privacy
+- clustering
+- tabular_ml
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: analysis_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: low
+time_band: 2-6h
+difficulty: medium
+data_access: public
+recommended_when: Use this entry when you want paper-backed planning or upstream restoration for the differential-privacy
+  clustering route.
+not_recommended_when: Do not treat this local package as a ready-to-run clustering benchmark; the executable
+  code is absent from the staged snapshot.
+paper:
+  title: Differentially Private Federated k-Means Clustering with Server-Side Data
+  venue: ICML 2025
+  year: 2025
+  url: https://arxiv.org/abs/2506.05408
+download:
+  url: https://deepscientist.cc/AISB/079_dpfkmeans
+  archive_type: zip
+  local_dir_name: paper-79-DPFKMeans
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 50
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 16
+    ram_gb: 32
+    disk_gb: 100
+    gpu_count: 0
+    gpu_vram_gb: 0
+commercial:
+  annual_fee: null
+display:
+  palette_seed: plum-ivory-privacy
+  art_style: privacy-clustering
+  accent_priority: medium
+environment:
+  python: null
+  cuda: null
+  pytorch: 2.4.0
+  flash_attn: null
+  key_packages: []
+  notes:
+  - The current local package does not preserve executable setup files or runnable source code; environment
+    hints here should be treated as provisional until upstream restoration.
+  - CPU-only execution is plausible for the minimum route.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/079_aisb.t3.079_dpfkmeans.jpg
+risk_flags:
+- source_snapshot_incomplete
+- route_caveat
+dataset_download:
+  notes:
+  - The current local package does not preserve an executable benchmark route; treat dataset setup as
+    part of upstream restoration rather than a bundled run path.
+snapshot_status: restore_needed
+support_level: recovery
+primary_outputs:
+- objective_score
+launch_profiles:
+- id: analysis_only
+  label: Analysis Only
+  description: Inspect the preserved benchmark metadata for the differentially private federated k-means
+    task.
+- id: restore_first
+  label: Restore First
+  description: Restore the missing clustering implementation before attempting benchmark execution.

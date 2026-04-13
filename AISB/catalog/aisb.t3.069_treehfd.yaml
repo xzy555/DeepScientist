@@ -1,0 +1,78 @@
+schema_version: 1
+id: aisb.t3.069_treehfd
+name: Tree Ensemble Explainability through the Hoeffding Functional Decomposition and TreeHFD Algorithm
+version: 0.1.0
+one_line: Optimize explainability for XGBoost ensembles through Hoeffding-style functional decomposition.
+task_description: This packaged benchmark covers explainability for XGBoost ensembles through Hoeffding-style
+  functional decomposition. The task is to decompose tree-model behavior into interpretable feature contributions
+  and improve explainability quality on the benchmark route.
+capability_tags:
+- research_code_optimization
+- explainable_ml
+- tree_ensembles
+- xgboost
+- interaction_analysis
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: low
+time_band: 1-2h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want an explainability task for tree ensembles that is practical
+  on CPU-only hardware.
+not_recommended_when: Do not use this if you need GPU-heavy deep-learning workloads.
+paper:
+  title: Tree Ensemble Explainability through the Hoeffding Functional Decomposition and TreeHFD Algorithm
+  venue: NeurIPS 2025
+  year: 2025
+  url: https://openreview.net/forum?id=dRLWcpBQxS
+download:
+  url: https://deepscientist.cc/AISB/069_treehfd
+  archive_type: zip
+  local_dir_name: paper-69-TreeHFD
+resources:
+  minimum:
+    cpu_cores: 4
+    ram_gb: 8
+    disk_gb: 10
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 20
+    gpu_count: 0
+    gpu_vram_gb: 0
+commercial:
+  annual_fee: null
+display:
+  palette_seed: cedar-ivory-tree
+  art_style: model-decomposition
+  accent_priority: medium
+environment:
+  python: '3.11'
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages:
+  - xgboost==3.1
+  - scipy==1.16
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/069_aisb.t3.069_treehfd.jpg
+snapshot_status: runnable
+support_level: turnkey
+primary_outputs:
+- mse_eta12
+- functional_decomposition_report
+launch_profiles:
+- id: explainability_eval
+  label: Explainability Eval
+  description: Run the packaged Hoeffding-style decomposition route on the tree-ensemble benchmark.

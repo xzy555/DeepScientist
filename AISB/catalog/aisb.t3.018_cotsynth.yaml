@@ -1,0 +1,86 @@
+schema_version: 1
+id: aisb.t3.018_cotsynth
+name: 'CoT-based Synthesizer: Enhancing LLM Performance through Answer Synthesis'
+version: 0.1.0
+one_line: Optimize answer synthesis and majority-vote aggregation for math and table QA benchmarks using
+  8B-scale models.
+task_description: This packaged benchmark covers answer synthesis and majority-vote aggregation for math
+  and table question answering using 8B-scale models. The task is to generate diverse candidate chains
+  of thought, aggregate them effectively, and improve benchmark accuracy across the supported reasoning
+  datasets.
+capability_tags:
+- research_code_optimization
+- large_language_models
+- answer_synthesis
+- mathematical_reasoning
+- table_qa
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 1d+
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want an inference-heavy LLM task that mixes synthesis prompts,
+  benchmark evaluation, and optional training data generation.
+not_recommended_when: Do not use this if you cannot host 8B-class models or if you need a benchmark without
+  model-serving overhead.
+paper:
+  title: 'CoT-based Synthesizer: Enhancing LLM Performance through Answer Synthesis'
+  venue: ACL 2025
+  year: 2025
+  url: https://arxiv.org/abs/2501.01668
+download:
+  url: https://deepscientist.cc/AISB/018_cotsynth
+  archive_type: zip
+  local_dir_name: paper-18-CoTSynth
+resources:
+  minimum:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+  recommended:
+    cpu_cores: 32
+    ram_gb: 128
+    disk_gb: 300
+    gpu_count: 2
+    gpu_vram_gb: 48
+commercial:
+  annual_fee: null
+display:
+  palette_seed: teal-gold-synthesis
+  art_style: benchmark-notebook
+  accent_priority: high
+environment:
+  python: '3.11'
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages:
+  - deepspeed==0.15.2
+  - vllm==0.5.3
+  - transformers==4.43.1
+  notes:
+  - The local README frames this as an inference-and-evaluation workflow with optional data pipeline generation.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/018_aisb.t3.018_cotsynth.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- accuracy
+- synthesized_answers
+- vote_report
+launch_profiles:
+- id: quick_check
+  label: Quick Check
+  description: Run a small synthesis or evaluation pass on one packaged QA route.
+- id: synthesis_eval
+  label: Synthesis Eval
+  description: Run the full packaged answer-synthesis and benchmark-evaluation workflow.

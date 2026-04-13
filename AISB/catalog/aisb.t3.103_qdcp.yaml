@@ -1,0 +1,68 @@
+schema_version: 1
+id: aisb.t3.103_qdcp
+name: Distributed Conformal Prediction via Message Passing
+version: 0.1.0
+one_line: Optimize distributed conformal prediction with message passing and communication-aware calibration.
+task_description: This packaged benchmark covers distributed conformal prediction with message passing
+  and communication-aware calibration. The task is to maintain conformal coverage in a distributed setting
+  while reducing communication cost and preserving usable prediction sets.
+capability_tags:
+- research_code_optimization
+- conformal_prediction
+- distributed_learning
+- uncertainty_quantification
+- message_passing
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: low
+time_band: 2-6h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a communication-aware uncertainty-quantification task
+  over distributed devices.
+not_recommended_when: Do not use this if you need a centralized prediction benchmark with no network topology.
+paper:
+  title: Distributed Conformal Prediction via Message Passing
+  venue: ICML 2025
+  year: 2025
+  url: https://arxiv.org/abs/2501.14544
+download:
+  url: https://deepscientist.cc/AISB/103_qdcp
+  archive_type: zip
+  local_dir_name: paper-103-QDCP
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 20
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 16
+    ram_gb: 32
+    disk_gb: 50
+    gpu_count: 0
+    gpu_vram_gb: 0
+commercial:
+  annual_fee: null
+display:
+  palette_seed: teal-ivory-message
+  art_style: network-calibration
+  accent_priority: medium
+environment:
+  python: '3.11'
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - The bundled requirement file is a conda export and appears to target a Windows py311 environment.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/103_aisb.t3.103_qdcp.jpg

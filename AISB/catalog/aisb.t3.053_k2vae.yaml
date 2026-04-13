@@ -1,0 +1,81 @@
+schema_version: 1
+id: aisb.t3.053_k2vae
+name: 'K2VAE: A Koopman-Kalman Enhanced Variational AutoEncoder for Probabilistic Time Series Forecasting'
+version: 0.1.0
+one_line: Optimize probabilistic time-series forecasting with Koopman-Kalman structure and variance-aware
+  evaluation.
+task_description: This packaged benchmark covers probabilistic time-series forecasting with Koopman-Kalman
+  structure and variance-aware evaluation. The task is to combine latent dynamical modeling with uncertainty-aware
+  prediction so that forecast quality and calibration improve on the target datasets.
+capability_tags:
+- research_code_optimization
+- time_series_forecasting
+- variational_autoencoders
+- probabilistic_forecasting
+- uncertainty_estimation
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a probabilistic forecasting task with explicit uncertainty
+  metrics and multiple public datasets.
+not_recommended_when: Do not use this if you only care about deterministic one-step forecasting.
+paper:
+  title: 'K2VAE: A Koopman-Kalman Enhanced Variational AutoEncoder for Probabilistic Time Series Forecasting'
+  venue: ICML 2025 Spotlight
+  year: 2025
+  url: https://arxiv.org/abs/2505.23017
+download:
+  url: https://deepscientist.cc/AISB/053_k2vae
+  archive_type: zip
+  local_dir_name: paper-53-K2VAE
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 100
+    gpu_count: 1
+    gpu_vram_gb: 16
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 200
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: turquoise-slate-kalman
+  art_style: probabilistic-lab
+  accent_priority: high
+environment:
+  python: '3.10'
+  cuda: null
+  pytorch: 2.4.1
+  flash_attn: null
+  key_packages:
+  - gluonts==0.15.1
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/053_aisb.t3.053_k2vae.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- crps
+- nll
+- forecast_checkpoint
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run one packaged K2VAE forecasting evaluation route.
+- id: full_train_eval
+  label: Full Train + Eval
+  description: Run the full packaged Koopman-Kalman forecasting training and evaluation workflow.

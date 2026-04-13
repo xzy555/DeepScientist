@@ -1,0 +1,82 @@
+schema_version: 1
+id: aisb.t3.028_sbam
+name: Segment-Based Attention Masking for GPTs
+version: 0.1.0
+one_line: Optimize segment-based attention masking and prompt formatting for instruction-tuned GPT-style
+  models.
+task_description: This packaged benchmark covers segment-based attention masking and prompt formatting
+  for instruction-tuned GPT-style models. The task is to alter masking or segment structure so that instruction-following
+  performance improves while the training and inference route remains stable.
+capability_tags:
+- research_code_optimization
+- large_language_models
+- transformers
+- prompt_engineering
+- attention_analysis
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a manageable GPT-style task that combines prompt-format
+  choices with attention-mask variants.
+not_recommended_when: Do not use this if you need a massive full-scale LLM training benchmark or a non-transformer
+  task.
+paper:
+  title: Segment-Based Attention Masking for GPTs
+  venue: arXiv preprint
+  year: 2024
+  url: https://arxiv.org/abs/2412.18487
+download:
+  url: https://deepscientist.cc/AISB/028_sbam
+  archive_type: zip
+  local_dir_name: paper-28-SBAM
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 50
+    gpu_count: 1
+    gpu_vram_gb: 12
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 120
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: violet-graphite-mask
+  art_style: attention-map
+  accent_priority: medium
+environment:
+  python: '3.10'
+  cuda: null
+  pytorch: 2.1.0
+  flash_attn: null
+  key_packages:
+  - transformers==4.47.0
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/028_aisb.t3.028_sbam.jpg
+snapshot_status: runnable
+support_level: turnkey
+primary_outputs:
+- average_accuracy
+- masked_attention_report
+- prompt_variant_scores
+launch_profiles:
+- id: quick_check
+  label: Quick Check
+  description: Run one packaged SBAM prompt and attention-mask evaluation path.
+- id: full_eval
+  label: Full Eval
+  description: Run the broader instruction-format and masking evaluation workflow in the packaged codebase.

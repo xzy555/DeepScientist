@@ -1,0 +1,113 @@
+schema_version: 1
+id: aisb.t3.056_infosam
+name: 'InfoSAM: Fine-Tuning the Segment Anything Model from An Information-Theoretic Perspective'
+version: 0.1.0
+one_line: Optimize SAM finetuning with information-theoretic distillation that preserves domain-invariant
+  segmentation knowledge.
+task_description: This packaged benchmark covers parameter-efficient SAM fine-tuning with information-theoretic
+  distillation for specialized segmentation domains. The task is to preserve SAM's domain-invariant relational
+  knowledge while adapting the student model to downstream datasets, then evaluate segmentation quality
+  with S-measure, E-measure, and weighted F-measure. The current local snapshot preserves the paper-facing
+  README and optimization notes, but the train and eval launcher tree referenced by the README is not
+  bundled here.
+capability_tags:
+- research_code_optimization
+- computer_vision
+- segmentation
+- foundation_models
+- distillation
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: analysis_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 1-2d
+difficulty: hard
+data_access: public
+risk_flags:
+- source_snapshot_incomplete
+- route_caveat
+risk_notes:
+- The surviving local snapshot is documentation-heavy and does not include the train/eval launcher tree
+  referenced by the README.
+- README commands point to missing files such as `data/data_download.py`, `config/eval/InfoSAM_b_leaf.sh`,
+  and `config/train/InfoSAM_b_leaf.sh`.
+- Treat this package as a paper-backed reconstruction target until the upstream training and evaluation
+  scripts are restored locally.
+recommended_when: Use this benchmark when you want to reconstruct or audit a SAM PEFT route from paper
+  materials and are prepared to restore missing upstream files.
+not_recommended_when: Do not use this as a ready-to-run local benchmark; the packaged snapshot is incomplete
+  relative to the official README.
+paper:
+  title: 'InfoSAM: Fine-Tuning the Segment Anything Model from An Information-Theoretic Perspective'
+  venue: ICML 2025 Spotlight
+  year: 2025
+  url: https://proceedings.mlr.press/v267/zhang25ct.html
+download:
+  url: https://deepscientist.cc/AISB/056_infosam
+  archive_type: zip
+  local_dir_name: paper-56-InfoSAM
+dataset_download:
+  primary_method: manual_or_not_explicit
+  sources:
+  - kind: github_repo
+    url: https://github.com/autogluon/autogluon/tree/master/examples/automm/Conv-LoRA
+    access: public
+    note: '* The datasets are sourced from the official [Conv-LoRA repository](https://github.com/autogluon/autogluon/tree/master/examples/automm/Conv-LoRA)'
+  notes:
+  - The README says to run `python data_download.py`, but that download script is absent from the current
+    snapshot.
+  - The only preserved external source points to the Conv-LoRA data route; dataset acquisition should
+    be treated as reconstruction work rather than a bundled one-step download.
+credential_requirements:
+  mode: none
+  items: []
+  notes:
+  - No explicit dataset or API credential variable was detected in the bundled source snapshot.
+resources:
+  minimum:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 100
+    gpu_count: 1
+    gpu_vram_gb: 24
+  recommended:
+    cpu_cores: 32
+    ram_gb: 128
+    disk_gb: 200
+    gpu_count: 1
+    gpu_vram_gb: 48
+commercial:
+  annual_fee: null
+display:
+  palette_seed: gold-forest-segment
+  art_style: info-geometry
+  accent_priority: high
+environment:
+  python: 3.8.20
+  cuda: '12.1'
+  pytorch: 2.4.1
+  flash_attn: null
+  key_packages: []
+  notes:
+  - The official README reports Python 3.8.20, PyTorch 2.4.1, torchvision 0.19.1, and CUDA 12.1.
+  - Those versions come from documentation only in this local package; the launcher and config files needed
+    to verify an end-to-end run are missing.
+image_path: ../../../AISB/image/056_aisb.t3.056_infosam.jpg
+snapshot_status: restore_needed
+support_level: recovery
+primary_outputs:
+- s_measure
+- e_measure
+- weighted_f_measure
+launch_profiles:
+- id: analysis_only
+  label: Analysis Only
+  description: Inspect the preserved paper-facing materials and metric targets.
+- id: restore_first
+  label: Restore First
+  description: Restore the missing training and evaluation script tree before treating InfoSAM as runnable.

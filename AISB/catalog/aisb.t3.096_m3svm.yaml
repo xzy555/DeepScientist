@@ -1,0 +1,68 @@
+schema_version: 1
+id: aisb.t3.096_m3svm
+name: Multi-Class Support Vector Machine with Differential Privacy
+version: 0.1.0
+one_line: Optimize differentially private multi-class SVMs with low-cost inference-time ensemble tricks.
+task_description: This packaged benchmark covers differentially private multi-class SVMs with low-cost
+  inference-time ensemble tricks. The task is to preserve privacy guarantees while improving classification
+  quality under lightweight ensemble-style test-time procedures.
+capability_tags:
+- research_code_optimization
+- differential_privacy
+- support_vector_machines
+- classification
+- trustworthy_ml
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: low
+time_band: 1-2h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a privacy-aware classical ML task instead of a deep-learning-heavy
+  benchmark.
+not_recommended_when: Do not use this if you need a large multimodal or sequence-model task.
+paper:
+  title: Multi-Class Support Vector Machine with Differential Privacy
+  venue: NeurIPS 2025
+  year: 2025
+  url: https://openreview.net/forum?id=Jz4PENUsRo
+download:
+  url: https://deepscientist.cc/AISB/096_m3svm
+  archive_type: zip
+  local_dir_name: paper-96-M3SVM
+resources:
+  minimum:
+    cpu_cores: 4
+    ram_gb: 8
+    disk_gb: 10
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 20
+    gpu_count: 1
+    gpu_vram_gb: 8
+commercial:
+  annual_fee: null
+display:
+  palette_seed: ivory-indigo-privacy
+  art_style: classical-ml
+  accent_priority: medium
+environment:
+  python: null
+  cuda: null
+  pytorch: 2.0.1
+  flash_attn: null
+  key_packages:
+  - opacus==1.2.0
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/096_aisb.t3.096_m3svm.jpg

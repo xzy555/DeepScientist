@@ -1,0 +1,92 @@
+schema_version: 1
+id: aisb.t3.067_kanad
+name: 'KAN-AD: Time Series Anomaly Detection with Kolmogorov-Arnold Networks'
+version: 0.1.0
+one_line: Optimize time-series anomaly detection with compact KAN-style basis functions and stabilized
+  anomaly scoring.
+task_description: This packaged benchmark is intended to cover time-series anomaly detection with compact
+  KAN-style basis functions and stabilized anomaly scoring. The task itself is to detect anomalies in
+  temporal data with interpretable basis-function components, but the local snapshot currently preserves
+  only metadata and audit material rather than runnable code.
+capability_tags:
+- research_code_optimization
+- anomaly_detection
+- time_series
+- kolmogorov_arnold_networks
+- scientific_ml
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: analysis_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: low
+time_band: 2-6h
+difficulty: medium
+data_access: public
+recommended_when: Use this entry when you want paper-backed planning or upstream restoration for the compact
+  anomaly-detection route.
+not_recommended_when: Do not treat this local package as a ready-to-run anomaly benchmark; no executable
+  code is preserved in the staged snapshot.
+paper:
+  title: 'KAN-AD: Time Series Anomaly Detection with Kolmogorov-Arnold Networks'
+  venue: ICML 2025
+  year: 2025
+  url: https://proceedings.mlr.press/v267/zhou25u.html
+download:
+  url: https://deepscientist.cc/AISB/067_kanad
+  archive_type: zip
+  local_dir_name: paper-67-KAN-AD
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 20
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 16
+    ram_gb: 32
+    disk_gb: 50
+    gpu_count: 1
+    gpu_vram_gb: 8
+commercial:
+  annual_fee: null
+display:
+  palette_seed: peach-slate-anomaly
+  art_style: lightweight-analytics
+  accent_priority: medium
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - The current local package does not preserve executable setup files or runnable source code; environment
+    hints here should be treated as provisional until upstream restoration.
+  - CPU-only execution is plausible for the minimum route.
+  - The bundled local folder does not include a README or requirements file; environment details remain
+    conservative.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/067_aisb.t3.067_kanad.jpg
+risk_flags:
+- source_snapshot_incomplete
+- route_caveat
+dataset_download:
+  notes:
+  - The current local package does not preserve an executable benchmark route; treat dataset setup as
+    part of upstream restoration rather than a bundled run path.
+snapshot_status: restore_needed
+support_level: recovery
+primary_outputs:
+- f1
+launch_profiles:
+- id: analysis_only
+  label: Analysis Only
+  description: Review the preserved benchmark metadata and anomaly-detection task framing.
+- id: restore_first
+  label: Restore First
+  description: Restore the missing source tree before treating the KAN-based anomaly benchmark as runnable.

@@ -1,0 +1,79 @@
+schema_version: 1
+id: aisb.t3.024_outputcentric
+name: Enhancing Automated Interpretability with Output-Centric Feature Descriptions
+version: 0.1.0
+one_line: Optimize an interpretability evaluation pipeline that describes features through their output
+  behavior.
+task_description: This packaged benchmark covers an interpretability evaluation pipeline that describes
+  features through their output behavior. The task is to characterize latent features by what they do
+  at the model output level and improve feature-description quality on the benchmark route.
+capability_tags:
+- research_code_optimization
+- mechanistic_interpretability
+- automated_evaluation
+- large_language_models
+- feature_analysis
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: low
+time_band: 1-2h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want an interpretability task focused on evaluation methodology
+  and description quality rather than retraining.
+not_recommended_when: Do not use this if you need a large-scale supervised training benchmark or dense
+  multimodal data.
+paper:
+  title: Enhancing Automated Interpretability with Output-Centric Feature Descriptions
+  venue: arXiv preprint
+  year: 2025
+  url: https://arxiv.org/abs/2501.08319
+download:
+  url: https://deepscientist.cc/AISB/024_outputcentric
+  archive_type: zip
+  local_dir_name: paper-24-OutputCentric
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 20
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 16
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 16
+commercial:
+  annual_fee: null
+display:
+  palette_seed: ivory-rose-neuron
+  art_style: interpretability-atlas
+  accent_priority: medium
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/024_aisb.t3.024_outputcentric.jpg
+snapshot_status: runnable
+support_level: turnkey
+primary_outputs:
+- output_based_evaluation_score
+- input_based_evaluation_score
+- feature_descriptions
+launch_profiles:
+- id: notebook_eval
+  label: Notebook Eval
+  description: Run the packaged notebook pipeline for output-centric feature descriptions.

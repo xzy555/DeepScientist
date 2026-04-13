@@ -1,0 +1,82 @@
+schema_version: 1
+id: aisb.t3.038_tinysam
+name: 'TinySAM: Pushing the Envelope for Efficient Segment Anything Model'
+version: 0.1.0
+one_line: Optimize an efficient Segment Anything variant for zero-shot instance segmentation and promptable
+  inference.
+task_description: This packaged benchmark covers an efficient Segment Anything variant for zero-shot instance
+  segmentation and promptable inference. The task is to preserve SAM-style promptability while reducing
+  model size, inference cost, or memory use on the benchmark datasets.
+capability_tags:
+- research_code_optimization
+- computer_vision
+- segmentation
+- model_compression
+- efficient_inference
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a vision efficiency task with ready checkpoints and
+  promptable segmentation evaluation.
+not_recommended_when: Do not use this if you need a text-only benchmark or a task centered on autoregressive
+  reasoning.
+paper:
+  title: 'TinySAM: Pushing the Envelope for Efficient Segment Anything Model'
+  venue: AAAI 2025
+  year: 2025
+  url: https://arxiv.org/abs/2312.13789
+download:
+  url: https://deepscientist.cc/AISB/038_tinysam
+  archive_type: zip
+  local_dir_name: paper-38-TinySAM
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 12
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: sky-slate-mask
+  art_style: promptable-vision
+  accent_priority: medium
+environment:
+  python: '3.7'
+  cuda: null
+  pytorch: 1.10.2
+  flash_attn: null
+  key_packages: []
+  notes:
+  - The local README explicitly pairs TinySAM with torchvision 0.11.3.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/038_aisb.t3.038_tinysam.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- coco_ap
+- lvis_ap
+- segmentation_checkpoint
+launch_profiles:
+- id: quick_demo
+  label: Quick Demo
+  description: Run the packaged TinySAM demo or quantized demo route.
+- id: zero_shot_eval
+  label: Zero-Shot Eval
+  description: Run the packaged COCO or LVIS zero-shot instance-segmentation evaluation workflow.

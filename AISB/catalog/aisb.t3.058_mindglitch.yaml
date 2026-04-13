@@ -1,0 +1,80 @@
+schema_version: 1
+id: aisb.t3.058_mindglitch
+name: 'Mind-the-Glitch: Visual Correspondence for Detecting Inconsistencies in Subject-Driven Generation'
+version: 0.1.0
+one_line: Optimize visual-correspondence-based inconsistency detection for subject-driven image generation.
+task_description: This packaged benchmark covers inconsistency detection for subject-driven image generation
+  using visual correspondence cues. The task is to detect whether generated images remain consistent with
+  their intended subject identity across outputs and perturbations.
+capability_tags:
+- research_code_optimization
+- computer_vision
+- diffusion_models
+- consistency_detection
+- subject_driven_generation
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 2-6h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a focused vision-evaluation task for subject-driven
+  generation and correspondence analysis.
+not_recommended_when: Do not use this if you need a full training pipeline today; the local release is
+  still primarily inference-oriented.
+paper:
+  title: 'Mind-the-Glitch: Visual Correspondence for Detecting Inconsistencies in Subject-Driven Generation'
+  venue: NeurIPS 2025
+  year: 2025
+  url: https://arxiv.org/abs/2509.21989
+download:
+  url: https://deepscientist.cc/AISB/058_mindglitch
+  archive_type: zip
+  local_dir_name: paper-58-MindGlitch
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 16
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: mauve-graphite-correspond
+  art_style: visual-consistency
+  accent_priority: high
+environment:
+  python: '3.11'
+  cuda: '12.4'
+  pytorch: 2.5.1
+  flash_attn: null
+  key_packages: []
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/058_aisb.t3.058_mindglitch.jpg
+snapshot_status: partial
+support_level: advanced
+primary_outputs:
+- spearman_correlation
+- mtg_inference_scores
+launch_profiles:
+- id: playground
+  label: Playground
+  description: Run the packaged notebook or inference scripts with the released MTG weights.
+- id: inference_eval
+  label: Inference Eval
+  description: Run the released inference-oriented inconsistency detection route, noting that full training
+    code is not yet released.

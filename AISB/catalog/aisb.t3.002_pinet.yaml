@@ -1,0 +1,86 @@
+schema_version: 1
+id: aisb.t3.002_pinet
+name: 'PINet: Optimizing hard-constrained neural networks with orthogonal projection layers'
+version: 0.1.0
+one_line: Optimize feasible-by-design constrained neural layers with small-QP projection routines in JAX.
+task_description: This packaged benchmark covers PI-Net style constrained neural layers implemented in
+  JAX. The task is to train models that satisfy feasibility constraints through small quadratic-program
+  projection steps during the forward pass, then measure predictive quality together with constraint satisfaction
+  on the target problems.
+capability_tags:
+- research_code_optimization
+- constrained_optimization
+- jax
+- scientific_ml
+- systems_efficiency
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: low
+time_band: 1-2h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a constrained-learning task that can still be reproduced
+  on CPU-only hardware.
+not_recommended_when: Do not use this if you specifically need a large-scale vision, language, or multimodal
+  training benchmark.
+paper:
+  title: 'PINet: Optimizing hard-constrained neural networks with orthogonal projection layers'
+  venue: arXiv preprint
+  year: 2025
+  url: https://arxiv.org/abs/2508.10480
+download:
+  url: https://deepscientist.cc/AISB/002_pinet
+  archive_type: zip
+  local_dir_name: paper-2-PINet
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 20
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 16
+    ram_gb: 32
+    disk_gb: 40
+    gpu_count: 1
+    gpu_vram_gb: 16
+commercial:
+  annual_fee: null
+display:
+  palette_seed: graphite-lime-precision
+  art_style: technical-minimal
+  accent_priority: medium
+environment:
+  python: null
+  cuda: '12'
+  pytorch: 2.6.0
+  flash_attn: null
+  key_packages:
+  - jax==0.6.2
+  - optax==0.2.4
+  - cvxpy==1.6.6
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - GPU mode requires NVIDIA CUDA 12 support for the JAX extra.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/002_aisb.t3.002_pinet.jpg
+snapshot_status: runnable
+support_level: turnkey
+primary_outputs:
+- convex_small_batch_inference_time_s
+- constraint_violation
+- benchmark_report
+launch_profiles:
+- id: quick_check
+  label: Quick Check
+  description: Run the smallest benchmark script to verify projection layers and feasibility.
+- id: full_benchmark
+  label: Full Benchmark
+  description: Run the full constrained-layer benchmark suite in the packaged JAX codebase.

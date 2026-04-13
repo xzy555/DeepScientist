@@ -1,0 +1,77 @@
+schema_version: 1
+id: aisb.t3.060_iaggad
+name: 'IA-GGAD: Zero-shot Generalist Graph Anomaly Detection via Invariant and Affinity Learning'
+version: 0.1.0
+one_line: Optimize zero-shot generalist graph anomaly detection with invariant and affinity learning modules.
+task_description: This packaged benchmark covers zero-shot generalist graph anomaly detection with invariant
+  and affinity learning modules. The task is to detect anomalous graph structures without task-specific
+  retraining and improve anomaly metrics across graph benchmark settings.
+capability_tags:
+- research_code_optimization
+- graph_anomaly_detection
+- graph_learning
+- zero_shot_learning
+- anomaly_detection
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a graph-anomaly task that stresses cross-domain generalization
+  without target-domain finetuning.
+not_recommended_when: Do not use this if you need a CPU-only graph baseline or a non-graph anomaly task.
+paper:
+  title: 'IA-GGAD: Zero-shot Generalist Graph Anomaly Detection via Invariant and Affinity Learning'
+  venue: NeurIPS 2025 Spotlight
+  year: 2025
+  url: https://openreview.net/forum?id=Cggdvyt8ik
+download:
+  url: https://deepscientist.cc/AISB/060_iaggad
+  archive_type: zip
+  local_dir_name: paper-60-IAGGAD
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 50
+    gpu_count: 1
+    gpu_vram_gb: 12
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 100
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: emerald-slate-graph
+  art_style: anomaly-atlas
+  accent_priority: high
+environment:
+  python: 3.8.14
+  cuda: '11.7'
+  pytorch: 1.13.1
+  flash_attn: null
+  key_packages:
+  - dgl==0.9.1
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/060_aisb.t3.060_iaggad.jpg
+snapshot_status: runnable
+support_level: turnkey
+primary_outputs:
+- auroc
+- anomaly_scores
+- graph_eval_report
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run the packaged IA-GGAD benchmark entry directly.

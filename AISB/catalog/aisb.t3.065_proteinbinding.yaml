@@ -1,0 +1,82 @@
+schema_version: 1
+id: aisb.t3.065_proteinbinding
+name: Predicting mutational effects on protein binding from folding energy
+version: 0.1.0
+one_line: Optimize protein binding ddG prediction by combining learned stability priors with physics-based
+  scores.
+task_description: This packaged benchmark covers protein binding ddG prediction by combining learned stability
+  priors with physics-based scores. The task is to rank or regress mutation effects more accurately by
+  fusing structural priors and physics-inspired scoring routes.
+capability_tags:
+- research_code_optimization
+- protein_modeling
+- binding_energy_prediction
+- structural_biology
+- scientific_ml
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a structural-biology task with PDB inputs, mutation
+  lists, and clear ddG metrics.
+not_recommended_when: Do not use this if you need a small text benchmark or cannot work with structure
+  files and protein datasets.
+paper:
+  title: Predicting mutational effects on protein binding from folding energy
+  venue: arXiv preprint
+  year: 2025
+  url: https://arxiv.org/abs/2507.05502
+download:
+  url: https://deepscientist.cc/AISB/065_proteinbinding
+  archive_type: zip
+  local_dir_name: paper-65-ProteinBinding
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 100
+    gpu_count: 1
+    gpu_vram_gb: 16
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 200
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: sage-bone-protein
+  art_style: molecular-atlas
+  accent_priority: high
+environment:
+  python: '3.10'
+  cuda: null
+  pytorch: 2.6.0
+  flash_attn: null
+  key_packages:
+  - biopython==1.85
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/065_aisb.t3.065_proteinbinding.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- per_interface_pearson
+- ddg_predictions
+- binding_report
+launch_profiles:
+- id: single_prediction
+  label: Single Prediction
+  description: Run the packaged single-mutation or single-complex ddG prediction route.
+- id: train_and_eval
+  label: Train + Eval
+  description: Run the full packaged StaB-ddG training and evaluation workflow.

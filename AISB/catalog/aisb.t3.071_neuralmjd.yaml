@@ -1,0 +1,80 @@
+schema_version: 1
+id: aisb.t3.071_neuralmjd
+name: Neural Non-Stationary Merton Jump Diffusion for Time Series Prediction
+version: 0.1.0
+one_line: Optimize jump-diffusion time-series prediction with Monte Carlo stabilization and non-stationary
+  dynamics.
+task_description: This packaged benchmark covers jump-diffusion time-series prediction with Monte Carlo
+  stabilization under non-stationary dynamics. The task is to model abrupt temporal jumps and uncertainty
+  more faithfully than smooth forecasters on the benchmark datasets.
+capability_tags:
+- research_code_optimization
+- time_series_prediction
+- stochastic_processes
+- diffusion_models
+- uncertainty_estimation
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a probabilistic time-series task that explicitly models
+  jumps and non-stationarity.
+not_recommended_when: Do not use this if you only need simple deterministic forecasting baselines.
+paper:
+  title: Neural Non-Stationary Merton Jump Diffusion for Time Series Prediction
+  venue: arXiv preprint
+  year: 2025
+  url: https://arxiv.org/abs/2506.04542
+download:
+  url: https://deepscientist.cc/AISB/071_neuralmjd
+  archive_type: zip
+  local_dir_name: paper-71-NeuralMJD
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 16
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: indigo-copper-jump
+  art_style: stochastic-signal
+  accent_priority: high
+environment:
+  python: null
+  cuda: '11.8'
+  pytorch: 2.1.2
+  flash_attn: null
+  key_packages: []
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/071_aisb.t3.071_neuralmjd.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- mae
+- nll
+- jump_diffusion_checkpoint
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run one packaged jump-diffusion forecasting evaluation route.
+- id: full_train_eval
+  label: Full Train + Eval
+  description: Run the full packaged Monte Carlo jump-diffusion forecasting workflow.

@@ -1,0 +1,85 @@
+schema_version: 1
+id: aisb.t3.027_citeeval
+name: 'CiteEval: Principle-Driven Citation Evaluation for Source Attribution'
+version: 0.1.0
+one_line: Optimize principle-driven citation evaluation over retrieval context, cited sources, and generated
+  answers.
+task_description: This packaged benchmark covers principle-driven citation evaluation over retrieved context,
+  cited sources, and generated answers. The task is to judge whether citations are correct and well-supported,
+  then improve citation-grounding metrics without rewarding superficial source overlap.
+capability_tags:
+- research_code_optimization
+- citation_evaluation
+- retrieval_augmented_generation
+- source_attribution
+- evaluation
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 2-6h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a citation-quality metric task that evaluates full
+  retrieval context instead of simple NLI proxies.
+not_recommended_when: Do not use this if you need a benchmark without retrieval passages, source documents,
+  or API-backed metric computation.
+paper:
+  title: 'CiteEval: Principle-Driven Citation Evaluation for Source Attribution'
+  venue: arXiv preprint
+  year: 2025
+  url: https://arxiv.org/abs/2506.01829
+download:
+  url: https://deepscientist.cc/AISB/027_citeeval
+  archive_type: zip
+  local_dir_name: paper-27-CiteEval
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 50
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 100
+    gpu_count: 1
+    gpu_vram_gb: 16
+commercial:
+  annual_fee: null
+display:
+  palette_seed: cream-navy-citation
+  art_style: reference-audit
+  accent_priority: high
+environment:
+  python: '3.10'
+  cuda: '11.7'
+  pytorch: 1.13.0
+  flash_attn: null
+  key_packages:
+  - openai==1.16.2
+  - transformers==4.38.2
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/027_aisb.t3.027_citeeval.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- statement_level_pearson
+- citation_eval_report
+- principle_judgments
+launch_profiles:
+- id: quick_check
+  label: Quick Check
+  description: Run the packaged citation evaluation route on a small example batch.
+- id: full_eval
+  label: Full Eval
+  description: Run the full principle-driven citation evaluation workflow over the packaged benchmark
+    inputs.

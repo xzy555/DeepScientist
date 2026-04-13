@@ -1,0 +1,85 @@
+schema_version: 1
+id: aisb.t3.031_circuitstability
+name: Circuit Stability Characterizes Language Model Generalization
+version: 0.1.0
+one_line: Optimize mechanistic-interpretability evaluation that links circuit stability to downstream
+  language-model generalization.
+task_description: This packaged benchmark covers mechanistic-interpretability evaluation that links circuit
+  stability to downstream language-model generalization. The task is to probe whether learned circuits
+  remain stable across interventions or training changes, then connect those findings to benchmark performance.
+capability_tags:
+- research_code_optimization
+- mechanistic_interpretability
+- large_language_models
+- circuit_analysis
+- evaluation
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 1d+
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a mechanistic-interpretability task with explicit circuit
+  extraction and generalization analysis.
+not_recommended_when: Do not use this if you cannot provision A100-class hardware or if you need a lightweight
+  finetuning benchmark.
+paper:
+  title: Circuit Stability Characterizes Language Model Generalization
+  venue: ACL 2025
+  year: 2025
+  url: https://openreview.net/forum?id=2914j8175g
+download:
+  url: https://deepscientist.cc/AISB/031_circuitstability
+  archive_type: zip
+  local_dir_name: paper-31-CircuitStability
+resources:
+  minimum:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 80
+  recommended:
+    cpu_cores: 32
+    ram_gb: 128
+    disk_gb: 300
+    gpu_count: 2
+    gpu_vram_gb: 80
+commercial:
+  annual_fee: null
+display:
+  palette_seed: graphite-gold-circuit
+  art_style: interpretability-lab
+  accent_priority: high
+environment:
+  python: 3.10.16
+  cuda: null
+  pytorch: 2.4.1
+  flash_attn: null
+  key_packages:
+  - jax==0.5.0
+  - jaxlib==0.5.0
+  - transformers==4.44.2
+  notes:
+  - Graphviz is an explicit prerequisite for circuit visualization in the local README.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/031_aisb.t3.031_circuitstability.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- accuracy_88
+- circuit_stability_report
+- generalization_analysis
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run one packaged evaluation path for circuit stability and downstream accuracy.
+- id: full_analysis
+  label: Full Analysis
+  description: Run the full packaged mechanistic-interpretability and generalization analysis workflow.

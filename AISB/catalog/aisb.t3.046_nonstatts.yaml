@@ -1,0 +1,80 @@
+schema_version: 1
+id: aisb.t3.046_nonstatts
+name: Battling the Non-stationarity in Time Series Forecasting via Test-time Adaptation
+version: 0.1.0
+one_line: Optimize test-time adaptation for non-stationary time-series forecasting with lightweight calibration
+  modules.
+task_description: This packaged benchmark covers test-time adaptation for non-stationary time-series forecasting
+  with lightweight calibration modules. The task is to adapt a forecaster online or at evaluation time
+  so that it remains accurate under evolving temporal dynamics.
+capability_tags:
+- research_code_optimization
+- time_series_forecasting
+- test_time_adaptation
+- forecasting
+- distribution_shift
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a forecasting task that explicitly studies adaptation
+  under non-stationary test distributions.
+not_recommended_when: Do not use this if you only care about static in-distribution forecasting baselines.
+paper:
+  title: Battling the Non-stationarity in Time Series Forecasting via Test-time Adaptation
+  venue: AAAI 2025
+  year: 2025
+  url: https://arxiv.org/abs/2501.04970
+download:
+  url: https://deepscientist.cc/AISB/046_nonstatts
+  archive_type: zip
+  local_dir_name: paper-46-NonStatTS
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 12
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: blue-sand-adapt
+  art_style: adaptive-signal
+  accent_priority: medium
+environment:
+  python: '3.8'
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/046_aisb.t3.046_nonstatts.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- test_mse
+- test_mae
+- adaptation_report
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run a single non-stationary adaptation evaluation path.
+- id: full_adaptation
+  label: Full Adaptation
+  description: Run the packaged test-time adaptation workflow across the supported forecasting datasets.

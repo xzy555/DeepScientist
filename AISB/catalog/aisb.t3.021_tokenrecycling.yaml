@@ -1,0 +1,81 @@
+schema_version: 1
+id: aisb.t3.021_tokenrecycling
+name: 'Turning Trash into Treasure: Accelerating Inference of Large Language Models with Token Recycling'
+version: 0.1.0
+one_line: Optimize retrieval-free speculative decoding by recycling candidate tokens during LLM inference.
+task_description: This packaged benchmark covers retrieval-free speculative decoding that recycles candidate
+  tokens during LLM inference. The task is to improve inference speed by reusing previously proposed tokens
+  and acceptance structure without harming answer quality on the evaluation suite.
+capability_tags:
+- research_code_optimization
+- large_language_models
+- speculative_decoding
+- inference_acceleration
+- systems_efficiency
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want an inference-acceleration task for 7B-plus LLMs without
+  training an extra draft model.
+not_recommended_when: Do not use this if you lack a modern GPU for serving open-weight LLMs or if you
+  need a training-centric benchmark.
+paper:
+  title: 'Turning Trash into Treasure: Accelerating Inference of Large Language Models with Token Recycling'
+  venue: ACL 2025 Oral
+  year: 2025
+  url: https://arxiv.org/abs/2408.08696
+download:
+  url: https://deepscientist.cc/AISB/021_tokenrecycling
+  archive_type: zip
+  local_dir_name: paper-21-TokenRecycling
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 100
+    gpu_count: 1
+    gpu_vram_gb: 24
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 200
+    gpu_count: 1
+    gpu_vram_gb: 48
+commercial:
+  annual_fee: null
+display:
+  palette_seed: lime-slate-recycle
+  art_style: systems-diagram
+  accent_priority: high
+environment:
+  python: null
+  cuda: null
+  pytorch: 2.1.1
+  flash_attn: null
+  key_packages:
+  - transformers==4.37.1
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/021_aisb.t3.021_tokenrecycling.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- mean_accepted_tokens
+- spec_bench_speedup
+- throughput_report
+launch_profiles:
+- id: quick_check
+  label: Quick Check
+  description: Run the packaged token-recycling evaluation script on one supported model.
+- id: specbench_eval
+  label: SpecBench Eval
+  description: Run the full packaged inference-speed evaluation on the SpecBench route.

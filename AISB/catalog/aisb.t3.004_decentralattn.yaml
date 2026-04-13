@@ -1,0 +1,84 @@
+schema_version: 1
+id: aisb.t3.004_decentralattn
+name: 'Decentralized Attention Fails Centralized Signals: Rethinking Transformers for Medical Time Series'
+version: 0.1.0
+one_line: Optimize a medical time-series transformer stack across multiple preprocessed benchmark datasets.
+task_description: This packaged benchmark covers a medical time-series transformer stack evaluated across
+  several preprocessed benchmark datasets. The task is to train and tune the decentralized attention architecture
+  on clinical or physiological sequences, then improve forecasting or classification quality without breaking
+  the multi-dataset evaluation route.
+capability_tags:
+- research_code_optimization
+- medical_time_series
+- transformers
+- classification
+- health_ai
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: hard
+data_access: restricted
+recommended_when: Use this benchmark when you want to test architecture and training-loop changes on medical
+  time-series classification workloads.
+not_recommended_when: Do not use this if you cannot access the full benchmark suite or need a purely public-only
+  medical dataset setup.
+paper:
+  title: 'Decentralized Attention Fails Centralized Signals: Rethinking Transformers for Medical Time
+    Series'
+  venue: ICLR 2026
+  year: 2026
+  url: https://openreview.net/forum?id=oZJFY2BQt2
+download:
+  url: https://deepscientist.cc/AISB/004_decentralattn
+  archive_type: zip
+  local_dir_name: paper-4-DecentralAttn
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 50
+    gpu_count: 1
+    gpu_vram_gb: 12
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 120
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: crimson-teal-clinic
+  art_style: signal-lab
+  accent_priority: high
+environment:
+  python: null
+  cuda: null
+  pytorch: 2.4.1
+  flash_attn: null
+  key_packages: []
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/004_aisb.t3.004_decentralattn.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- accuracy
+- f1
+- auroc
+- model_checkpoint
+launch_profiles:
+- id: quick_check
+  label: Quick Check
+  description: Run one packaged medical time-series script on a single benchmark split.
+- id: full_eval
+  label: Full Eval
+  description: Run the broader medical time-series benchmark suite with the packaged training and evaluation
+    scripts.

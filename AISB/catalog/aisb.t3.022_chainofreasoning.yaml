@@ -1,0 +1,88 @@
+schema_version: 1
+id: aisb.t3.022_chainofreasoning
+name: 'Chain-of-Reasoning: Towards Unified Mathematical Reasoning in Large Language Models via a Multi-Paradigm
+  Perspective'
+version: 0.1.0
+one_line: Optimize multi-paradigm math reasoning across natural language, symbolic, algorithmic, and Lean-based
+  workflows.
+task_description: This packaged benchmark covers multi-paradigm mathematical reasoning across natural-language,
+  symbolic, algorithmic, and Lean-based workflows. The task is to coordinate these reasoning routes, improve
+  final answer accuracy, and choose or combine paradigms effectively on the benchmark tasks.
+capability_tags:
+- research_code_optimization
+- mathematical_reasoning
+- formal_methods
+- large_language_models
+- theorem_proving
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 1d+
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a heavyweight math-reasoning task that mixes Lean tooling,
+  LLM training, and inference-time search.
+not_recommended_when: Do not use this if you cannot provision both high-memory GPUs and the extra setup
+  overhead of Lean and Mathlib.
+paper:
+  title: 'Chain-of-Reasoning: Towards Unified Mathematical Reasoning in Large Language Models via a Multi-Paradigm
+    Perspective'
+  venue: arXiv preprint
+  year: 2025
+  url: https://arxiv.org/abs/2501.11110
+download:
+  url: https://deepscientist.cc/AISB/022_chainofreasoning
+  archive_type: zip
+  local_dir_name: paper-22-ChainOfReasoning
+resources:
+  minimum:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 250
+    gpu_count: 1
+    gpu_vram_gb: 48
+  recommended:
+    cpu_cores: 32
+    ram_gb: 128
+    disk_gb: 500
+    gpu_count: 2
+    gpu_vram_gb: 80
+commercial:
+  annual_fee: null
+display:
+  palette_seed: cobalt-ivory-proof
+  art_style: formal-reasoning
+  accent_priority: high
+environment:
+  python: null
+  cuda: null
+  pytorch: 2.5.1
+  flash_attn: 2.7.0.post2
+  key_packages:
+  - flash-attn==2.7.0.post2
+  - deepspeed==0.15.4
+  - vllm==0.6.4.post1
+  - transformers==4.46.3
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/022_aisb.t3.022_chainofreasoning.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- accuracy
+- reasoning_traces
+- lean_artifacts
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run one packaged evaluation route without full multi-stage training.
+- id: full_train_eval
+  label: Full Train + Eval
+  description: Build the multi-paradigm data route, train the model, and run the packaged benchmark evaluation
+    workflow.

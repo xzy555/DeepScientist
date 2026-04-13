@@ -1,0 +1,69 @@
+schema_version: 1
+id: aisb.t3.094_boundre
+name: 'BounDr.E: Predicting Drug-likeness via Biomedical Knowledge Alignment and EM-like One-Class Boundary
+  Optimization'
+version: 0.1.0
+one_line: Optimize drug-likeness boundary prediction via multimodal alignment and EM-like one-class modeling.
+task_description: This packaged benchmark covers drug-likeness boundary prediction via multimodal alignment
+  and EM-like one-class modeling. The task is to identify whether molecules remain inside a desired drug-like
+  region by combining multiple modalities and iterative boundary refinement.
+capability_tags:
+- research_code_optimization
+- drug_discovery
+- one_class_classification
+- multimodal_learning
+- biomedical_ai
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a biomedical one-class boundary-learning task with
+  chemistry inputs and knowledge features.
+not_recommended_when: Do not use this if you need a lightweight non-biomedical benchmark.
+paper:
+  title: 'BounDr.E: Predicting Drug-likeness via Biomedical Knowledge Alignment and EM-like One-Class
+    Boundary Optimization'
+  venue: ICML 2025
+  year: 2025
+  url: https://proceedings.mlr.press/v267/bang25a.html
+download:
+  url: https://deepscientist.cc/AISB/094_boundre
+  archive_type: zip
+  local_dir_name: paper-94-BounDrE
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 12
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: sage-crimson-boundary
+  art_style: biomedical-geometry
+  accent_priority: high
+environment:
+  python: null
+  cuda: '10.1'
+  pytorch: 1.8.1
+  flash_attn: null
+  key_packages:
+  - rdkit-pypi==2022.9.5
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/094_aisb.t3.094_boundre.jpg

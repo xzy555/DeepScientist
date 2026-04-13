@@ -1,0 +1,80 @@
+schema_version: 1
+id: aisb.t3.037_dementiamask
+name: Mitigating Confounding in Speech-Based Dementia Detection through Weight Masking
+version: 0.1.0
+one_line: Optimize confound-robust dementia detection with masking-based debiasing over speech-derived
+  transcripts.
+task_description: This packaged benchmark covers confound-robust dementia detection with masking-based
+  debiasing over speech-derived transcripts. The task is to separate disease-relevant signal from confounds
+  such as age or recording artifacts while improving diagnostic accuracy and robustness.
+capability_tags:
+- research_code_optimization
+- speech_nlp
+- dementia_detection
+- debiasing
+- clinical_ai
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 2-6h
+difficulty: medium
+data_access: restricted
+recommended_when: Use this benchmark when you want a clinically motivated debiasing task on speech-derived
+  dementia signals.
+not_recommended_when: Do not use this if you cannot access the required clinical or benchmark speech data.
+paper:
+  title: Mitigating Confounding in Speech-Based Dementia Detection through Weight Masking
+  venue: ACL 2025 Main
+  year: 2025
+  url: https://arxiv.org/abs/2506.05610
+download:
+  url: https://deepscientist.cc/AISB/037_dementiamask
+  archive_type: zip
+  local_dir_name: paper-37-DementiaMask
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 30
+    gpu_count: 1
+    gpu_vram_gb: 8
+  recommended:
+    cpu_cores: 16
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 16
+commercial:
+  annual_fee: null
+display:
+  palette_seed: wine-silver-clinic
+  art_style: clinical-notebook
+  accent_priority: medium
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/037_aisb.t3.037_dementiamask.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- auprc
+- diagnostic_scores
+- debiasing_report
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run one packaged dementia detection evaluation path.
+- id: full_train_eval
+  label: Full Train + Eval
+  description: Run the full masking-based debiasing workflow and downstream dementia benchmark evaluation.

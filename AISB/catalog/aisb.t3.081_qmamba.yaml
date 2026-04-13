@@ -1,0 +1,79 @@
+schema_version: 1
+id: aisb.t3.081_qmamba
+name: Meta-Black-Box-Optimization through Offline Q-function Learning
+version: 0.1.0
+one_line: Optimize offline meta-black-box optimization with Q-function learning over long configuration
+  trajectories.
+task_description: This packaged benchmark is intended to cover offline meta-black-box optimization with
+  Q-function learning over long configuration trajectories. The task itself is to learn how to choose
+  better black-box optimization actions from offline traces, but the local snapshot currently preserves
+  metadata rather than runnable code.
+capability_tags:
+- research_code_optimization
+- black_box_optimization
+- offline_rl
+- mamba_models
+- meta_learning
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: analysis_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this entry when you want paper-backed planning or upstream restoration for the Mamba-based
+  meta-optimization route.
+not_recommended_when: Do not treat this local package as a ready-to-run sequential optimization benchmark;
+  the executable code is absent from the staged snapshot.
+paper:
+  title: Meta-Black-Box-Optimization through Offline Q-function Learning
+  venue: ICML 2025
+  year: 2025
+  url: https://proceedings.mlr.press/v267/ma25b.html
+download:
+  url: https://deepscientist.cc/AISB/081_qmamba
+  archive_type: zip
+  local_dir_name: paper-81-QMamba
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 16
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: slate-gold-offline
+  art_style: trajectory-systems
+  accent_priority: high
+environment:
+  python: '3.10'
+  cuda: '12.1'
+  pytorch: 2.1.1
+  flash_attn: null
+  key_packages:
+  - mamba-ssm==1.2.2
+  notes:
+  - The current local package does not preserve executable setup files or runnable source code; environment
+    hints here should be treated as provisional until upstream restoration.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/081_aisb.t3.081_qmamba.jpg
+risk_flags:
+- source_snapshot_incomplete
+- route_caveat
+dataset_download:
+  notes:
+  - The current local package does not preserve an executable benchmark route; treat dataset setup as
+    part of upstream restoration rather than a bundled run path.

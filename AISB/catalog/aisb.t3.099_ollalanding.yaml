@@ -1,0 +1,71 @@
+schema_version: 1
+id: aisb.t3.099_ollalanding
+name: Fast Non-Log-Concave Sampling under Nonconvex Equality and Inequality Constraints
+  with Landing
+version: 0.1.0
+one_line: Optimize constrained non-log-concave sampling with Landing-based samplers
+  and high-dimensional stress tests.
+task_description: This packaged benchmark covers constrained non-log-concave sampling
+  with Landing-based samplers and high-dimensional stress tests. The task is to improve
+  sampler quality and efficiency on difficult constrained distributions where standard
+  methods mix poorly.
+capability_tags:
+- research_code_optimization
+- sampling
+- constrained_optimization
+- probabilistic_modeling
+- monte_carlo
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a challenging constrained-sampling
+  task with both low- and high-dimensional experiments.
+not_recommended_when: Do not use this if you need a simple supervised-learning benchmark.
+paper:
+  title: Fast Non-Log-Concave Sampling under Nonconvex Equality and Inequality Constraints
+    with Landing
+  venue: NeurIPS 2025
+  year: 2025
+  url: https://arxiv.org/abs/2510.22044
+download:
+  url: https://deepscientist.cc/AISB/099_ollalanding
+  archive_type: zip
+  local_dir_name: paper-99-OLLALanding
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 50
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 120
+    gpu_count: 1
+    gpu_vram_gb: 16
+commercial:
+  annual_fee: null
+display:
+  palette_seed: charcoal-mint-landing
+  art_style: constrained-geometry
+  accent_priority: high
+environment:
+  python: '3.11'
+  cuda: null
+  pytorch: '2.3'
+  flash_attn: null
+  key_packages: []
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/099_aisb.t3.099_ollalanding.jpg

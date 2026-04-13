@@ -1,0 +1,77 @@
+schema_version: 1
+id: aisb.t3.074_lsvi
+name: Least squares variational inference
+version: 0.1.0
+one_line: Optimize gradient-free variational inference built around least-squares updates and Gaussian
+  BBVI variants.
+task_description: This packaged benchmark covers gradient-free variational inference built around least-squares
+  updates and Gaussian BBVI variants. The task is to estimate posterior structure accurately without unstable
+  gradient estimators and improve the target inference metric.
+capability_tags:
+- research_code_optimization
+- variational_inference
+- bayesian_inference
+- gradient_free_optimization
+- probabilistic_modeling
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: low
+time_band: 2-6h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a probabilistic-inference task that stays mostly CPU-bound
+  and methodologically clear.
+not_recommended_when: Do not use this if you need a large-scale deep-learning benchmark.
+paper:
+  title: Least squares variational inference
+  venue: NeurIPS 2025
+  year: 2025
+  url: https://arxiv.org/abs/2502.18475
+download:
+  url: https://deepscientist.cc/AISB/074_lsvi
+  archive_type: zip
+  local_dir_name: paper-74-LSVI
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 20
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 16
+    ram_gb: 32
+    disk_gb: 50
+    gpu_count: 0
+    gpu_vram_gb: 0
+commercial:
+  annual_fee: null
+display:
+  palette_seed: cream-slate-gaussian
+  art_style: probabilistic-notebook
+  accent_priority: medium
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/074_aisb.t3.074_lsvi.jpg
+snapshot_status: runnable
+support_level: turnkey
+primary_outputs:
+- kl_objective
+- variational_inference_report
+launch_profiles:
+- id: gaussian_logreg
+  label: Gaussian Logistic Regression
+  description: Run the packaged least-squares variational inference experiment for logistic regression.

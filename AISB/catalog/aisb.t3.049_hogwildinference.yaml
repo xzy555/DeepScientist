@@ -1,0 +1,84 @@
+schema_version: 1
+id: aisb.t3.049_hogwildinference
+name: 'Hogwild! Inference: Parallel LLM Generation via Concurrent Attention'
+version: 0.1.0
+one_line: Optimize concurrent-cache LLM inference with parallel workers and optional custom fast kernels.
+task_description: This packaged benchmark covers parallel LLM generation with a concurrent attention cache
+  and optional custom CUDA kernels. The task is to run multi-worker inference or kernel benchmarks from
+  the local notebooks and `inference_lib`, then improve generation throughput without breaking correctness
+  or stability. The primary staged metric is `tokens_per_second`; the local benchmark code measures kernel
+  latency directly and still needs runtime verification to confirm end-to-end throughput.
+capability_tags:
+- research_code_optimization
+- large_language_models
+- parallel_inference
+- systems_efficiency
+- cuda_kernels
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 1-2d
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want an LLM-systems task focused on parallel generation
+  and kernel-level inference optimization.
+not_recommended_when: Do not use this if you do not have access to a modern CUDA GPU or if you need a
+  training-oriented benchmark.
+paper:
+  title: 'Hogwild! Inference: Parallel LLM Generation via Concurrent Attention'
+  venue: arXiv preprint
+  year: 2025
+  url: https://arxiv.org/abs/2504.06261
+download:
+  url: https://deepscientist.cc/AISB/049_hogwildinference
+  archive_type: zip
+  local_dir_name: paper-49-HogwildInference
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 24
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 48
+commercial:
+  annual_fee: null
+display:
+  palette_seed: orange-slate-cache
+  art_style: concurrent-systems
+  accent_priority: high
+environment:
+  python: '3.10'
+  cuda: null
+  pytorch: 2.6.0
+  flash_attn: null
+  key_packages:
+  - transformers==4.51.3
+  notes:
+  - The fast inference kernels require nvcc and were tuned for L40-class GPUs.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/049_aisb.t3.049_hogwildinference.jpg
+snapshot_status: partial
+support_level: advanced
+primary_outputs:
+- tokens_per_second
+- kernel_latency_us
+- benchmark_logs
+launch_profiles:
+- id: notebook_inference
+  label: Notebook Inference
+  description: Run the packaged multi-worker inference notebooks on a supported local model.
+- id: kernel_benchmark
+  label: Kernel Benchmark
+  description: Run the packaged CUDA kernel benchmark route and verify throughput conversion manually.

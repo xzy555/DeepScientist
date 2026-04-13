@@ -1,0 +1,67 @@
+schema_version: 1
+id: aisb.t3.102_stochasticff
+name: Stochastic Forward-Forward Learning through Representational Dimensionality Compression
+version: 0.1.0
+one_line: Optimize stochastic forward-forward learning with compressed representations and longer probe
+  phases.
+task_description: This packaged benchmark covers stochastic forward-forward learning with compressed representations
+  and longer probe phases. The task is to train a forward-forward style model more effectively through
+  stochasticity and representation compression while improving benchmark accuracy.
+capability_tags:
+- research_code_optimization
+- forward_forward_learning
+- representation_learning
+- image_classification
+- efficient_training
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 2-6h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want an alternative training-paradigm task that is not based
+  on standard backprop-only recipes.
+not_recommended_when: Do not use this if you need a conventional large-model finetuning benchmark.
+paper:
+  title: Stochastic Forward-Forward Learning through Representational Dimensionality Compression
+  venue: NeurIPS 2025
+  year: 2025
+  url: https://arxiv.org/abs/2505.16649
+download:
+  url: https://deepscientist.cc/AISB/102_stochasticff
+  archive_type: zip
+  local_dir_name: paper-102-StochasticFF
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 30
+    gpu_count: 1
+    gpu_vram_gb: 8
+  recommended:
+    cpu_cores: 16
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 16
+commercial:
+  annual_fee: null
+display:
+  palette_seed: amber-indigo-forward
+  art_style: learning-dynamics
+  accent_priority: medium
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/102_aisb.t3.102_stochasticff.jpg

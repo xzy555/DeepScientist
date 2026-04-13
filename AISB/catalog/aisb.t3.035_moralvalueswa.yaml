@@ -1,0 +1,77 @@
+schema_version: 1
+id: aisb.t3.035_moralvalueswa
+name: Comparing Moral Values in Western English-speaking societies and LLMs with Word Associations
+version: 0.1.0
+one_line: Optimize moral-value analysis by propagating signal over human and LLM word-association graphs.
+task_description: This packaged benchmark covers moral-value analysis by propagating signal over human
+  and LLM word-association graphs. The task is to infer or compare moral value structure from graph-based
+  linguistic evidence and improve benchmark agreement with the target moral taxonomy.
+capability_tags:
+- research_code_optimization
+- moral_reasoning
+- graph_analysis
+- llm_evaluation
+- nlp
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: low
+time_band: 2-6h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a graph-based NLP evaluation task that can reuse provided
+  association files instead of retraining a language model.
+not_recommended_when: Do not use this if you specifically need a large-scale end-to-end finetuning benchmark.
+paper:
+  title: Comparing Moral Values in Western English-speaking societies and LLMs with Word Associations
+  venue: ACL 2025 Main
+  year: 2025
+  url: https://aclanthology.org/2025.acl-long.177/
+download:
+  url: https://deepscientist.cc/AISB/035_moralvalueswa
+  archive_type: zip
+  local_dir_name: paper-35-MoralValuesWA
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 20
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 16
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: sepia-emerald-values
+  art_style: social-science
+  accent_priority: medium
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/035_aisb.t3.035_moralvalueswa.jpg
+snapshot_status: runnable
+support_level: turnkey
+primary_outputs:
+- correlation_care
+- moral_value_graphs
+- analysis_report
+launch_profiles:
+- id: graph_eval
+  label: Graph Eval
+  description: Run the packaged word-association graph analysis route.

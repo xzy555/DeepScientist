@@ -1,0 +1,94 @@
+schema_version: 1
+id: aisb.t3.084_ift
+name: Towards Accurate Time Series Forecasting via Implicit Decoding
+version: 0.1.0
+one_line: Optimize implicit decoding modules that improve the forecasting phase of time-series transformers.
+task_description: This packaged benchmark is intended to cover implicit decoding for time-series forecasting
+  on top of transformer encoders. The task itself is to improve the decoder-side forecasting route and
+  evaluate forecasting quality with MSE and MAE on standard time-series datasets, but the current local
+  snapshot preserves only metadata and audit files. This entry therefore needs upstream source restoration
+  before it becomes a runnable benchmark again.
+capability_tags:
+- research_code_optimization
+- time_series_forecasting
+- transformers
+- implicit_decoding
+- forecasting
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: analysis_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: hard
+data_access: public
+risk_flags:
+- source_snapshot_incomplete
+- route_caveat
+risk_notes:
+- The current local package contains only metadata and metric-contract files; code, README, and launcher
+  scripts are absent.
+- The NeurIPS paper reports experiments on a 16-core AMD EPYC 9654 CPU and a single NVIDIA RTX 4090 GPU,
+  but those scripts are not preserved in this snapshot.
+- Use this entry for paper-backed planning or upstream rehydration rather than as a ready-to-run local
+  benchmark.
+recommended_when: Use this benchmark when you want to study the paper-backed forecasting-decoder design
+  and are willing to restore the upstream codebase first.
+not_recommended_when: Do not use this as a ready-to-run local benchmark until the upstream GitHub source
+  is restored into the packaged snapshot.
+paper:
+  title: Towards Accurate Time Series Forecasting via Implicit Decoding
+  venue: NeurIPS 2025
+  year: 2025
+  url: https://openreview.net/forum?id=gqoeQPhQcE
+download:
+  url: https://deepscientist.cc/AISB/084_ift
+  archive_type: zip
+  local_dir_name: paper-84-IFT
+dataset_download:
+  primary_method: manual_or_not_explicit
+  sources: []
+  notes:
+  - The OpenReview paper links to an upstream GitHub repository, but the current local package does not
+    preserve the dataset scripts or README needed to materialize that route.
+  - Treat dataset setup as an upstream restoration step rather than a bundled one-click download.
+credential_requirements:
+  mode: none
+  items: []
+  notes:
+  - No explicit dataset or API credential variable was detected in the bundled source snapshot.
+resources:
+  minimum:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 50
+    gpu_count: 1
+    gpu_vram_gb: 24
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 100
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: amber-sky-implicit
+  art_style: decoding-wave
+  accent_priority: high
+environment:
+  python: null
+  cuda: null
+  pytorch: '2.0'
+  flash_attn: null
+  key_packages: []
+  notes:
+  - The paper states that the implementation is built on PyTorch 2.0 and the reported experiments run
+    on a single RTX 4090 GPU.
+  - The current local package does not preserve dependency files, so these environment hints come from
+    the paper rather than executable local sources.
+image_path: ../../../AISB/image/084_aisb.t3.084_ift.jpg

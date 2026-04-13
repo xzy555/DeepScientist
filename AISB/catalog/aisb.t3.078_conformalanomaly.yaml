@@ -1,0 +1,90 @@
+schema_version: 1
+id: aisb.t3.078_conformalanomaly
+name: Conformal Anomaly Detection in Event Sequences
+version: 0.1.0
+one_line: Optimize conformal anomaly detection for temporal point processes and event sequences.
+task_description: This packaged benchmark is intended to cover conformal anomaly detection for temporal
+  point processes and event sequences. The task itself is to calibrate anomaly alarms with conformal-style
+  guarantees on sequential event data, but the current local snapshot preserves metadata rather than the
+  runnable benchmark implementation.
+capability_tags:
+- research_code_optimization
+- anomaly_detection
+- event_sequences
+- conformal_prediction
+- temporal_point_processes
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: analysis_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 2-6h
+difficulty: medium
+data_access: public
+recommended_when: Use this entry when you want paper-backed planning or upstream restoration for the conformal
+  anomaly-detection route.
+not_recommended_when: Do not treat this local package as a ready-to-run event anomaly benchmark; the staged
+  snapshot preserves metadata only.
+paper:
+  title: Conformal Anomaly Detection in Event Sequences
+  venue: ICML 2025
+  year: 2025
+  url: https://proceedings.mlr.press/v267/zhang25dn.html
+download:
+  url: https://deepscientist.cc/AISB/078_conformalanomaly
+  archive_type: zip
+  local_dir_name: paper-78-ConformalAnomaly
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 30
+    gpu_count: 1
+    gpu_vram_gb: 8
+  recommended:
+    cpu_cores: 16
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 16
+commercial:
+  annual_fee: null
+display:
+  palette_seed: marine-sand-event
+  art_style: temporal-statistics
+  accent_priority: medium
+environment:
+  python: '3.8'
+  cuda: '11.3'
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - The current local package does not preserve executable setup files or runnable source code; environment
+    hints here should be treated as provisional until upstream restoration.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/078_aisb.t3.078_conformalanomaly.jpg
+risk_flags:
+- source_snapshot_incomplete
+- route_caveat
+dataset_download:
+  notes:
+  - The current local package does not preserve an executable benchmark route; treat dataset setup as
+    part of upstream restoration rather than a bundled run path.
+snapshot_status: restore_needed
+support_level: recovery
+primary_outputs:
+- auroc_anchorage_ak
+- tpr_at_alpha_005_anchorage_ak
+launch_profiles:
+- id: analysis_only
+  label: Analysis Only
+  description: Review the preserved conformal anomaly benchmark metadata and target metrics.
+- id: restore_first
+  label: Restore First
+  description: Restore the missing event-sequence anomaly detection code before treating this benchmark
+    as runnable.

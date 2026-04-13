@@ -1,0 +1,83 @@
+schema_version: 1
+id: aisb.t3.013_appl
+name: 'APPL: A Prompt Programming Language for Harmonious Integration of Programs and Large Language Model
+  Prompts'
+version: 0.1.0
+one_line: Optimize an LLM-oriented programming language runtime where compact program structure is itself
+  the target metric.
+task_description: This packaged benchmark covers an LLM-oriented programming language runtime where compact
+  program structure is itself a target metric. The task is to improve compiler-style simplification, program
+  compactness, and execution behavior while preserving correctness on the benchmark suite.
+capability_tags:
+- research_code_optimization
+- prompt_programming
+- software_language_tools
+- llm_tooling
+- python
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: low
+time_band: 30-60m
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a software-oriented LLM task that emphasizes runtime
+  behavior and prompt-program structure instead of GPU training.
+not_recommended_when: Do not use this if you are looking for a heavy model-training benchmark or a purely
+  offline task with no LLM backend.
+paper:
+  title: 'APPL: A Prompt Programming Language for Harmonious Integration of Programs and Large Language
+    Model Prompts'
+  venue: arXiv preprint
+  year: 2024
+  url: https://arxiv.org/abs/2406.13161
+download:
+  url: https://deepscientist.cc/AISB/013_appl
+  archive_type: zip
+  local_dir_name: paper-13-APPL
+resources:
+  minimum:
+    cpu_cores: 4
+    ram_gb: 8
+    disk_gb: 10
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 20
+    gpu_count: 0
+    gpu_vram_gb: 0
+commercial:
+  annual_fee: null
+display:
+  palette_seed: apple-ink-notebook
+  art_style: language-design
+  accent_priority: medium
+environment:
+  python: '3.9'
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - CPU-only execution is plausible for the minimum route.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/013_aisb.t3.013_appl.jpg
+snapshot_status: runnable
+support_level: turnkey
+primary_outputs:
+- ast_size
+- runtime_output
+launch_profiles:
+- id: quick_check
+  label: Quick Check
+  description: Run the AST-size evaluator to verify the APPL route quickly.
+- id: ast_eval
+  label: AST Eval
+  description: Run the packaged compactness-focused APPL evaluation workflow.

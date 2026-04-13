@@ -1,0 +1,91 @@
+schema_version: 1
+id: aisb.t3.080_latentscorereweight
+name: Latent Score-Based Reweighting for Robust Classification on Imbalanced Tabular Data
+version: 0.1.0
+one_line: Optimize robust tabular classification by reweighting underrepresented regions with latent score
+  signals.
+task_description: This packaged benchmark is intended to cover robust tabular classification by reweighting
+  underrepresented regions with latent score signals. The task itself is to improve robustness by emphasizing
+  rare or poorly modeled regions of the data distribution, but the current local snapshot does not preserve
+  the executable training code.
+capability_tags:
+- research_code_optimization
+- robust_classification
+- tabular_ml
+- score_based_models
+- distribution_shift
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: analysis_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: medium
+data_access: public
+recommended_when: Use this entry when you want paper-backed planning or upstream restoration for the latent
+  score reweighting robustness route.
+not_recommended_when: Do not treat this local package as a ready-to-run robustness benchmark; the executable
+  generative route is absent from the staged snapshot.
+paper:
+  title: Latent Score-Based Reweighting for Robust Classification on Imbalanced Tabular Data
+  venue: ICML 2025
+  year: 2025
+  url: https://proceedings.mlr.press/v267/tong25c.html
+download:
+  url: https://deepscientist.cc/AISB/080_latentscorereweight
+  archive_type: zip
+  local_dir_name: paper-80-LatentScoreReweight
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 16
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: copper-teal-reweight
+  art_style: robust-tabular
+  accent_priority: high
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - The current local package does not preserve executable setup files or runnable source code; environment
+    hints here should be treated as provisional until upstream restoration.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/080_aisb.t3.080_latentscorereweight.jpg
+risk_flags:
+- source_snapshot_incomplete
+- route_caveat
+dataset_download:
+  notes:
+  - The current local package does not preserve an executable benchmark route; treat dataset setup as
+    part of upstream restoration rather than a bundled run path.
+snapshot_status: restore_needed
+support_level: recovery
+primary_outputs:
+- worst_group_accuracy
+- mean_accuracy
+launch_profiles:
+- id: analysis_only
+  label: Analysis Only
+  description: Review the preserved robustness benchmark metadata and target metrics.
+- id: restore_first
+  label: Restore First
+  description: Restore the missing latent-score reweighting implementation before treating this benchmark
+    as runnable.

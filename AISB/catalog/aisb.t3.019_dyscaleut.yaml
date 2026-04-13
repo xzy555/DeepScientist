@@ -1,0 +1,83 @@
+schema_version: 1
+id: aisb.t3.019_dyscaleut
+name: Dynamic Scaling of Unit Tests for Code Reward Modeling
+version: 0.1.0
+one_line: Optimize unit-test scaling and reward aggregation for code reward models on code-generation
+  benchmarks.
+task_description: This packaged benchmark covers unit-test scaling and reward aggregation for code reward
+  models on code-generation benchmarks. The task is to expand or weight test signals so that the reward
+  model better reflects program correctness and supports stronger downstream code selection.
+capability_tags:
+- research_code_optimization
+- code_generation
+- reward_modeling
+- unit_test_generation
+- evaluation
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 1d+
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a code-generation task with both model inference and
+  real unit-test execution in the loop.
+not_recommended_when: Do not use this if you cannot provide containerized code execution or if you need
+  a text-only reward-model benchmark.
+paper:
+  title: Dynamic Scaling of Unit Tests for Code Reward Modeling
+  venue: ACL 2025
+  year: 2025
+  url: https://arxiv.org/abs/2501.01054
+download:
+  url: https://deepscientist.cc/AISB/019_dyscaleut
+  archive_type: zip
+  local_dir_name: paper-19-DyScaleUT
+resources:
+  minimum:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+  recommended:
+    cpu_cores: 32
+    ram_gb: 128
+    disk_gb: 300
+    gpu_count: 2
+    gpu_vram_gb: 48
+commercial:
+  annual_fee: null
+display:
+  palette_seed: olive-ink-runtime
+  art_style: code-lab
+  accent_priority: high
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - The local release includes a dedicated Docker execution environment for large-scale code testing.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/019_aisb.t3.019_dyscaleut.jpg
+snapshot_status: partial
+support_level: advanced
+primary_outputs:
+- pass_at_1
+- scaled_unit_tests
+- reward_scores
+launch_profiles:
+- id: quick_check
+  label: Quick Check
+  description: Run the preserved unit-test scaling and reward aggregation path on a small sample.
+- id: code_reward_eval
+  label: Code Reward Eval
+  description: Run the preserved packaged route for unit-test scaling and benchmark evaluation, acknowledging
+    the missing preprocessing pieces.

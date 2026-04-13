@@ -1,0 +1,83 @@
+schema_version: 1
+id: aisb.t3.057_mdreid
+name: 'MDReID: Modality-Decoupled Learning for Any-to-Any Multi-Modal Object Re-Identification'
+version: 0.1.0
+one_line: Optimize multi-modal object re-identification with modality-decoupled feature handling and retrieval-time
+  reranking.
+task_description: This packaged benchmark covers multi-modal object re-identification with modality-decoupled
+  feature handling and retrieval-time reranking. The task is to improve cross-modal retrieval quality
+  under occlusion or modality imbalance while preserving robust ranking on the benchmark sets.
+capability_tags:
+- research_code_optimization
+- computer_vision
+- reidentification
+- multimodal_learning
+- retrieval
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a multimodal retrieval task with real person and object
+  re-identification datasets.
+not_recommended_when: Do not use this if you cannot host large image datasets or if you need a text-centric
+  benchmark.
+paper:
+  title: 'MDReID: Modality-Decoupled Learning for Any-to-Any Multi-Modal Object Re-Identification'
+  venue: NeurIPS 2025
+  year: 2025
+  url: https://openreview.net/forum?id=7jg26Fd1ra
+download:
+  url: https://deepscientist.cc/AISB/057_mdreid
+  archive_type: zip
+  local_dir_name: paper-57-MDReID
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 16
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 300
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: crimson-cobalt-reid
+  art_style: retrieval-vision
+  accent_priority: high
+environment:
+  python: '3.8'
+  cuda: null
+  pytorch: 1.12.0
+  flash_attn: null
+  key_packages:
+  - torch-geometric==2.1.0
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/057_aisb.t3.057_mdreid.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- map
+- rank1
+- reid_checkpoint
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run one packaged multi-modal re-identification test route.
+- id: full_train_eval
+  label: Full Train + Eval
+  description: Train the MDReID model and evaluate it across the packaged person/object re-identification
+    datasets.

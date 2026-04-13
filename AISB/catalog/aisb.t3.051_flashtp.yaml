@@ -1,0 +1,82 @@
+schema_version: 1
+id: aisb.t3.051_flashtp
+name: 'FlashTP: Fused, Sparsity-Aware Tensor Product for Machine Learning Interatomic Potentials'
+version: 0.1.0
+one_line: Optimize fused sparse tensor-product CUDA kernels for machine-learning interatomic potentials.
+task_description: This packaged benchmark covers fused sparse tensor-product CUDA kernels for machine-learning
+  interatomic potentials. The task is to optimize the tensor-product kernel path so that atomistic model
+  throughput improves without violating the numerical behavior required by the benchmark.
+capability_tags:
+- research_code_optimization
+- cuda_kernels
+- scientific_ml
+- interatomic_potentials
+- systems_efficiency
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: high
+time_band: 2-6h
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a CUDA-kernel optimization task for atomistic ML workloads
+  and microbenchmark-style evaluation.
+not_recommended_when: Do not use this if you cannot compile custom CUDA extensions or if you need a high-level
+  application benchmark.
+paper:
+  title: 'FlashTP: Fused, Sparsity-Aware Tensor Product for Machine Learning Interatomic Potentials'
+  venue: ICML 2025
+  year: 2025
+  url: https://proceedings.mlr.press/v267/lee25l.html
+download:
+  url: https://deepscientist.cc/AISB/051_flashtp
+  archive_type: zip
+  local_dir_name: paper-51-FlashTP
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 50
+    gpu_count: 1
+    gpu_vram_gb: 24
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 120
+    gpu_count: 1
+    gpu_vram_gb: 80
+commercial:
+  annual_fee: null
+display:
+  palette_seed: graphite-amber-tensor
+  art_style: hpc-kernel
+  accent_priority: high
+environment:
+  python: '3.10'
+  cuda: '12'
+  pytorch: 2.4.1
+  flash_attn: null
+  key_packages:
+  - e3nn==0.6.6
+  notes:
+  - The local README explicitly requires CUDA Toolkit 12 or higher.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/051_aisb.t3.051_flashtp.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- forward_ms
+- backward_ms
+- kernel_benchmark
+launch_profiles:
+- id: microbenchmark
+  label: Microbenchmark
+  description: Run the packaged sparse tensor-product kernel benchmark route.
+- id: full_eval
+  label: Full Eval
+  description: Run the packaged machine-learning interatomic potential kernel evaluation workflow.

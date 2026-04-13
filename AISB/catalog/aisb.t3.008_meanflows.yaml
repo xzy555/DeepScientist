@@ -1,0 +1,82 @@
+schema_version: 1
+id: aisb.t3.008_meanflows
+name: Mean Flows for One-step Generative Modeling
+version: 0.1.0
+one_line: Optimize one-step image generation and FID evaluation for a CIFAR-10-scale generative modeling
+  stack.
+task_description: This packaged benchmark is intended to cover one-step image generation and FID evaluation
+  for a CIFAR-10-scale generative modeling stack. The task itself is to improve fast generative quality
+  on the benchmark route, but the current local snapshot is structurally incomplete and should be treated
+  as a restoration target rather than a ready-to-run package.
+capability_tags:
+- research_code_optimization
+- generative_modeling
+- diffusion_models
+- computer_vision
+- image_generation
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a compact image-generation task with a clear FID target
+  and checkpoint-based evaluation.
+not_recommended_when: Do not use this if you cannot provision at least one modern CUDA GPU for repeated
+  sample generation and FID scoring.
+paper:
+  title: Mean Flows for One-step Generative Modeling
+  venue: arXiv preprint
+  year: 2025
+  url: https://arxiv.org/abs/2505.13447
+download:
+  url: https://deepscientist.cc/AISB/008_meanflows
+  archive_type: zip
+  local_dir_name: paper-8-MeanFlows
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 60
+    gpu_count: 2
+    gpu_vram_gb: 40
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 120
+    gpu_count: 2
+    gpu_vram_gb: 80
+commercial:
+  annual_fee: null
+display:
+  palette_seed: magenta-slate-ode
+  art_style: modern-lab
+  accent_priority: high
+environment:
+  python: '3.10'
+  cuda: '12.1'
+  pytorch: 2.1.0
+  flash_attn: null
+  key_packages: []
+  notes:
+  - The local reproduction config explicitly used two A100 GPUs for FID-50K evaluation.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/008_aisb.t3.008_meanflows.jpg
+snapshot_status: partial
+support_level: recovery
+primary_outputs:
+- fid
+launch_profiles:
+- id: analysis_only
+  label: Analysis Only
+  description: Inspect the preserved evaluator-side files and FID route without assuming a full training
+    tree.
+- id: restore_first
+  label: Restore First
+  description: Recover the missing MeanFlows source tree before attempting a faithful benchmark run.

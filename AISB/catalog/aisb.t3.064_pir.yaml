@@ -1,0 +1,80 @@
+schema_version: 1
+id: aisb.t3.064_pir
+name: Improving Time Series Forecasting via Instance-aware Post-hoc Revision
+version: 0.1.0
+one_line: Optimize post-hoc revision modules that identify and repair biased forecast instances.
+task_description: This packaged benchmark covers post-hoc revision modules that identify and repair biased
+  forecast instances. The task is to detect when a forecaster is likely to err or drift, revise those
+  outputs selectively, and improve overall benchmark performance.
+capability_tags:
+- research_code_optimization
+- time_series_forecasting
+- post_hoc_revision
+- forecasting
+- instance_level_modeling
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a model-agnostic forecasting enhancement task layered
+  on top of existing backbones.
+not_recommended_when: Do not use this if you need a from-scratch foundation-model benchmark.
+paper:
+  title: Improving Time Series Forecasting via Instance-aware Post-hoc Revision
+  venue: NeurIPS 2025
+  year: 2025
+  url: https://arxiv.org/abs/2505.23583
+download:
+  url: https://deepscientist.cc/AISB/064_pir
+  archive_type: zip
+  local_dir_name: paper-64-PIR
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 12
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: amber-blue-revise
+  art_style: repair-notebook
+  accent_priority: medium
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/064_aisb.t3.064_pir.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- mse
+- mae
+- revision_outputs
+- forecast_report
+launch_profiles:
+- id: quick_eval
+  label: Quick Eval
+  description: Run one packaged PIR-enhanced forecasting evaluation route.
+- id: full_revision_eval
+  label: Full Revision Eval
+  description: Run the full packaged post-hoc revision workflow across the supported forecasting backbones.

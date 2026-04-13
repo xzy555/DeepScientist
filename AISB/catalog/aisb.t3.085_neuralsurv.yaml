@@ -1,0 +1,78 @@
+schema_version: 1
+id: aisb.t3.085_neuralsurv
+name: 'NeuralSurv: Deep Survival Analysis with Bayesian Uncertainty Quantification'
+version: 0.1.0
+one_line: Optimize Bayesian deep survival analysis with uncertainty-aware neural models and CAVI inference.
+task_description: This packaged benchmark is intended to cover Bayesian deep survival analysis with uncertainty-aware
+  neural models and CAVI inference. The task itself is to model event time distributions and calibrated
+  uncertainty more accurately than baseline survival models, but the current local snapshot preserves
+  metadata rather than executable code.
+capability_tags:
+- research_code_optimization
+- survival_analysis
+- bayesian_inference
+- healthcare_ai
+- uncertainty_quantification
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: analysis_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 2-6h
+difficulty: medium
+data_access: public
+recommended_when: Use this entry when you want paper-backed planning or upstream restoration for the neural
+  survival modeling route.
+not_recommended_when: Do not treat this local package as a ready-to-run survival benchmark; the staged
+  snapshot preserves metadata only.
+paper:
+  title: 'NeuralSurv: Deep Survival Analysis with Bayesian Uncertainty Quantification'
+  venue: arXiv preprint
+  year: 2025
+  url: https://arxiv.org/abs/2505.11054
+download:
+  url: https://deepscientist.cc/AISB/085_neuralsurv
+  archive_type: zip
+  local_dir_name: paper-85-NeuralSurv
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 50
+    gpu_count: 0
+    gpu_vram_gb: 0
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 100
+    gpu_count: 1
+    gpu_vram_gb: 16
+commercial:
+  annual_fee: null
+display:
+  palette_seed: burgundy-ivory-survival
+  art_style: clinical-probability
+  accent_priority: medium
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - The current local package does not preserve executable setup files or runnable source code; environment
+    hints here should be treated as provisional until upstream restoration.
+  - CPU-only execution is plausible for the minimum route.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/085_aisb.t3.085_neuralsurv.jpg
+risk_flags:
+- source_snapshot_incomplete
+- route_caveat
+dataset_download:
+  notes:
+  - The current local package does not preserve an executable benchmark route; treat dataset setup as
+    part of upstream restoration rather than a bundled run path.

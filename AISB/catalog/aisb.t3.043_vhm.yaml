@@ -1,0 +1,152 @@
+schema_version: 1
+id: aisb.t3.043_vhm
+name: 'VHM: Versatile and Honest Vision Language Model for Remote Sensing Image Analysis'
+version: 0.1.0
+one_line: Optimize a 7B remote-sensing vision-language model across large-scale caption pretraining and
+  downstream evaluation.
+task_description: This packaged benchmark covers two-stage training and downstream evaluation for a 7B
+  remote-sensing vision-language model. The task is to pretrain VHM on the large VersaD image-text corpus,
+  run supervised fine-tuning on remote-sensing instruction data, and then evaluate downstream remote-sensing
+  understanding tasks through the RSEvalKit stack. The primary staged metric is AID scene classification
+  accuracy, while the current local snapshot bundles the training code but still depends on external evaluation
+  tooling.
+capability_tags:
+- research_code_optimization
+- remote_sensing
+- vision_language_models
+- multimodal_learning
+- computer_vision
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: very_high
+time_band: 2-4d
+difficulty: hard
+data_access: public
+risk_flags:
+- route_caveat
+- external_eval_dependency
+- large_dataset_route
+risk_notes:
+- The paper-faithful route spans pretraining, SFT, and separate RSEvalKit evaluation rather than one self-contained
+  local command.
+- The upstream README reports about 10 hours of pretraining on 16x A100 80GB GPUs and about 4 hours of
+  SFT on 8x A100 80GB GPUs; slower local runs on smaller setups should be budgeted in days.
+- 'Dataset preparation is heavy: VersaD is about 140 GB extracted, VHM_SFT about 124 GB, and VHM_Eval
+  about 7.35 GB before checkpoints and caches.'
+- The optimizer evidence for AID scene classification depends on external RSEvalKit, not a fully bundled
+  evaluator inside this snapshot.
+recommended_when: Use this benchmark when you explicitly want a storage-heavy, multi-day multimodal training
+  plus evaluation route and can provision multi-GPU hardware.
+not_recommended_when: Do not use this for single-GPU smoke tests or when you need a self-contained evaluator
+  fully bundled inside the packaged snapshot.
+paper:
+  title: 'VHM: Versatile and Honest Vision Language Model for Remote Sensing Image Analysis'
+  venue: AAAI 2025
+  year: 2025
+  url: https://arxiv.org/abs/2403.20213
+download:
+  url: https://deepscientist.cc/AISB/043_vhm
+  archive_type: zip
+  local_dir_name: paper-43-VHM
+dataset_download:
+  primary_method: mixed
+  sources:
+  - kind: huggingface
+    url: https://huggingface.co/FitzPC/vhm_7B
+    access: public
+    note: "[[Project Page](https://fitzpchao.github.io/vhm_page/)] [[Paper](https://arxiv.org/abs/2403.20213)]\
+      \ [[Model\U0001F917](https://huggingface.co/FitzPC/vhm_7B)] [[Dataset1](https://opendatalab.com/OpenDataLab/VHMData)][[Dataset2\U0001F917\
+      ..."
+  - kind: huggingface
+    url: https://huggingface.co/datasets/FitzPC/VHM_VersaD
+    access: public
+    note: '- **2024.11.15** The large-scale RS image-text dataset, [VersaD](https://huggingface.co/datasets/FitzPC/VHM_VersaD),
+      featuring rich and diverse captions, has just been released, now with a massive 1.4 million image
+      ca...'
+  - kind: huggingface
+    url: https://huggingface.co/datasets/FitzPC/VHM_VersaD/tree/main
+    access: public
+    note: "[[Project Page](https://fitzpchao.github.io/vhm_page/)] [[Paper](https://arxiv.org/abs/2403.20213)]\
+      \ [[Model\U0001F917](https://huggingface.co/FitzPC/vhm_7B)] [[Dataset1](https://opendatalab.com/OpenDataLab/VHMData)][[Dataset2\U0001F917\
+      ..."
+  - kind: huggingface
+    url: https://huggingface.co/datasets/FitzPC/VHM_dataset_sft
+    access: public
+    note: In this stage, we finetune the projector and LLM with our [VHM_SFT](https://huggingface.co/datasets/FitzPC/VHM_dataset_sft)
+      dataset.
+  - kind: github_repo
+    url: https://github.com/fitzpchao/RSEvalKit
+    access: public
+    note: "[[Project Page](https://fitzpchao.github.io/vhm_page/)] [[Paper](https://arxiv.org/abs/2403.20213)]\
+      \ [[Model\U0001F917](https://huggingface.co/FitzPC/vhm_7B)] [[Dataset1](https://opendatalab.com/OpenDataLab/VHMData)][[Dataset2\U0001F917\
+      ..."
+  - kind: github_repo
+    url: https://github.com/fitzpchao/RSEvalKit/blob/master/README.md
+    access: public
+    note: All evaluation tasks for this paper are implemented in RSEval  and can be evaluated with one
+      click. First, you need to download our [model weights](#models) and [VHM_Eval data](docs/Data.md#VHM_Eval-Dataset
+      ), then fo...
+  notes:
+  - Paper-faithful reproduction requires both the large public training corpora and the separate VHM_Eval
+    assets, plus the external RSEvalKit repository.
+  - The download URLs are public, but the combined download and extracted footprint is hundreds of GB
+    before model checkpoints.
+credential_requirements:
+  mode: none
+  items: []
+  notes:
+  - No explicit dataset or API credential variable was detected in the bundled source snapshot.
+resources:
+  minimum:
+    cpu_cores: 32
+    ram_gb: 128
+    disk_gb: 400
+    gpu_count: 2
+    gpu_vram_gb: 48
+  recommended:
+    cpu_cores: 64
+    ram_gb: 256
+    disk_gb: 1200
+    gpu_count: 8
+    gpu_vram_gb: 80
+commercial:
+  annual_fee: null
+display:
+  palette_seed: cobalt-emerald-orbit
+  art_style: satellite-atlas
+  accent_priority: high
+environment:
+  python: null
+  cuda: '11.8'
+  pytorch: 2.0.1
+  flash_attn: 2.3.1.post1
+  key_packages:
+  - flash-attn==2.3.1.post1
+  - deepspeed==0.9.5
+  - transformers==4.31.0
+  notes:
+  - The released requirements pin torch 2.0.1+cu118, flash-attn 2.3.1.post1, and deepspeed 0.9.5; the
+    top-level conda command itself does not pin Python.
+  - Evaluation is delegated to a separate RSEvalKit environment, so a single environment setup is not
+    sufficient for a full paper-faithful route.
+image_path: ../../../AISB/image/043_aisb.t3.043_vhm.jpg
+snapshot_status: external_eval_required
+support_level: recovery
+primary_outputs:
+- aid_accuracy
+- vhm_sft_checkpoint
+- rseval_report
+launch_profiles:
+- id: train_only
+  label: Train Only
+  description: Run the packaged pretrain and SFT routes without assuming the evaluator is locally bundled.
+- id: paper_faithful
+  label: Paper-Faithful
+  description: Run training plus the external RSEvalKit evaluation workflow on the full remote-sensing
+    assets.

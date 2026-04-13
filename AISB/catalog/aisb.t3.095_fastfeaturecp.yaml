@@ -1,0 +1,68 @@
+schema_version: 1
+id: aisb.t3.095_fastfeaturecp
+name: Accelerating Feature Conformal Prediction via Taylor Approximation
+version: 0.1.0
+one_line: Optimize feature-space conformal prediction with faster approximations and tighter interval
+  calibration.
+task_description: This packaged benchmark covers feature-space conformal prediction with faster approximations
+  and tighter interval calibration. The task is to preserve or improve coverage while reducing prediction-band
+  width and computational overhead on the benchmark route.
+capability_tags:
+- research_code_optimization
+- conformal_prediction
+- uncertainty_quantification
+- efficient_inference
+- regression
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: evaluation_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 2-6h
+difficulty: medium
+data_access: public
+recommended_when: Use this benchmark when you want a fast uncertainty-quantification task with both regression
+  and classification variants.
+not_recommended_when: Do not use this if you need end-to-end model training rather than post-hoc predictive
+  sets.
+paper:
+  title: Accelerating Feature Conformal Prediction via Taylor Approximation
+  venue: NeurIPS 2025
+  year: 2025
+  url: https://arxiv.org/abs/2412.00653
+download:
+  url: https://deepscientist.cc/AISB/095_fastfeaturecp
+  archive_type: zip
+  local_dir_name: paper-95-FastFeatureCP
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 50
+    gpu_count: 1
+    gpu_vram_gb: 12
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 100
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: silver-teal-conformal
+  art_style: uncertainty-lab
+  accent_priority: high
+environment:
+  python: '3.8'
+  cuda: '11.6'
+  pytorch: 1.12.1
+  flash_attn: null
+  key_packages: []
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/095_aisb.t3.095_fastfeaturecp.jpg

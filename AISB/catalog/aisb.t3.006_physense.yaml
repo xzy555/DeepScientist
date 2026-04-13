@@ -1,0 +1,82 @@
+schema_version: 1
+id: aisb.t3.006_physense
+name: 'PhySense: Sensor Placement Optimization for Accurate Physics Sensing'
+version: 0.1.0
+one_line: Optimize physics-field reconstruction and sensor placement across multiple scientific sensing
+  benchmarks.
+task_description: This packaged benchmark covers physics-field reconstruction and sensor placement across
+  multiple scientific sensing tasks. The task is to reconstruct latent physical fields from sparse measurements,
+  choose informative sensor locations, and compare reconstruction quality and placement efficiency on
+  the bundled benchmark settings.
+capability_tags:
+- research_code_optimization
+- physics_ml
+- sensor_placement
+- scientific_ml
+- field_reconstruction
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: experiment_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 6-24h
+difficulty: hard
+data_access: public
+recommended_when: Use this benchmark when you want a scientific-ML task that mixes physics reconstruction
+  with constrained sensor placement.
+not_recommended_when: Do not use this if you need a tiny benchmark with negligible storage or no iterative
+  optimization loop.
+paper:
+  title: 'PhySense: Sensor Placement Optimization for Accurate Physics Sensing'
+  venue: NeurIPS 2025 Oral
+  year: 2025
+  url: https://arxiv.org/abs/2505.18190
+download:
+  url: https://deepscientist.cc/AISB/006_physense
+  archive_type: zip
+  local_dir_name: paper-6-PhySense
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 16
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: slate-cyan-fluid
+  art_style: scientific-visualization
+  accent_priority: high
+environment:
+  python: '3.10'
+  cuda: null
+  pytorch: 2.1.0
+  flash_attn: null
+  key_packages: []
+  notes:
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/006_aisb.t3.006_physense.jpg
+snapshot_status: runnable
+support_level: advanced
+primary_outputs:
+- relative_l2
+- mse_loss
+- sensor_layout
+launch_profiles:
+- id: quick_check
+  label: Quick Check
+  description: Run one packaged sensing benchmark route such as sea or pipe inference.
+- id: full_benchmark
+  label: Full Benchmark
+  description: Run the multi-domain physics sensing and sensor-placement benchmarks bundled in the snapshot.

@@ -1,0 +1,78 @@
+schema_version: 1
+id: aisb.t3.088_channelnorm
+name: Channel Normalization for Time Series Channel Identification
+version: 0.1.0
+one_line: Optimize time-series channel identification with channel-aware normalization and longer sequence
+  windows.
+task_description: This packaged benchmark is intended to cover time-series channel identification with
+  channel-aware normalization and longer sequence windows. The task itself is to improve forecasting or
+  classification by normalizing channels more carefully, but the current local snapshot preserves metadata
+  instead of runnable benchmark code.
+capability_tags:
+- research_code_optimization
+- time_series
+- normalization_layers
+- forecasting
+- channel_modeling
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: analysis_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 2-6h
+difficulty: medium
+data_access: public
+recommended_when: Use this entry when you want paper-backed planning or upstream restoration for the ChannelNorm
+  forecasting route.
+not_recommended_when: Do not treat this local package as a ready-to-run normalization benchmark; the staged
+  snapshot preserves metadata only.
+paper:
+  title: Channel Normalization for Time Series Channel Identification
+  venue: ICML 2025
+  year: 2025
+  url: https://arxiv.org/abs/2506.00432
+download:
+  url: https://deepscientist.cc/AISB/088_channelnorm
+  archive_type: zip
+  local_dir_name: paper-88-ChannelNorm
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 16
+    disk_gb: 50
+    gpu_count: 1
+    gpu_vram_gb: 8
+  recommended:
+    cpu_cores: 16
+    ram_gb: 32
+    disk_gb: 100
+    gpu_count: 1
+    gpu_vram_gb: 16
+commercial:
+  annual_fee: null
+display:
+  palette_seed: cyan-slate-channel
+  art_style: normalization-grid
+  accent_priority: medium
+environment:
+  python: null
+  cuda: null
+  pytorch: null
+  flash_attn: null
+  key_packages: []
+  notes:
+  - The current local package does not preserve executable setup files or runnable source code; environment
+    hints here should be treated as provisional until upstream restoration.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/088_aisb.t3.088_channelnorm.jpg
+risk_flags:
+- source_snapshot_incomplete
+- route_caveat
+dataset_download:
+  notes:
+  - The current local package does not preserve an executable benchmark route; treat dataset setup as
+    part of upstream restoration rather than a bundled run path.

@@ -1,0 +1,80 @@
+schema_version: 1
+id: aisb.t3.086_stella
+name: 'On the Integration of Spatial-Temporal Knowledge: A Lightweight Approach to Atmospheric Time Series
+  Forecasting'
+version: 0.1.0
+one_line: Optimize atmospheric time-series forecasting with spatial-temporal position embeddings instead
+  of heavy attention stacks.
+task_description: This packaged benchmark is intended to cover atmospheric time-series forecasting with
+  spatial-temporal position embeddings instead of heavy attention stacks. The task itself is to improve
+  forecasting quality with a lighter architecture, but the current local snapshot does not preserve the
+  runnable training and evaluation pipeline.
+capability_tags:
+- research_code_optimization
+- atmospheric_forecasting
+- time_series_forecasting
+- lightweight_models
+- spatial_temporal_modeling
+aisb_direction: T3
+track_fit:
+- paper_track
+- benchmark_track
+task_mode: analysis_driven
+requires_execution: true
+requires_paper: true
+integrity_level: cas_plus_canary
+cost_band: medium
+time_band: 2-6h
+difficulty: medium
+data_access: public
+recommended_when: Use this entry when you want paper-backed planning or upstream restoration for the STELLA
+  atmospheric forecasting route.
+not_recommended_when: Do not treat this local package as a ready-to-run forecasting benchmark; the executable
+  training and evaluation code is absent from the staged snapshot.
+paper:
+  title: 'On the Integration of Spatial-Temporal Knowledge: A Lightweight Approach to Atmospheric Time
+    Series Forecasting'
+  venue: NeurIPS 2025
+  year: 2025
+  url: https://arxiv.org/abs/2408.09695
+download:
+  url: https://deepscientist.cc/AISB/086_stella
+  archive_type: zip
+  local_dir_name: paper-86-STELLA
+resources:
+  minimum:
+    cpu_cores: 8
+    ram_gb: 32
+    disk_gb: 80
+    gpu_count: 1
+    gpu_vram_gb: 12
+  recommended:
+    cpu_cores: 16
+    ram_gb: 64
+    disk_gb: 150
+    gpu_count: 1
+    gpu_vram_gb: 24
+commercial:
+  annual_fee: null
+display:
+  palette_seed: sky-gold-atmosphere
+  art_style: climate-signal
+  accent_priority: high
+environment:
+  python: '3.9'
+  cuda: '11.1'
+  pytorch: 1.10.0
+  flash_attn: null
+  key_packages: []
+  notes:
+  - The current local package does not preserve executable setup files or runnable source code; environment
+    hints here should be treated as provisional until upstream restoration.
+  - See the bundled README/requirements for the full dependency set.
+image_path: ../image/086_aisb.t3.086_stella.jpg
+risk_flags:
+- source_snapshot_incomplete
+- route_caveat
+dataset_download:
+  notes:
+  - The current local package does not preserve an executable benchmark route; treat dataset setup as
+    part of upstream restoration rather than a bundled run path.
