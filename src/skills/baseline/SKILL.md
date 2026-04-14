@@ -186,7 +186,7 @@ The stage should leave one accepted baseline or one explicit blocker.
 
 - `PLAN.md` or compatibility alias `analysis_plan.md` is the route contract for non-trivial baseline work
 - `CHECKLIST.md` or compatibility alias `REPRO_CHECKLIST.md` is the living baseline frontier
-- `setup.md` when environment or layout choices are non-trivial
+- `setup.md` is optional unless environment or layout choices are non-trivial
 - `execution.md` when the run is long, multi-step, or rerun-heavy
 - `verification.md` as a filename when a separate verification note is clearer
 - `attachment.yaml` for attached or imported baselines
@@ -257,6 +257,7 @@ For Python baselines, environment setup should be standardized around `uv` unles
 - otherwise create an isolated environment with `uv venv`
 - install extra dependencies with `uv pip install ...`
 - run setup, smoke, and validation commands with `uv run ...`
+- prefer `uv run python ...` or `uv run bash ...` over relying on shell activation state
 - prefer a quest-local or baseline-local environment over global shell state
 - switch only when a repo-native conda, docker, or poetry route is concretely more trustworthy or required
 

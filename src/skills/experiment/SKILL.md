@@ -60,6 +60,7 @@ After a measured result, the default next move is frontier review and optimize-s
 3. use `PLAN.md` to lock the concrete run path and `CHECKLIST.md` as the living execution surface
 4. use one bounded smoke test or pilot only when the command path, output schema, or evaluator wiring are still unverified
 5. prefer one clean implementation pass and one real run
+5. prefer one clean implementation pass, one bounded smoke or pilot run, and then one normal main run
 6. record the measured result durably and route explicitly from the evidence
 7. close each real run milestone with a concise `1-2` sentence outcome summary
 
