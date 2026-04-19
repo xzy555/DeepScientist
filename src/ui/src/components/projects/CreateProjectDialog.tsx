@@ -12,6 +12,14 @@ import { DeepXivSetupDialog } from '@/components/settings/DeepXivSetupDialog'
 import { AnimatedCheckbox } from '@/components/ui/animated-checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useQuestWorkspace } from '@/lib/acp'
@@ -229,8 +237,10 @@ const copy = {
     languageHelp: 'The kickoff prompt and later communication should prefer this language by default.',
     promptRequired: 'Prompt preview cannot be empty.',
     goalRequired: 'Please provide a clear research request first.',
+    validationTitle: 'Missing required fields',
+    validationBody: 'Complete the highlighted field before creating the project.',
     benchAutoAssistPending:
-      'SetupAgent is still preparing the BenchStore launch form. The create button stays disabled until the first structured form patch arrives.',
+      'SetupAgent is still checking whether the launch form is ready. Creation unlocks automatically once the setup quest stops running, even if the agent answered without submitting a form patch.',
     footer: 'Create project immediately after review.',
     create: 'Create project',
     cancel: 'Cancel',
@@ -616,8 +626,10 @@ const copy = {
     languageHelp: '默认希望 kickoff prompt 与后续交流优先使用的语言。',
     promptRequired: 'Prompt 预览不能为空。',
     goalRequired: '请先填写清楚研究请求。',
+    validationTitle: '还有必填项未填写',
+    validationBody: '请先补齐高亮字段，然后再创建项目。',
     benchAutoAssistPending:
-      'SetupAgent 仍在整理这次 BenchStore 启动表单。在首轮结构化表单 patch 到达之前，创建项目按钮会保持禁用。',
+      'SetupAgent 仍在确认这次 BenchStore 启动表单是否已经足够可创建。只要 setup quest 结束运行，创建按钮就会自动解锁，不会再因为没收到表单 patch 而一直卡住。',
     footer: '确认后会立即创建项目。',
     create: '创建项目',
     cancel: '取消',
@@ -912,10 +924,11 @@ function buildBenchstoreAutoAssistMessage(setupPacket: BenchSetupPacket, locale:
       '重要规则：',
       '- 完整 benchmark 描述文件已经在 benchmark_context 里注入，尤其是 raw_payload、task_description、paper、resources、environment、download、dataset_download、credential_requirements。不要只看标题或一行摘要。',
       '- 先结合完整 benchmark 描述、当前机器硬件、任务要求和左侧已预填表单，判断哪些信息还缺失。',
+      '- 如果 GPU 使用范围、外部 LLM/API Key、付费调用、下载体量、隐私边界这些关键信息还不明确，必须先向用户确认，不能自己假设。',
       '- 如果仍有会实质影响启动路线的缺口，请主动向用户提出 1 到 3 个最关键的问题，问题要短、具体、可直接回答。',
       '- 如果当前信息已经足够，不要为了问问题而问问题，直接使用 artifact.prepare_start_setup_form(form_patch={...}) 提交完整表单。',
       '- 第一轮优先 faithful、小步、保守启动，不要扩展到 benchmark 之外。',
-      '- 在首轮表单整理完成前，创建项目按钮会保持禁用，请尽快收敛到一个可提交的表单版本。',
+      '- 如果你已经给出结论但还没有提交表单 patch，创建按钮也不应该被永久卡死；一旦 setup quest 停止运行，前端会自动解锁。',
       '',
       constraints.length > 0 ? '当前硬性约束：' : '',
       constraints.length > 0 ? constraints.join('\n') : '',
@@ -942,10 +955,11 @@ function buildBenchstoreAutoAssistMessage(setupPacket: BenchSetupPacket, locale:
     'Important rules:',
     '- The full benchmark description file is already injected through benchmark_context, especially raw_payload, task_description, paper, resources, environment, download, dataset_download, and credential_requirements. Do not rely on the title or one-line summary alone.',
     '- First combine the full benchmark description, the current machine boundary, the task requirements, and the prefilled form on the left to judge what information is still missing.',
+    '- If GPU scope, external LLM/API keys, paid calls, download volume, or privacy boundaries are still unclear, you must ask the user to confirm them instead of assuming defaults.',
     '- If material gaps remain, proactively ask the user only 1 to 3 short questions that would meaningfully affect the launch path.',
     '- If the current information is already sufficient, do not ask extra questions. Call artifact.prepare_start_setup_form(form_patch={...}) directly and submit the completed form.',
     '- Keep the first launch faithful, conservative, and benchmark-bounded.',
-    '- The create button stays disabled until the first structured setup form patch arrives, so converge quickly on a launch-ready form.',
+    '- If you answered but did not submit a form patch, the create button must not stay blocked forever; the frontend unlocks automatically once the setup quest is no longer running.',
     '',
     constraints.length > 0 ? 'Current hard constraints:' : '',
     constraints.length > 0 ? constraints.join('\n') : '',
@@ -1498,6 +1512,60 @@ function formatBaselineStatus(value: string | null | undefined, locale: 'en' | '
   return normalized.replace(/_/g, ' ')
 }
 
+function resolveStartSetupSuggestedFormFromSnapshot(snapshot: unknown): Partial<StartResearchTemplate> | null {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return null
+  const startupContract =
+    'startup_contract' in snapshot &&
+    snapshot.startup_contract &&
+    typeof snapshot.startup_contract === 'object' &&
+    !Array.isArray(snapshot.startup_contract)
+      ? (snapshot.startup_contract as Record<string, unknown>)
+      : null
+  const startSetupSession =
+    startupContract &&
+    startupContract.start_setup_session &&
+    typeof startupContract.start_setup_session === 'object' &&
+    !Array.isArray(startupContract.start_setup_session)
+      ? (startupContract.start_setup_session as Record<string, unknown>)
+      : null
+  const suggestedForm =
+    startSetupSession &&
+    startSetupSession.suggested_form &&
+    typeof startSetupSession.suggested_form === 'object' &&
+    !Array.isArray(startSetupSession.suggested_form)
+      ? (startSetupSession.suggested_form as Partial<StartResearchTemplate>)
+      : null
+  return suggestedForm && Object.keys(suggestedForm).length > 0 ? suggestedForm : null
+}
+
+const START_SETUP_STALE_RUNNING_TIMEOUT_MS = 90_000
+
+function isSetupQuestActivelyRunning(snapshot: unknown, options?: { hasLiveRun?: boolean; activeToolCount?: number; streaming?: boolean }) {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+    return Boolean(options?.hasLiveRun || options?.streaming || (options?.activeToolCount || 0) > 0)
+  }
+  const record = snapshot as Record<string, unknown>
+  const activeRunId = String(record.active_run_id ?? '').trim()
+  const runtimeStatus = String(record.runtime_status ?? record.status ?? '').trim().toLowerCase()
+  const bashRunningCount =
+    record.counts && typeof record.counts === 'object' && !Array.isArray(record.counts)
+      ? Number((record.counts as Record<string, unknown>).bash_running_count || 0)
+      : 0
+  const latestActivityRaw = String(record.last_tool_activity_at ?? record.last_transition_at ?? '').trim()
+  const latestActivityMs = latestActivityRaw ? Date.parse(latestActivityRaw) : Number.NaN
+  const staleWithoutLiveSignals =
+    !options?.hasLiveRun &&
+    !options?.streaming &&
+    (options?.activeToolCount || 0) === 0 &&
+    Number.isFinite(latestActivityMs) &&
+    Date.now() - latestActivityMs > START_SETUP_STALE_RUNNING_TIMEOUT_MS
+  if (activeRunId) return true
+  if ((runtimeStatus === 'running' || runtimeStatus === 'retrying') && !staleWithoutLiveSignals) return true
+  if (Number.isFinite(bashRunningCount) && bashRunningCount > 0 && !staleWithoutLiveSignals) return true
+  if (options?.hasLiveRun || options?.streaming || (options?.activeToolCount || 0) > 0) return true
+  return false
+}
+
 const deepxivCopy = {
   en: {
     title: 'DeepXiv literature',
@@ -1572,6 +1640,11 @@ export function CreateProjectDialog({
   const [connectorsLoading, setConnectorsLoading] = useState(false)
   const [connectorsError, setConnectorsError] = useState<string | null>(null)
   const [deepxivSetupOpen, setDeepxivSetupOpen] = useState(false)
+  const [validationDialogOpen, setValidationDialogOpen] = useState(false)
+  const [validationMessage, setValidationMessage] = useState('')
+  const [validationTarget, setValidationTarget] = useState<'title' | 'goal' | null>(null)
+  const titleInputRef = useRef<HTMLInputElement | null>(null)
+  const goalTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [activeRunnerName, setActiveRunnerName] = useState(() => normalizeBuiltinRunnerName("codex"))
   const [selectedConnectorBindings, setSelectedConnectorBindings] = useState<Record<string, string | null>>({})
   const [agentManagedValues, setAgentManagedValues] = useState<Partial<StartResearchTemplate>>({})
@@ -1846,6 +1919,30 @@ export function CreateProjectDialog({
     autoBenchAssistStartedRef.current = null
   }, [open])
 
+  const durableSetupSuggestedForm = useMemo(
+    () => resolveStartSetupSuggestedFormFromSnapshot(setupWorkspace.snapshot),
+    [setupWorkspace.snapshot]
+  )
+
+  const setupQuestStillRunning = useMemo(
+    () =>
+      isSetupQuestActivelyRunning(setupWorkspace.snapshot, {
+        hasLiveRun: setupWorkspace.hasLiveRun,
+        activeToolCount: setupWorkspace.activeToolCount,
+        streaming: setupWorkspace.streaming,
+      }),
+    [
+      setupWorkspace.activeToolCount,
+      setupWorkspace.hasLiveRun,
+      setupWorkspace.snapshot,
+      setupWorkspace.streaming,
+    ]
+  )
+
+  const benchAutoAssistWaitingForPatch = Boolean(
+    setupPacket && onRequestSetupAgent && setupQuestCreating
+  )
+
   useEffect(() => {
     if (!setupQuestId) return
     setRightPaneMode('assistant')
@@ -1968,6 +2065,39 @@ export function CreateProjectDialog({
     return () =>
       window.removeEventListener('ds:start-setup:patch', handleStartSetupPatch as EventListener)
   }, [applyAgentPatch, setupQuestId])
+
+  useEffect(() => {
+    if (!setupQuestId || !durableSetupSuggestedForm) return
+    applyAgentPatch(durableSetupSuggestedForm)
+  }, [applyAgentPatch, durableSetupSuggestedForm, setupQuestId])
+
+  useEffect(() => {
+    if (!setupPacket || !onRequestSetupAgent) return
+    if (setupQuestCreating) {
+      setBenchAutoAssistReady(false)
+      return
+    }
+    if (!setupQuestId) {
+      setBenchAutoAssistReady(false)
+      return
+    }
+    if (durableSetupSuggestedForm && Object.keys(durableSetupSuggestedForm).length > 0) {
+      setBenchAutoAssistReady(true)
+      return
+    }
+    if (!setupQuestStillRunning) {
+      setBenchAutoAssistReady(true)
+      return
+    }
+    setBenchAutoAssistReady(false)
+  }, [
+    durableSetupSuggestedForm,
+    onRequestSetupAgent,
+    setupPacket,
+    setupQuestCreating,
+    setupQuestId,
+    setupQuestStillRunning,
+  ])
 
   const applyStandardProfile = useCallback((profile: StandardProfile) => {
     setForm((current) => {
@@ -2177,7 +2307,67 @@ export function CreateProjectDialog({
   const finalPrompt = compiledPromptPreview.trim()
   const promptRequired = open && !compiledPromptPreview.trim()
   const goalRequired = open && !manualOverride && !form.goal.trim()
-  const benchAutoAssistLocked = Boolean(setupPacket && onRequestSetupAgent && (!benchAutoAssistReady || setupQuestCreating))
+  const benchAutoAssistLocked = Boolean(
+    setupPacket &&
+      onRequestSetupAgent &&
+      (benchAutoAssistWaitingForPatch || setupQuestStillRunning)
+  )
+  const createDisabledReason = loading
+    ? 'loading'
+    : benchAutoAssistLocked
+      ? 'setup-agent-running'
+      : 'none'
+
+  const focusCreateValidationTarget = useCallback(
+    (target: 'title' | 'goal') => {
+      const node = target === 'title' ? titleInputRef.current : goalTextareaRef.current
+      if (!node) return
+      node.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      window.setTimeout(() => {
+        node.focus()
+      }, 120)
+    },
+    []
+  )
+
+  const validateBeforeCreate = useCallback(() => {
+    const titleTrimmed = String(form.title || '').trim()
+    const goalTrimmed = String(form.goal || '').trim()
+    if (!titleTrimmed) {
+      setValidationMessage(locale === 'zh' ? '请先填写课题标题。' : 'Please fill in the project title first.')
+      setValidationTarget('title')
+      setValidationDialogOpen(true)
+      focusCreateValidationTarget('title')
+      return false
+    }
+    if (!manualOverride && !goalTrimmed) {
+      setValidationMessage(t.goalRequired)
+      setValidationTarget('goal')
+      setValidationDialogOpen(true)
+      focusCreateValidationTarget('goal')
+      return false
+    }
+    if (!finalPrompt) {
+      setValidationMessage(t.promptRequired)
+      setValidationTarget('goal')
+      setValidationDialogOpen(true)
+      focusCreateValidationTarget('goal')
+      return false
+    }
+    return true
+  }, [finalPrompt, focusCreateValidationTarget, form.goal, form.title, locale, manualOverride, t.goalRequired, t.promptRequired])
+
+  const handleValidationDialogChange = useCallback(
+    (nextOpen: boolean) => {
+      setValidationDialogOpen(nextOpen)
+      if (!nextOpen && validationTarget) {
+        window.setTimeout(() => {
+          focusCreateValidationTarget(validationTarget)
+        }, 120)
+      }
+    },
+    [focusCreateValidationTarget, validationTarget]
+  )
 
   const handlePromptChange = (value: string) => {
     if (!manualOverride && value !== compiledPromptPreview) {
@@ -2279,10 +2469,7 @@ export function CreateProjectDialog({
     if (benchAutoAssistLocked) {
       return
     }
-    if (!manualOverride && !form.goal.trim()) {
-      return
-    }
-    if (!finalPrompt) {
+    if (!validateBeforeCreate()) {
       return
     }
     const saved = saveStartResearchTemplate(form)
@@ -2402,6 +2589,7 @@ export function CreateProjectDialog({
               <SectionCard title={t.basics}>
                 <InlineField label={t.titleLabel} help={t.titleHelp} dataOnboardingId="start-research-title">
                   <Input
+                    ref={titleInputRef}
                     value={form.title}
                     onChange={(event) => setField('title', event.target.value)}
                     placeholder={t.titlePlaceholder}
@@ -2424,6 +2612,7 @@ export function CreateProjectDialog({
 
                 <InlineField label={t.goalLabel} help={t.goalHelp} dataOnboardingId="start-research-goal">
                   <Textarea
+                    ref={goalTextareaRef}
                     value={form.goal}
                     onChange={(event) => setField('goal', event.target.value)}
                     placeholder={t.goalPlaceholder}
@@ -3002,13 +3191,14 @@ export function CreateProjectDialog({
               </Button>
               <Button
                 onClick={() => void handleCreate()}
-                disabled={loading || goalRequired || promptRequired || benchAutoAssistLocked}
+                disabled={loading || benchAutoAssistLocked}
                 className={cn(
                   'w-full sm:w-auto',
                   benchAutoAssistLocked &&
                     'bg-[rgba(45,42,38,0.14)] text-[rgba(107,103,97,0.78)] shadow-none'
                 )}
                 data-onboarding-id="start-research-create"
+                data-disabled-reason={createDisabledReason}
               >
                 <Sparkles className="h-4 w-4" />
                 {loading ? '…' : t.create}
@@ -3018,6 +3208,21 @@ export function CreateProjectDialog({
         </div>
         </div>
       <DeepXivSetupDialog open={deepxivSetupOpen} onClose={() => setDeepxivSetupOpen(false)} locale={locale} />
+      <Dialog open={validationDialogOpen} onOpenChange={handleValidationDialogChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t.validationTitle}</DialogTitle>
+            <DialogDescription>{validationMessage || t.validationBody}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              onClick={() => handleValidationDialogChange(false)}
+            >
+              {locale === 'zh' ? '我来补齐' : 'Fix it now'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </OverlayDialog>
     </>
   )

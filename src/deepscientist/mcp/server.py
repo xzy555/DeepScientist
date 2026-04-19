@@ -833,12 +833,12 @@ def build_artifact_server(context: McpContext) -> FastMCP:
             comment: str | dict[str, Any] | None = None,
         ) -> dict[str, Any]:
             sanitized_patch = _sanitize_start_setup_form_patch(form_patch)
-            result = {
-                "ok": True,
-                "form_patch": sanitized_patch,
-                "message": str(message or "").strip() or None,
-                "ui_effects": [_start_setup_patch_effect(sanitized_patch, message=message)],
-            }
+            result = service.apply_start_setup_form_patch(
+                context.require_quest_root(),
+                form_patch=sanitized_patch,
+                message=message,
+            )
+            result["ui_effects"] = [_start_setup_patch_effect(sanitized_patch, message=message)]
             return finalize_artifact_tool(result, tool_name="prepare_start_setup_form")
 
         return server

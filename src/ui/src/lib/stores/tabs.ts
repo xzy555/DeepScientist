@@ -14,6 +14,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { nanoid } from "nanoid";
+import { safeStableStringify, sanitizeJsonRecord } from "@/lib/safe-json";
 import type { Tab, TabContext, OpenTabOptions } from "@/lib/types/tab";
 
 /**
@@ -62,7 +63,7 @@ function contextEquals(a: TabContext, b: TabContext): boolean {
 
   // For custom type, compare customData
   if (a.type === "custom") {
-    return JSON.stringify(a.customData) === JSON.stringify(b.customData);
+    return safeStableStringify(a.customData) === safeStableStringify(b.customData);
   }
 
   return false;
@@ -343,6 +344,13 @@ export const useTabsStore = create<TabsState>()(
       partialize: (state) => ({
         tabs: state.tabs.map((tab) => ({
           ...tab,
+          context: {
+            ...tab.context,
+            customData:
+              tab.context.customData && typeof tab.context.customData === "object"
+                ? sanitizeJsonRecord(tab.context.customData)
+                : tab.context.customData,
+          },
           isDirty: false, // Clear dirty state on reload
         })),
         activeTabId: state.activeTabId,

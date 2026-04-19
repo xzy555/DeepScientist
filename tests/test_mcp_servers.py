@@ -857,8 +857,20 @@ def test_start_setup_prepare_profile_artifact_server_exposes_only_prepare_form_t
         )
         assert result["ok"] is True
         assert result["form_patch"]["title"] == "Bench Demo Autonomous Research"
+        assert result["suggested_form"]["title"] == "Bench Demo Autonomous Research"
         assert result["ui_effects"][0]["name"] == "start_setup:patch"
         assert result["ui_effects"][0]["data"]["patch"]["goal"] == "Run the benchmark faithfully."
+        persisted = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home)).read_quest_yaml(quest_root)
+        startup_contract = persisted.get("startup_contract") if isinstance(persisted.get("startup_contract"), dict) else {}
+        start_setup_session = (
+            startup_contract.get("start_setup_session")
+            if isinstance(startup_contract, dict) and isinstance(startup_contract.get("start_setup_session"), dict)
+            else {}
+        )
+        suggested_form = start_setup_session.get("suggested_form") if isinstance(start_setup_session, dict) else {}
+        assert suggested_form["title"] == "Bench Demo Autonomous Research"
+        assert suggested_form["goal"] == "Run the benchmark faithfully."
+        assert suggested_form["need_research_paper"] is True
 
     asyncio.run(scenario())
 

@@ -13,6 +13,7 @@ import { client } from '@/lib/api'
 import { downloadFileById } from '@/lib/api/files'
 import { getLatexSourcesArchiveBlob } from '@/lib/api/latex'
 import { buildQuestDirectoryId, openQuestDocumentAsFileNode } from '@/lib/api/quest-files'
+import { safeJsonStringify, safeStableStringify } from '@/lib/safe-json'
 import { useTabsStore } from '@/lib/stores/tabs'
 import { BUILTIN_PLUGINS } from '@/lib/types/plugin'
 import { cn } from '@/lib/utils'
@@ -33,7 +34,7 @@ function compactText(value: unknown, limit = 320) {
     return trimmed.length <= limit ? trimmed : `${trimmed.slice(0, Math.max(0, limit - 1)).trimEnd()}…`
   }
   try {
-    const text = JSON.stringify(value, null, 2)
+    const text = safeJsonStringify(value, 2)
     return text.length <= limit ? text : `${text.slice(0, Math.max(0, limit - 1)).trimEnd()}…`
   } catch {
     return String(value)
@@ -51,7 +52,7 @@ function stringifyValue(value: unknown) {
     }
   }
   try {
-    return JSON.stringify(value, null, 2)
+    return safeJsonStringify(value, 2)
   } catch {
     return String(value)
   }
@@ -651,7 +652,7 @@ export function QuestStageSurface({
   const { openFileInTab } = useOpenFile()
 
   const stageQuery = useQuery({
-    queryKey: ['quest-stage-view', questId, JSON.stringify(stageSelection || {})],
+    queryKey: ['quest-stage-view', questId, safeStableStringify(stageSelection || {})],
     queryFn: () =>
       client.stageView(questId, {
         selection_ref: stageSelection?.selection_ref ?? null,

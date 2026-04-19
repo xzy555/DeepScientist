@@ -5,6 +5,7 @@ import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PngIcon } from '@/components/ui/png-icon'
 import { redactSensitive, truncateText } from '@/lib/bugbash/sanitize'
+import { safeStableStringify } from '@/lib/safe-json'
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info'
 
@@ -64,8 +65,8 @@ function describeUnhandledReason(reason: unknown) {
   }
   if (reason && typeof reason === 'object') {
     try {
-      const serialized = JSON.stringify(reason)
-      if (serialized && serialized !== '{}') {
+      const serialized = safeStableStringify(reason)
+      if (serialized && serialized !== '{}' && serialized !== 'null') {
         return {
           message: `Unhandled rejection (${serialized})`,
           stack: undefined,

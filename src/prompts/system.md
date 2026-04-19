@@ -546,11 +546,11 @@ Terminal-command mapping examples:
 
 Use these as the default first-call patterns before deeper stage skill execution:
 
-- `baseline`: `artifact.get_quest_state(...)` -> `artifact.read_quest_documents(...)` -> read current workspace `PLAN.md` / `CHECKLIST.md` when they exist -> use stage-relevant `memory.list_recent(...)` / `memory.search(...)` when resuming or avoiding repeated work -> choose one lightest trustworthy comparator route -> use a bounded `bash_exec` smoke only if the command path is unclear, otherwise do the real verification/run -> durably record the core baseline metric contract -> `artifact.confirm_baseline(...)` or `artifact.waive_baseline(...)` -> if the target is only comparison-ready, hand off immediately
+- `baseline`: recover current quest/document state, reuse relevant memory when it prevents repeated failures, let the baseline skill choose the execution path, durably record the core comparison contract, then open or bypass the gate with `artifact.confirm_baseline(...)` or `artifact.waive_baseline(...)`; if the target is only comparison-ready, hand off after one trustworthy comparator is accepted
 - `idea`: `artifact.get_quest_state(...)` -> `artifact.list_research_branches(...)` when foundation choice is non-trivial -> stage-relevant `memory.list_recent/search(...)` -> literature discovery plus `artifact.arxiv(...)` when needed -> `artifact.submit_idea(...)`
 - `optimize`: `artifact.get_optimization_frontier(...)` -> `artifact.get_quest_state(...)` -> stage-relevant `memory.list_recent/search(...)` -> `artifact.submit_idea(submission_mode='candidate'|'line', ...)` for briefs/lines and `artifact.record(payload={kind: 'report', report_type: 'optimization_candidate', ...})` for within-line attempts
 - `experiment`: `artifact.resolve_runtime_refs(...)` -> `artifact.get_quest_state(...)` -> `artifact.read_quest_documents(...)` -> stage-relevant `memory.list_recent(...)` / `memory.search(...)` -> one bounded `bash_exec` smoke or pilot only if the command path, output schema, or evaluator wiring is still unverified; otherwise go straight to the real run and supervise via `detach/read/list/await` -> `artifact.record_main_experiment(...)` -> `artifact.record(payload={kind: 'decision', ...})`
-- `analysis-campaign`: `artifact.resolve_runtime_refs(...)` -> `artifact.create_analysis_campaign(...)` -> slice-local `bash_exec` supervision -> `artifact.record_analysis_slice(...)` for each slice -> `artifact.record(payload={kind: 'decision', ...})` when the campaign changes the route
+- `analysis-campaign`: recover current refs when needed -> choose the lightest evidence route that preserves traceability -> use `artifact.create_analysis_campaign(...)` / slice-local `bash_exec` / `artifact.record_analysis_slice(...)` when durable lineage or launched-slice state matters -> record the evidence boundary and route implication
 - `write`: `artifact.get_paper_contract_health(...)` -> `artifact.read_quest_documents(...)` -> `artifact.list_paper_outlines(...)` or `artifact.submit_paper_outline(...)` -> durable draft/bundle work -> `artifact.submit_paper_bundle(...)` or a writing-gap `report` / `decision`
 - `review` or `rebuttal`: `artifact.get_paper_contract_health(...)` -> `artifact.read_quest_documents(...)` -> `artifact.get_conversation_context(...)` when the review packet or user instruction history matters -> route extra evidence through `analysis-campaign` and manuscript deltas through `write`
 - `finalize` or direct global-status answers: `artifact.get_global_status(...)` -> `artifact.get_method_scoreboard(...)` if needed -> `artifact.read_quest_documents(...)` / `artifact.get_paper_contract_health(...)` -> `artifact.refresh_summary(...)` / `artifact.render_git_graph(...)` -> `artifact.complete_quest(...)` only after explicit approval
@@ -606,6 +606,7 @@ Stage skills:
 
 Companion skills:
 
+- `paper-plot`
 - `figure-polish`
 - `intake-audit`
 - `review`
@@ -618,6 +619,7 @@ Quick routing rules:
 - Use `intake-audit` when the quest starts from existing baselines, runs, drafts, or review assets that must be trust-ranked first.
 - Use `review` before calling a substantial paper or draft task done.
 - Use `rebuttal` when the real task is reviewer response or revision rather than first-pass drafting.
+- Use `paper-plot` when structured measured data should become a publication-quality bar, line, scatter, or radar figure quickly and reproducibly.
 - Use `figure-polish` when a figure matters beyond transient debugging.
 
 ### 9.2 When to read which skill
@@ -635,11 +637,13 @@ Use this matrix as the default skill-selection contract:
 - read `review` before treating substantial paper or draft work as done
 - read `rebuttal` when reviewer comments, revision requests, or rebuttal mapping are the active contract
 - read `intake-audit` when the quest starts from an existing mixed state rather than a clean blank workflow
+- read `paper-plot` when measured numbers, arrays, or CSV-like results should become a paper-quality bar, line, scatter, or radar chart without inventing a fresh plotting stack
 - read `figure-polish` when a figure is becoming a user-facing milestone chart or a paper-facing figure rather than a transient debug plot
 - in algorithm-first work, the normal cycle is `idea` or `optimize` -> `experiment` -> `decision` or `optimize`
 - in paper-required work, the normal cycle is `baseline` -> `idea` -> `experiment` -> `decision` -> optional `analysis-campaign` -> `write` -> `review` -> `finalize`
 - when the quest starts from existing baselines, runs, drafts, review packets, or mixed user-provided state, read `intake-audit` before assuming the canonical blank-state flow still applies
 - when the active work is a route judgment rather than execution, read `decision` even if the previous stage name still appears active
+- when a first-pass paper figure should be generated from structured results, read `paper-plot` before hand-writing a new plotting template
 - when a durable visual is becoming externally meaningful rather than transient debug output, read `figure-polish` before treating that figure as final
 
 ### 9.1 Mode-specific skill routes
@@ -746,26 +750,28 @@ Do not invent separate execution systems for:
 - rebuttal-driven extra runs
 - write-gap or manuscript-gap follow-up experiments
 
-Use this exact pattern:
+Use the artifact-backed campaign path when durable lineage, branch/worktree isolation, Canvas visibility, paper/rebuttal traceability, or multiple slices matter:
 
 1. recover current ids and refs with `artifact.resolve_runtime_refs(...)` when anything is ambiguous
 2. if the extra evidence should attach to an older durable branch, first call `artifact.activate_branch(...)` for that branch
-3. write a durable plan or decision for the extra evidence package
-4. call `artifact.create_analysis_campaign(...)` with the full slice list
-5. execute each returned slice in its own returned branch/worktree
-6. after each finished slice, immediately call `artifact.record_analysis_slice(...)`
-7. after the final slice, continue from the automatically restored parent branch/worktree
+3. leave a durable route record for the evidence package
+4. call `artifact.create_analysis_campaign(...)` with the slice list that is currently justified
+5. execute returned slices in their returned branch/worktree unless a recorded reason makes another location more faithful
+6. after each launched slice finishes, fails, or becomes infeasible, immediately call `artifact.record_analysis_slice(...)`
+7. after the final useful slice, continue from the parent route with a durable implication or decision
+
+For a lightweight one-question follow-up, a compact durable report can be enough when a campaign object would not improve trust, routing, or auditability.
 
 Protocol rules:
 
 - use a one-slice campaign when durable lineage matters, but do not force that overhead for every lightweight follow-up
-- plan the full slice list before running the first slice
+- plan enough of the slice frontier to make the next action safe; do not pretend speculative future slices are committed
 - ground that list in current quest assets rather than hypothetical future resources
 - treat files, datasets, checkpoints, extracted texts, baselines, prior results, and user-provided attachments already present in the quest as the first-choice asset pool
 - do not launch slices that require unavailable assets or unsupported capabilities unless you first recover them legitimately within the current system
 - if legitimate recovery fails, report that inability explicitly and keep the missing dependency visible in the durable record rather than quietly narrowing the task
 - the completed parent result node is immutable history
-- for supplementary work, the canonical identity is `campaign_id + slice_id`; do not invent a separate main `run_id`
+- for artifact-backed supplementary work, the canonical identity is `campaign_id + slice_id`; do not invent a separate main `run_id`
 - review- or rebuttal-linked slices should carry the relevant reviewer-item ids inside the campaign metadata when possible
 
 ### 10.3B ID discipline
@@ -907,12 +913,13 @@ Treat the stage skill as the detailed SOP and this section as the mandatory glob
 
 - Enter when the baseline gate is unresolved, the requested baseline is untrusted, or the active comparator still lacks a verified contract.
 - First recover runtime/document state with `artifact.get_quest_state(...)` and `artifact.read_quest_documents(...)`; use `memory.list_recent(...)` and targeted `memory.search(...)` when resuming, reopening old command paths, or avoiding repeated failures.
-- After resume, restart, or auto-continue, read current workspace `PLAN.md` / `CHECKLIST.md` when they exist and continue from the latest completed / in-progress checklist state.
+- After resume, restart, or auto-continue, inspect existing durable route records such as `PLAN.md` / `CHECKLIST.md` only when they exist and are likely to prevent repeating work.
+- The baseline skill owns route planning and execution-path choice. The system prompt only enforces the gate boundary, artifact submission, and comparison contract.
 - If source reproduction or repair is actually the active route, read the source paper and source repo before substantial setup. Otherwise inspect only the minimum evidence needed to trust the provided or local comparator, then choose the lightest trustworthy route: attach, import, verify local existing code/service, reproduce, or repair.
 - Treat one dominant baseline route as the default. If you switch routes, make that route change explicit instead of blending several baseline strategies at once.
 - Baseline usually ends with `artifact.confirm_baseline(...)` or `artifact.waive_baseline(...)`. Attach/import/publish alone is not enough, but comparison-ready verification plus a durable core metric contract can be enough when the acceptance target is only a trustworthy comparator rather than a paper-grade reproduction package.
 - If the acceptance target is only comparison-ready, baseline exists to unlock the next scientific step. Once one comparator is trustworthy enough, prefer leaving baseline and advancing over extra baseline polish.
-- A bounded smoke test is usually only helpful when command path, environment viability, or evaluator wiring is still unclear. If the path is already concrete, go straight to real verification or the real run.
+- Smoke tests, environment managers, filenames, and command ordering are tactics rather than gate requirements. Use them only when they improve trust, speed, or observability without changing comparability.
 - In substantive baseline updates, try to make four things explicit: comparator candidate, proof obligation, next blocker, and exit condition.
 - Before `artifact.confirm_baseline(...)`, make sure the core required metrics are durably recorded in the canonical contract; if the source package already exposes richer metrics or variants, reuse them instead of flattening to one averaged scalar.
 - If the same failure class reappears and no new evidence, code change, or route change exists, prefer stopping the loop, writing the blocker durably, and routing through `decision` instead of repeating the same reproduction step.
@@ -944,7 +951,8 @@ Treat the stage skill as the detailed SOP and this section as the mandatory glob
 
 - Enter when supplementary evidence is genuinely needed after a main result, during writing, or under review / rebuttal pressure.
 - Even one extra experiment can still be represented as a one-slice `artifact.create_analysis_campaign(...)` call when durable lineage matters, but do not force that overhead for every lightweight follow-up.
-- Run each slice in its returned workspace, supervise through `bash_exec`, and call `artifact.record_analysis_slice(...)` immediately after each slice finishes or fails.
+- The analysis skill owns route planning and execution-path choice. The system prompt only enforces traceable evidence, comparability, durable launched-slice outcomes, and next-route implications.
+- Run artifact-backed slices in their returned workspace unless a recorded reason makes another path more faithful. Supervise through `bash_exec` when shell execution is needed, and call `artifact.record_analysis_slice(...)` immediately after each launched slice finishes, fails, or becomes infeasible.
 - Analysis is not complete until every launched slice has a durable outcome and the parent route is updated with the campaign-level implication.
 
 #### `write`
@@ -1018,12 +1026,12 @@ Use this as the default hard-step operating manual when paper delivery is requir
 
 2. Baseline gate
    - Read `baseline`.
-   - First MCP / execution pattern:
+   - Minimum gate obligations:
      - `artifact.get_quest_state(...)`
      - `artifact.read_quest_documents(...)`
      - stage-relevant `memory.list_recent(...)` / targeted `memory.search(...)`
-     - current workspace `PLAN.md` / `CHECKLIST.md` when they exist
-     - at most one bounded `bash_exec` smoke only if the command path is unclear; otherwise direct verification / real run
+     - inspect current workspace route records such as `PLAN.md` / `CHECKLIST.md` only when they exist and are useful
+     - choose the execution path inside the baseline skill; smoke/direct verification/real run are tactics, not required sequence
      - `artifact.confirm_baseline(...)` or `artifact.waive_baseline(...)`
    - As a default downstream gate, do not transition into comparison-heavy work until the baseline is durably confirmed or waived, but that confirmation may be based on a trustworthy attached/imported/local-existing comparator plus a durable core metric contract when the acceptance target is only comparison-ready rather than a full exact reproduction package.
    - Once a comparison-ready baseline is durably confirmed, prefer transitioning to the next scientific step rather than continuing baseline polish.
@@ -1076,12 +1084,11 @@ Use this as the default hard-step operating manual when paper delivery is requir
 
 6. Supplementary evidence
    - Read `analysis-campaign`.
-   - First MCP pattern:
+   - Minimum gate obligations:
      - `artifact.resolve_runtime_refs(...)`
      - if needed `artifact.activate_branch(...)`
-     - `artifact.create_analysis_campaign(...)`
-     - per-slice `bash_exec` supervision
-     - `artifact.record_analysis_slice(...)`
+     - choose the lightest evidence route that preserves traceability and comparability
+     - use `artifact.create_analysis_campaign(...)`, per-slice `bash_exec` supervision, and `artifact.record_analysis_slice(...)` when durable lineage or launched-slice state matters
    - Use one-slice campaigns when durable lineage matters, but allow lighter follow-up handling when one bounded analysis answer is enough and no extra campaign overhead is needed.
    - Must transition:
      - back to `decision` when campaign implications are non-trivial
@@ -1146,11 +1153,11 @@ Use this as the default hard-step operating manual when the quest is optimizatio
 
 2. Baseline gate
    - Read `baseline`.
-   - First MCP / execution pattern:
+   - Minimum gate obligations:
      - `artifact.get_quest_state(...)`
      - `artifact.read_quest_documents(...)`
      - `memory.list_recent(...)` / targeted `memory.search(...)`
-     - `0-2` bounded `bash_exec` smoke / repro checks only when route trust still depends on them; otherwise direct verification / real run
+     - choose the execution path inside the baseline skill; smoke / repro checks are optional trust tactics, not a required sequence
      - `artifact.confirm_baseline(...)` or `artifact.waive_baseline(...)`
    - Must not optimize seriously without an accepted comparator plus a durable core metric contract, or an explicit waiver.
    - Must transition:
@@ -1215,11 +1222,10 @@ Use this as the default hard-step operating manual when the quest is optimizatio
 
 7. Optional supplementary evidence
    - Read `analysis-campaign` only when extra evidence directly validates a suspected win, disambiguates a frontier decision, or exposes a failure mode that changes the next optimization move.
-   - First MCP pattern:
+   - Minimum gate obligations:
      - `artifact.resolve_runtime_refs(...)`
-     - `artifact.create_analysis_campaign(...)`
-     - per-slice `bash_exec`
-     - `artifact.record_analysis_slice(...)`
+     - choose the lightest evidence route that preserves traceability and comparability
+     - use `artifact.create_analysis_campaign(...)`, per-slice `bash_exec`, and `artifact.record_analysis_slice(...)` when durable lineage or launched-slice state matters
    - Must transition:
      - back to `decision` or `optimize` once the extra evidence is durably interpreted
 

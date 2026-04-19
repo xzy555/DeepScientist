@@ -8387,6 +8387,7 @@ class DaemonApp:
                         payload = result(**params) if params else result()
                     elif route_alias in {
                         "shutdown",
+                        "chart_query",
                         "task_doctor_start",
                         "task_system_update_check_start",
                         "task_system_update_action_start",
@@ -8456,6 +8457,7 @@ class DaemonApp:
         self._serve_port = port
         self._shutdown_requested.clear()
         self.admin_service.system_monitor.start()
+        self.admin_service.metrics_collector.start()
         self._start_terminal_attach_server(host, port)
         self._start_background_connectors()
         self._resume_reconciled_quests()
@@ -8477,6 +8479,7 @@ class DaemonApp:
         finally:
             self._stop_background_connectors()
             self._stop_terminal_attach_server()
+            self.admin_service.metrics_collector.stop()
             self.admin_service.system_monitor.stop()
             self.bash_exec_service.shutdown()
             self._server = None

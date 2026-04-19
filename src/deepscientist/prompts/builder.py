@@ -1285,6 +1285,35 @@ class PromptBuilder:
             "- aisb_selection_output_rule: when multiple AISB candidates fit, summarize the top 1 to 3 options briefly, recommend one first, and then patch the form toward that recommendation.",
             "- performance_fit_rule: combine the user's requested task shape with the current machine boundary; if the machine is weak, prefer API-only, low-compute, short-cycle, and benchmark-faithful routes.",
             "- output_rule: if the prepare tool is unavailable, fall back to one fenced block named `start_setup_patch` containing a JSON object with only the fields that should change",
+            "- start_setup_prepare_schema_summary:",
+            "```json",
+            json.dumps(
+                {
+                    "tool": "prepare_start_setup_form",
+                    "runner_namespaced_tool": "mcp__artifact__prepare_start_setup_form",
+                    "input_schema": {
+                        "type": "object",
+                        "required": ["form_patch"],
+                        "properties": {
+                            "form_patch": {
+                                "type": "object",
+                                "description": "Required top-level patch object containing only the fields that should change.",
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Optional short user-facing note.",
+                            },
+                            "comment": {
+                                "type": ["string", "object", "null"],
+                                "description": "Optional internal note.",
+                            },
+                        },
+                    },
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            "```",
             "- patch_fallback_example:",
             "```start_setup_patch",
             '{"title":"Example Project","goal":"Example goal","runtime_constraints":"- One key limit"}',
@@ -1294,6 +1323,10 @@ class PromptBuilder:
             "- no_research_execution_rule: do not start baseline work, experiments, analysis campaigns, or paper drafting in this setup session",
             "- user_choice_rule: if the user already filled the form clearly enough, say so and avoid unnecessary follow-up questions",
             "- ask_rule: only ask short questions when a missing answer would materially change what gets submitted",
+            "- mandatory_confirmation_rule: do not guess critical operator-controlled resources. If GPU scope, GPU count, explicit GPU ids, external LLM/API usage, API keys, tokens, paid-call permission, large-download permission, or privacy boundaries would change the launch plan, you must ask the user to confirm them before treating the form as launch-ready.",
+            "- credential_confirmation_rule: if the task or benchmark would rely on an external API key, token, or account and that credential is not already explicitly available in context, proactively ask the user whether they want to provide it or switch to a different route.",
+            "- gpu_confirmation_rule: do not assume every detected GPU is available. If the allowed GPU scope is unclear and local GPU usage matters, ask the user how many GPUs or which GPU ids may be used.",
+            "- gated_patch_rule: if critical resource confirmations are still missing, you may patch a provisional draft but you must mark the remaining uncertainty clearly in user-facing language instead of presenting the setup as fully ready to launch.",
             "- question_categories: when user input is incomplete, ask at most for these practical categories: task goal, current materials, runtime limits, and whether they prefer paper-facing delivery or result-first delivery",
             "- field_mapping_rule: treat title as a short project name, goal as the real mission, baseline_urls as baseline/code/data inputs, paper_urls as paper or benchmark references, runtime_constraints as hard limits, objectives as the first 2-4 near-term outcomes, and custom_brief as extra preferences",
         ]
@@ -1394,6 +1427,28 @@ class PromptBuilder:
             f"- web_ui_root: {(self.repo_root / 'src' / 'ui').resolve()}",
             "- settings_issue_context_rule: the operator message history is expanded explicitly below; absorb that full conversation before asking for clarification.",
             "- settings_issue_issue_rule: the final output should still converge on `artifact.prepare_github_issue(...)`, but the draft must reflect the real daemon/settings state you verified.",
+            "- settings_issue_tool_schema_summary:",
+            "```json",
+            json.dumps(
+                {
+                    "tool": "prepare_github_issue",
+                    "runner_namespaced_tool": "mcp__artifact__prepare_github_issue",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "summary": {"type": "string"},
+                            "user_notes": {"type": "string"},
+                            "include_doctor": {"type": "boolean"},
+                            "include_logs": {"type": "boolean"},
+                            "open_settings_page": {"type": "boolean"},
+                            "comment": {"type": ["string", "object", "null"]},
+                        },
+                    },
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            "```",
         ]
         return "\n".join(lines)
 
@@ -1410,6 +1465,7 @@ class PromptBuilder:
                 "- completion_rule: once the form is good enough to launch, say so clearly and stop asking for more unless the user requests changes",
                 "- directness_rule: if the current information is already sufficient, tell the user they can launch now",
                 "- ask_rule: only ask short practical questions that directly affect what gets submitted",
+                "- critical_confirmation_rule: treat GPU scope, explicit GPU ids, API keys, external credentials, paid-service permission, large-download permission, and privacy boundaries as mandatory confirmations when they would materially affect launch readiness; do not silently assume them.",
             ]
             if locale.startswith("zh"):
                 lines.extend(
