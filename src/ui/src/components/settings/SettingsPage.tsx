@@ -728,7 +728,7 @@ export function SettingsPage({
       : selectedName && selectedName in SPECIAL_META
         ? SPECIAL_META[selectedName as keyof typeof SPECIAL_META]
         : selectedName
-          ? CONFIG_META[selectedName as ConfigDocumentName]
+          ? SETTINGS_META[selectedName as keyof typeof SETTINGS_META]
           : null
   const helpMarkdown = translateSettingsHelpMarkdown(
     locale,
