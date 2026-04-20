@@ -311,11 +311,11 @@ Stage-end requirement:
 
 ## Connector-facing campaign chart requirements
 
-When this stage produces campaign-facing charts or connector-ready visuals, keep the palette aligned with the system prompt Morandi plotting template.
-
-- `sage-clay` should remain the primary positive or accepted-slice color
-- `mist-stone` should remain the neutral comparison color
-- use soft greens around `#7F8F84` instead of saturated dashboard hues
+- When a campaign result is promoted into a connector-facing chart, prefer restrained palettes such as `sage-clay` and `mist-stone`.
+- A useful `sage-clay` anchor for campaign visuals is `#7F8F84`.
+- Use color to separate campaign-critical slices from background slices, not to decorate every slice equally.
+- Keep the palette consistent with the system prompt instead of improvising a fresh theme per campaign.
+- Campaign visuals should make the main boundary change obvious even in compressed connector previews.
 
 ## Exit criteria
 

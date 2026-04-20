@@ -80,8 +80,10 @@ DeepScientist 灵活且易于使用，支持：
   从安装、选择 Codex / Claude Code / Kimi Code / OpenCode runner，到启动和创建第一个项目，先看这一篇。
 - [20 工作区模式指南](./20_WORKSPACE_MODES_GUIDE.md)
   如果你最纠结的是“应该选 Copilot 还是全自动”，先看这篇。
-- [19 本地浏览器密码说明](./19_LOCAL_BROWSER_AUTH.md)
+- [31 本地浏览器密码说明](./31_LOCAL_BROWSER_AUTH.md)
   如果你想弄清楚密码弹窗是什么、密码去哪里看、怎样关闭这一层本地保护，先看这篇。
+- [32 Windows + WSL2 部署指南](./32_WINDOWS_WSL2_DEPLOYMENT_GUIDE.md)
+  如果你在 Windows 上使用 DeepScientist，并且想走推荐的 WSL2 路线，先看这篇。
 - [05 TUI 端到端指南](./05_TUI_GUIDE.md)
   如果你主要在服务器或终端里工作，这篇会带你从 `ds --tui` 一路走到 quest、connector 和跨端协作跑通。
 - [15 Codex Provider 配置](./15_CODEX_PROVIDER_SETUP.md)
