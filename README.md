@@ -31,15 +31,20 @@
 </p>
 
 <p align="center">
-  <strong>Supports Codex, Claude Code, and OpenCode as local-first runner backends</strong>
+  <strong>Built-in runners: Codex (primary), Claude Code (supported experimental), OpenCode (supported experimental)</strong>
 </p>
 
 <p align="center">
   <a href="docs/en/00_QUICK_START.md">Quick Start</a> •
   <a href="docs/en/02_START_RESEARCH_GUIDE.md">Launch Your First Project</a> •
   <a href="docs/en/12_GUIDED_WORKFLOW_TOUR.md">Product Tour</a> •
-  <a href="docs/en/15_CODEX_PROVIDER_SETUP.md">Runner Setup</a> •
-  <a href="docs/en/22_WINDOWS_WSL2_DEPLOYMENT_GUIDE.md">Windows + WSL2 Setup</a>
+  <a href="docs/en/15_CODEX_PROVIDER_SETUP.md">Codex Setup</a> •
+  <a href="docs/en/24_CLAUDE_CODE_PROVIDER_SETUP.md">Claude Setup</a> •
+  <a href="docs/en/25_OPENCODE_PROVIDER_SETUP.md">OpenCode Setup</a>
+</p>
+
+<p align="center">
+  Maintainers: <a href="docs/en/22_BENCHSTORE_YAML_REFERENCE.md">BenchStore YAML Guide</a>
 </p>
 
 ![deepscientist_install](https://github.com/user-attachments/assets/d8244944-4f70-4e08-94e3-002b74ce70fb)
@@ -254,15 +259,6 @@ If you want to try it right now, here is the shortest path:
 
 Platform note: DeepScientist fully supports Linux and macOS. Native Windows support is currently experimental (strongly recommend WSL2).
 
----
-
-**Windows + WSL2 users**: Copy the following line to your AI coding agent (Claude Code, Codex, Cursor, etc.) and let it handle the full setup for you:
-
-> Install DeepScientist on this Windows machine using WSL2. Follow the skill at `skills/deepscientist-windows-wsl-setup/SKILL.md` in the DeepScientist repo for the full procedure. Keep going until `ds doctor` passes and I can open http://127.0.0.1:20999 in my Windows browser.
-
----
-
-For manual installation on Linux / macOS:
 DeepScientist ships three built-in runners:
 
 - `codex`: the primary and most battle-tested path
