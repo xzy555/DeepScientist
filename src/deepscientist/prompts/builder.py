@@ -1299,6 +1299,7 @@ class PromptBuilder:
             f"- session_kind: autonomous_start_setup",
             f"- source: {source}",
             f"- preferred_language: {locale}",
+            "- reply_language_rule: answer in the user's own language when it is clear from their latest message or the preferred language injected into this session.",
             self._local_daemon_api_block(include_benchstore=True),
             "- mission: help the user complete the autonomous start form and stop there; do not begin the real research workflow",
             "- context_first_rule: before asking the user for missing information, first read the current setup state and use the information already present in the form or benchmark context",
@@ -1306,6 +1307,10 @@ class PromptBuilder:
             "- start_setup_prepare_signature_rule: `form_patch` is the required top-level argument for `artifact.prepare_start_setup_form(...)`; do not hide the patch JSON inside `message`.",
             "- start_setup_tool_discovery_rule: before claiming the form writeback tool is unavailable, first try the runner-exposed tool name if it is shown (for example `mcp__artifact__prepare_start_setup_form`).",
             "- start_setup_context_rule: the current suggested form and benchmark context are already injected into this prompt; do not assume `memory.*` or other `artifact.*` helpers are available here",
+            "- research_mainline_rule: when the user wants a real research project rather than a baseline-only task, the launch form should make the mainline explicit: baseline is only the starting point, then autonomous optimization and repeated performance improvement, then robust surpassing of strong baselines / SoTA with novelty, then analysis experiments, then literature / figures / paper-writing collaboration.",
+            "- baseline_not_endpoint_rule: do not frame the mission as 'reproduce a baseline and stop' unless the user explicitly wants a baseline-only task.",
+            "- novelty_confirmation_rule: if the user expects paper-level research or method contribution, explicitly confirm that the goal is not only to beat the baseline but to do so with a sufficiently novel and defensible method direction.",
+            "- sequencing_confirmation_rule: if the long-term plan is still unclear, ask the user to confirm the intended sequence among baseline, optimization beyond SoTA, analysis experiments, and later literature / figure / writing work.",
             "- benchmark_context_source_rule: if `benchmark_context.raw_payload` exists, treat it as the full benchmark description file for this setup session rather than relying only on the shorter summary fields.",
             "- start_setup_message_injection_rule: the recent conversation for this setup session is expanded explicitly below; use that full message history before asking the user to repeat requirements.",
             "- aisb_selection_rule: when the user asks you to choose or recommend a task, prefer the existing AISB / BenchStore catalog first instead of asking the user to invent a task from scratch.",
@@ -1358,7 +1363,7 @@ class PromptBuilder:
             "- credential_confirmation_rule: if the task or benchmark would rely on an external API key, token, or account and that credential is not already explicitly available in context, proactively ask the user whether they want to provide it or switch to a different route.",
             "- gpu_confirmation_rule: do not assume every detected GPU is available. If the allowed GPU scope is unclear and local GPU usage matters, ask the user how many GPUs or which GPU ids may be used.",
             "- gated_patch_rule: if critical resource confirmations are still missing, you may patch a provisional draft but you must mark the remaining uncertainty clearly in user-facing language instead of presenting the setup as fully ready to launch.",
-            "- question_categories: when user input is incomplete, ask at most for these practical categories: task goal, current materials, runtime limits, and whether they prefer paper-facing delivery or result-first delivery",
+            "- question_categories: when user input is incomplete, ask at most for these practical categories: task goal, current materials, runtime limits, whether they prefer paper-facing delivery or result-first delivery, and whether the real target is baseline-only or iterative performance improvement beyond SoTA with novelty.",
             "- field_mapping_rule: treat title as a short project name, goal as the real mission, baseline_urls as baseline/code/data inputs, paper_urls as paper or benchmark references, runtime_constraints as hard limits, objectives as the first 2-4 near-term outcomes, and custom_brief as extra preferences",
         ]
         if benchmark_context:

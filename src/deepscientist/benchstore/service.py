@@ -870,10 +870,26 @@ class BenchStoreService:
             else recommendation_tier
         )
 
-        benchmark_goal = task_description or one_line or (
-            f"忠实运行 benchmark `{entry['name']}`，并在当前证据下产出最强、最合理的全自动结果。"
+        benchmark_summary = task_description or one_line or (
+            f"忠实运行 benchmark `{entry['name']}`。"
             if is_zh
-            else f"Run the benchmark `{entry['name']}` faithfully and produce the strongest justified autonomous result."
+            else f"Run the benchmark `{entry['name']}` faithfully."
+        )
+        benchmark_goal = (
+            (
+                f"{benchmark_summary}\n\n"
+                "核心研究目标：把 baseline 视为可信起点，而不是终点。先建立 faithful 且可比较的 baseline，"
+                "再围绕该任务持续迭代具有新颖性的改进方向，争取稳健超越强基线 / SoTA；"
+                "当主结果足够稳定后，继续进入分析实验，并在证据足够时进入文献搜索、图片制作和论文撰写协作。"
+            )
+            if is_zh
+            else (
+                f"{benchmark_summary}\n\n"
+                "Main research target: treat the baseline as the credible starting point rather than the endpoint. "
+                "First establish a faithful, comparable baseline; then iteratively develop and test novel improvement directions "
+                "for this task until the result robustly surpasses strong baselines / SoTA; once the main gain is stable, "
+                "continue into analysis experiments and, when justified, into literature search, figure making, and paper-writing collaboration."
+            )
         )
         fit_lines = compatibility.get("recommended_reasons") or compatibility.get("minimum_reasons") or []
         constraints = [
@@ -965,36 +981,42 @@ class BenchStoreService:
 
         objectives = (
             [
-                "1. 建立一个与 benchmark 保持一致的可信起点。",
-                "2. 在当前设备范围内，生成一版可直接进入全自动模式的启动项。",
-                "3. 启动后优先保持 benchmark faithful，而不是无边界扩展任务。",
+                "1. 先建立一个与 benchmark 保持一致、可比较、可复用的 baseline。",
+                "2. baseline 完成后，自主进入多轮优化与性能增强，而不是停留在复现本身。",
+                "3. 以具备新颖性的方向稳健超越强基线 / SoTA，而不是接受一次性的小幅提升。",
+                "4. 主结果稳定后，继续做分析实验，补充 ablation、robustness、failure analysis 等证据。",
+                "5. 如果论文级交付仍在范围内，再进入文献搜索、图片制作、论文撰写等协作阶段。",
+                "6. 整个过程都要尽量保持 benchmark faithful，并且受当前设备边界约束。",
             ]
             if is_zh
             else [
-                "1. Establish a credible starting point that stays faithful to the benchmark.",
-                "2. Prepare a launch-ready autonomous start form within the current device boundary.",
-                "3. After launch, keep the work benchmark-faithful instead of expanding scope without limits.",
+                "1. First establish a faithful, comparable, reusable baseline for the benchmark.",
+                "2. After the baseline is credible, move into repeated optimization and performance improvement rather than stopping at reproduction.",
+                "3. Robustly surpass strong baselines / SoTA through a method direction with clear novelty, rather than accepting a one-off minor gain.",
+                "4. Once the main result is stable, continue into analysis experiments such as ablations, robustness checks, and failure analysis.",
+                "5. If paper-facing delivery remains in scope, continue into literature search, figure making, and paper-writing collaboration.",
+                "6. Keep the whole plan benchmark-faithful and inside the current device boundary.",
             ]
         )
         if requires_paper:
-            objectives.append("4. 保持论文级交付仍然在 scope 内。" if is_zh else "4. Keep paper-facing delivery in scope.")
+            objectives.append("7. 保持论文级交付仍然在范围内。" if is_zh else "7. Keep paper-facing delivery in scope.")
         else:
             objectives.append(
-                "4. 当前以结果优先，不默认进入论文写作。"
+                "7. 当前以结果优先，不默认进入论文写作。"
                 if is_zh
-                else "4. Optimize for benchmark results first without defaulting into paper writing."
+                else "7. Optimize for benchmark results first without defaulting into paper writing."
             )
         if recommendation_tier == "unsupported":
             objectives.append(
-                "5. 允许直接启动，但要先识别当前设备不足会影响哪些环节，并优先选择在本机可落地的 faithful 路径。"
+                "8. 允许直接启动，但要先识别当前设备不足会影响哪些环节，并优先选择在本机可落地的 faithful 路径。"
                 if is_zh
-                else "5. Launch is still allowed, but first identify which steps are limited by the current device and prefer a faithful path that can actually run locally."
+                else "8. Launch is still allowed, but first identify which steps are limited by the current device and prefer a faithful path that can actually run locally."
             )
         if credential_items:
             objectives.append(
-                "6. 启动前确认可用的 API Key / 资源凭证，并根据可用资源收窄执行路线。"
+                "9. 启动前确认可用的 API Key / 资源凭证，并根据可用资源收窄执行路线。"
                 if is_zh
-                else "6. Confirm available API keys / resource credentials before launch and narrow the execution path accordingly."
+                else "9. Confirm available API keys / resource credentials before launch and narrow the execution path accordingly."
             )
 
         baseline_url_lines: list[str] = []
@@ -1070,6 +1092,10 @@ class BenchStoreService:
                     f"本地路径: {local_path or unknown_text}。"
                     f"设备适配: {localized_device_fit or unknown_text}。"
                     f"LaTeX 路径: {latex_markdown_path or none_text}。"
+                    "请把这次任务当作完整研究，而不是 baseline-only 复现。"
+                    "baseline 只是可信起点；完成后应继续自主优化，并围绕具有新颖性的方向稳健超越强基线 / SoTA；"
+                    "主结果稳定后继续进入分析实验，再在需要时进入文献、图片和论文协作。"
+                    "需要和用户确认：这次任务是否真的是 baseline-only，是否要求新颖性，以及超越后是否继续做分析实验和论文协作。"
                     f"是否需要用户确认凭证/资源: {', '.join(credential_items) if credential_items else '可能仅剩少量运行时 / API 细节'}。"
                 )
                 if is_zh
@@ -1078,6 +1104,11 @@ class BenchStoreService:
                     f"Local path: {local_path or unknown_text}. "
                     f"Device fit: {localized_device_fit or unknown_text}. "
                     f"Latex path: {latex_markdown_path or none_text}. "
+                    "Treat this as a full research task rather than a baseline-only reproduction task. "
+                    "The baseline is only the credible starting point; after that the system should continue autonomous optimization, "
+                    "push toward robust gains beyond strong baselines / SoTA through a novel method direction, "
+                    "then continue into analysis experiments and, when needed, into literature, figures, and paper-writing collaboration. "
+                    "Confirm with the user whether this is really baseline-only or full research, whether novelty is required, and whether post-win analysis and paper-facing collaboration should remain in scope. "
                     f"Need user confirmation for credentials/resources: {', '.join(credential_items) if credential_items else 'maybe runtime/API specifics only'}."
                 )
             ),

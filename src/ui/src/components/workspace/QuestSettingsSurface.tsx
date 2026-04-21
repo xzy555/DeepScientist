@@ -16,6 +16,7 @@ import { useToast } from '@/components/ui/toast'
 import { client } from '@/lib/api'
 import { conversationIdentityKey, normalizeConnectorTargets, parseConversationId } from '@/lib/connectors'
 import { useI18n } from '@/lib/i18n/useI18n'
+import { cn } from '@/lib/utils'
 import type { ConnectorSnapshot, ConnectorTargetSnapshot, QuestSummary } from '@/types'
 
 type ConflictItem = {

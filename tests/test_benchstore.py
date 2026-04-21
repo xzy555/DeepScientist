@@ -817,10 +817,17 @@ def test_benchstore_setup_packet_localizes_prefilled_form_by_locale(tmp_path: Pa
 
     assert en_packet["project_title"] == "English Benchmark Autonomous Research"
     assert zh_packet["project_title"] == "中文基准 全自动研究"
-    assert en_packet["suggested_form"]["goal"] == "English benchmark description."
-    assert zh_packet["suggested_form"]["goal"] == "中文 benchmark 描述。"
-    assert "Establish a credible starting point" in str(en_packet["suggested_form"]["objectives"])
-    assert "建立一个与 benchmark 保持一致的可信起点。" in str(zh_packet["suggested_form"]["objectives"])
+    assert "English benchmark description." in str(en_packet["suggested_form"]["goal"])
+    assert "Main research target" in str(en_packet["suggested_form"]["goal"])
+    assert "中文 benchmark 描述。" in str(zh_packet["suggested_form"]["goal"])
+    assert "核心研究目标" in str(zh_packet["suggested_form"]["goal"])
+    assert "faithful, comparable, reusable baseline" in str(en_packet["suggested_form"]["objectives"])
+    assert "Robustly surpass strong baselines / SoTA" in str(en_packet["suggested_form"]["objectives"])
+    assert "faithful, comparable, reusable baseline" not in str(zh_packet["suggested_form"]["objectives"])
+    assert "可比较、可复用的 baseline" in str(zh_packet["suggested_form"]["objectives"])
+    assert "稳健超越强基线 / SoTA" in str(zh_packet["suggested_form"]["objectives"])
+    assert "full research task rather than a baseline-only reproduction task" in str(en_packet["suggested_form"]["custom_brief"])
+    assert "完整研究，而不是 baseline-only 复现" in str(zh_packet["suggested_form"]["custom_brief"])
     assert "Primary Benchmark Goal" in str(en_packet["startup_instruction"])
     assert "核心 benchmark 目标" in str(zh_packet["startup_instruction"])
     assert en_packet["suggested_form"]["user_language"] == "en"

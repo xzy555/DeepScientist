@@ -1356,6 +1356,7 @@ def test_prompt_builder_start_setup_block_includes_local_daemon_api_context(temp
     assert "GET /api/benchstore/entries/:entry_id/setup-packet" in prompt
     assert "built_in_mcp_namespaces: artifact, bash_exec" in prompt
     assert "artifact.prepare_start_setup_form(...)" in prompt
+    assert "reply_language_rule: answer in the user's own language" in prompt
 
 
 def test_prompt_builder_claude_start_setup_notes_namespaced_mcp_tool_names(temp_home: Path) -> None:
@@ -1420,10 +1421,13 @@ def test_prompt_builder_start_setup_prompt_avoids_unavailable_context_tools(temp
 
     assert "artifact.prepare_start_setup_form(...)" in prompt
     assert "bash_exec(...)" in prompt
+    assert "baseline is only the starting point" in prompt
     assert "get_start_setup_context" not in prompt
     assert "get_benchstore_catalog" not in prompt
-    assert "优先从现有 AISB / BenchStore 条目里挑选" in prompt
-    assert "不要先把“你想做什么任务”整个问题甩回给用户" in prompt
+    assert "prefer existing AISB / BenchStore entries first" in prompt
+    assert "do not push the whole task-definition burden back to the user" in prompt
+    assert "robust improvement beyond strong baselines / SoTA" in prompt
+    assert "literature / figures / writing" in prompt
     assert "mandatory_confirmation_rule" in prompt
     assert "credential_confirmation_rule" in prompt
     assert "gpu_confirmation_rule" in prompt
