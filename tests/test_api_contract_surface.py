@@ -571,6 +571,8 @@ def test_runner_settings_surface_exposes_reasoning_and_retry_controls() -> None:
     assert "key: 'agent'" in settings_catalog_source
     assert "key: 'thinking'" in settings_catalog_source
     assert "key: 'yolo'" in settings_catalog_source
+    assert "key: 'mcp_timeout_ms'" in settings_catalog_source
+    assert "key: 'mcp_tool_timeout_ms'" in settings_catalog_source
     assert "key: 'default_agent'" in settings_catalog_source
     assert "key: 'variant'" in settings_catalog_source
     assert "key: 'model_reasoning_effort'" in settings_catalog_source

@@ -59,6 +59,16 @@ def _copy_opencode_tree(target_root: Path, *source_roots: Path) -> None:
 class OpenCodeRunner(SimpleCliRunner):
     runner_name = "opencode"
 
+    @staticmethod
+    def _positive_timeout_ms(value: object) -> int | None:
+        try:
+            if value is None or str(value).strip() == "":
+                return None
+            timeout = int(float(value))
+        except (TypeError, ValueError):
+            return None
+        return timeout if timeout > 0 else None
+
     def _prepare_runtime(
         self,
         *,
@@ -102,6 +112,7 @@ class OpenCodeRunner(SimpleCliRunner):
         if pythonpath:
             shared_env["PYTHONPATH"] = pythonpath
         server_names = builtin_mcp_server_names_for_custom_profile(custom_profile)
+        mcp_timeout_ms = self._positive_timeout_ms(resolved_runner_config.get("mcp_timeout_ms"))
         merged_config = {
             **source_config,
             "mcp": {
@@ -118,6 +129,7 @@ class OpenCodeRunner(SimpleCliRunner):
                             name,
                         ],
                         "environment": shared_env,
+                        **({"timeout": mcp_timeout_ms} if mcp_timeout_ms is not None else {}),
                     }
                     for name in server_names
                 },

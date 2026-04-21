@@ -250,6 +250,7 @@ opencode:
   model: inherit
   default_agent: ""
   variant: ""
+  mcp_timeout_ms: 172800000
   retry_on_failure: true
   retry_max_attempts: 4
   retry_initial_backoff_sec: 10.0
@@ -276,6 +277,8 @@ opencode:
   - 对应 OpenCode 的 `--agent`
 - `Runners -> opencode.variant`
   - 对应 provider-specific 的 `--variant`
+- `Runners -> opencode.mcp_timeout_ms`
+  - OpenCode 启动时从每个 MCP server 拉取 tools 的超时；这不是工具执行超时
 
 ## 第五步：验证 DeepScientist
 

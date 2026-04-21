@@ -36,7 +36,7 @@ const RUNNER_DEFAULTS: Record<BuiltinRunnerName, StructuredConfig> = {
     retry_initial_backoff_sec: 10,
     retry_backoff_multiplier: 6,
     retry_max_backoff_sec: 1800,
-    mcp_tool_timeout_sec: 180000,
+    mcp_tool_timeout_sec: 172800,
     env: {},
   },
   claude: {
@@ -45,6 +45,8 @@ const RUNNER_DEFAULTS: Record<BuiltinRunnerName, StructuredConfig> = {
     config_dir: '~/.claude',
     model: 'inherit',
     permission_mode: 'bypassPermissions',
+    mcp_timeout_ms: 172800000,
+    mcp_tool_timeout_ms: 172800000,
     retry_on_failure: true,
     retry_max_attempts: 4,
     retry_initial_backoff_sec: 10,
@@ -60,6 +62,7 @@ const RUNNER_DEFAULTS: Record<BuiltinRunnerName, StructuredConfig> = {
     agent: '',
     thinking: false,
     yolo: true,
+    mcp_tool_timeout_ms: 172800000,
     retry_on_failure: true,
     retry_max_attempts: 4,
     retry_initial_backoff_sec: 10,
@@ -75,6 +78,7 @@ const RUNNER_DEFAULTS: Record<BuiltinRunnerName, StructuredConfig> = {
     permission_mode: 'allow',
     default_agent: '',
     variant: '',
+    mcp_timeout_ms: 172800000,
     retry_on_failure: true,
     retry_max_attempts: 4,
     retry_initial_backoff_sec: 10,
@@ -147,6 +151,8 @@ const RUNNER_FIELDS: Record<BuiltinRunnerName, RunnerField[]> = {
         { label: 'Plan', value: 'plan' },
       ],
     },
+    { key: 'mcp_timeout_ms', label: 'MCP startup timeout (ms)', kind: 'number', description: 'Claude Code MCP server startup timeout via `MCP_TIMEOUT`.' },
+    { key: 'mcp_tool_timeout_ms', label: 'MCP tool timeout (ms)', kind: 'number', description: 'Claude Code per-tool MCP timeout via `MCP_TOOL_TIMEOUT`.' },
   ],
   kimi: [
     { key: 'binary', label: 'Binary', kind: 'text', description: 'Kimi Code CLI binary name or absolute path.' },
@@ -155,6 +161,7 @@ const RUNNER_FIELDS: Record<BuiltinRunnerName, RunnerField[]> = {
     { key: 'agent', label: 'Agent', kind: 'text', description: 'Optional `kimi --agent` profile name.' },
     { key: 'thinking', label: 'Thinking', kind: 'boolean', description: 'Enable Kimi thinking mode by default.' },
     { key: 'yolo', label: 'Yolo', kind: 'boolean', description: 'Enable Kimi no-confirm execution with `--yolo`.' },
+    { key: 'mcp_tool_timeout_ms', label: 'MCP tool timeout (ms)', kind: 'number', description: 'Kimi MCP tool execution timeout written to `.kimi/config.toml`.' },
   ],
   opencode: [
     { key: 'binary', label: 'Binary', kind: 'text', description: 'OpenCode CLI binary name or absolute path.' },
@@ -173,6 +180,7 @@ const RUNNER_FIELDS: Record<BuiltinRunnerName, RunnerField[]> = {
     },
     { key: 'default_agent', label: 'Default agent', kind: 'text', description: 'Optional `opencode run --agent` value.' },
     { key: 'variant', label: 'Variant', kind: 'text', description: 'Optional `opencode run --variant` value.' },
+    { key: 'mcp_timeout_ms', label: 'MCP startup timeout (ms)', kind: 'number', description: 'OpenCode MCP tool-discovery timeout; this is not tool execution timeout.' },
   ],
 }
 

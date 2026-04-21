@@ -1266,7 +1266,7 @@ def test_opencode_runner_prepare_runtime_uses_allow_permission_mode_by_default(t
         quest_root=quest_root,
         quest_id='q-001',
         run_id='run-001',
-        runner_config={'config_dir': str(temp_home / 'missing-opencode-home')},
+        runner_config={'config_dir': str(temp_home / 'missing-opencode-home'), 'mcp_timeout_ms': 45000},
     )
 
     config_path = Path(str(meta['opencode_config']))
@@ -1274,6 +1274,7 @@ def test_opencode_runner_prepare_runtime_uses_allow_permission_mode_by_default(t
     assert env['XDG_CONFIG_HOME'].endswith('.config')
     assert payload['permission'] == 'allow'
     assert payload['mcp']['artifact']['enabled'] is True
+    assert payload['mcp']['artifact']['timeout'] == 45000
     assert payload['mcp']['artifact']['environment']['PYTHONIOENCODING'] == 'utf-8'
     assert payload['mcp']['artifact']['environment']['PYTHONUTF8'] == '1'
 

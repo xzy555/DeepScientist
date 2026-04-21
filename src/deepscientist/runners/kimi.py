@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from ..kimi_cli_compat import materialize_kimi_runtime_home
-from ..shared import ensure_dir, ensure_utf8_subprocess_env, generate_id, resolve_runner_binary, write_json
+from ..shared import ensure_dir, ensure_utf8_subprocess_env, generate_id, read_text, resolve_runner_binary, write_json, write_text
 from .base import RunRequest, builtin_mcp_server_names_for_custom_profile, resolve_mcp_tool_profile_for_quest
 from .simple_cli import SimpleCliRunner
 
@@ -78,6 +78,41 @@ def _normalize_text_content(value: object) -> str:
 class KimiRunner(SimpleCliRunner):
     runner_name = "kimi"
 
+    @staticmethod
+    def _positive_timeout_ms(value: object) -> int | None:
+        try:
+            if value is None or str(value).strip() == "":
+                return None
+            timeout = int(float(value))
+        except (TypeError, ValueError):
+            return None
+        return timeout if timeout > 0 else None
+
+    @staticmethod
+    def _merge_kimi_timeout_config(config_path: Path, *, tool_call_timeout_ms: int | None) -> None:
+        existing = read_text(config_path) if config_path.exists() else ""
+        marker_start = "# BEGIN DEEPSCIENTIST MCP TIMEOUT"
+        marker_end = "# END DEEPSCIENTIST MCP TIMEOUT"
+        if marker_start in existing and marker_end in existing:
+            prefix = existing.split(marker_start, 1)[0].rstrip()
+        else:
+            prefix = existing.rstrip()
+
+        if tool_call_timeout_ms is None:
+            write_text(config_path, (prefix + "\n") if prefix else "")
+            return
+
+        block = "\n".join(
+            [
+                marker_start,
+                "[mcp.client]",
+                f"tool_call_timeout_ms = {tool_call_timeout_ms}",
+                marker_end,
+            ]
+        )
+        new_text = f"{prefix}\n\n{block}\n" if prefix else f"{block}\n"
+        write_text(config_path, new_text)
+
     def _command_uses_stdin_prompt(self) -> bool:
         return True
 
@@ -94,6 +129,10 @@ class KimiRunner(SimpleCliRunner):
         resolved_runner_config = runner_config if isinstance(runner_config, dict) else self._load_runner_config()
         source_home = Path(str(resolved_runner_config.get("config_dir") or Path.home() / ".kimi")).expanduser()
         kimi_home = materialize_kimi_runtime_home(source_home=source_home, target_home=runtime_home)
+        self._merge_kimi_timeout_config(
+            kimi_home / "config.toml",
+            tool_call_timeout_ms=self._positive_timeout_ms(resolved_runner_config.get("mcp_tool_timeout_ms")),
+        )
         _sync_kimi_tree(kimi_home / "skills", source_home / "skills", quest_root / ".kimi" / "skills")
         pythonpath = str(os.environ.get("PYTHONPATH") or "").strip()
 

@@ -232,6 +232,8 @@ class ConfigManager:
                 "config_dir",
                 "model",
                 "permission_mode",
+                "mcp_timeout_ms",
+                "mcp_tool_timeout_ms",
                 "env",
             ),
             "kimi": (
@@ -241,6 +243,7 @@ class ConfigManager:
                 "agent",
                 "thinking",
                 "yolo",
+                "mcp_tool_timeout_ms",
                 "env",
             ),
             "opencode": (
@@ -250,6 +253,7 @@ class ConfigManager:
                 "permission_mode",
                 "default_agent",
                 "variant",
+                "mcp_timeout_ms",
                 "env",
             ),
         }

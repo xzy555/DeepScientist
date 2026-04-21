@@ -120,7 +120,11 @@ def test_config_manager_load_runners_config_backfills_normalized_defaults(temp_h
 
     runners = manager.load_runners_config()
 
-    assert runners["codex"]["mcp_tool_timeout_sec"] == 180000
+    assert runners["codex"]["mcp_tool_timeout_sec"] == 172800
+    assert runners["claude"]["mcp_timeout_ms"] == 172800000
+    assert runners["claude"]["mcp_tool_timeout_ms"] == 172800000
+    assert runners["kimi"]["mcp_tool_timeout_ms"] == 172800000
+    assert runners["opencode"]["mcp_timeout_ms"] == 172800000
     assert runners["codex"]["config_dir"] == "~/.codex"
     assert runners["codex"]["retry_on_failure"] is True
 

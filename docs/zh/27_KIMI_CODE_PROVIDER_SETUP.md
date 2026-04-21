@@ -34,3 +34,18 @@ kimi:
 2. 输入一个简单提示，例如 `Reply with exactly HELLO.`。
 3. 运行 `ds doctor`，确认 `Kimi Code CLI` 的 startup probe 通过。
 4. 只有在这些都正常后，再把 `config.default_runner` 切到 `kimi`。
+- `mcp_tool_timeout_ms`：如果预计会有长时间 `bash_exec` 等 MCP 调用，保持较大的超时值
+
+## 推荐的 `runners.yaml` 结构
+
+```yaml
+kimi:
+  enabled: true
+  binary: kimi
+  config_dir: ~/.kimi
+  model: inherit
+  agent: ""
+  thinking: false
+  yolo: true
+  mcp_tool_timeout_ms: 172800000
+```

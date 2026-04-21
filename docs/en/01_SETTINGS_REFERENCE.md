@@ -693,7 +693,7 @@ codex:
   retry_initial_backoff_sec: 10.0
   retry_backoff_multiplier: 6.0
   retry_max_backoff_sec: 1800.0
-  mcp_tool_timeout_sec: 180000
+  mcp_tool_timeout_sec: 172800
   env: {}
 claude:
   enabled: false
@@ -701,6 +701,24 @@ claude:
   config_dir: ~/.claude
   model: inherit
   permission_mode: bypassPermissions
+  mcp_timeout_ms: 172800000
+  mcp_tool_timeout_ms: 172800000
+  retry_on_failure: true
+  retry_max_attempts: 4
+  retry_initial_backoff_sec: 10.0
+  retry_backoff_multiplier: 4.0
+  retry_max_backoff_sec: 600.0
+  env: {}
+  status: supported
+kimi:
+  enabled: false
+  binary: kimi
+  config_dir: ~/.kimi
+  model: inherit
+  agent: ""
+  thinking: false
+  yolo: true
+  mcp_tool_timeout_ms: 172800000
   retry_on_failure: true
   retry_max_attempts: 4
   retry_initial_backoff_sec: 10.0
@@ -715,6 +733,7 @@ opencode:
   model: inherit
   default_agent: ""
   variant: ""
+  mcp_timeout_ms: 172800000
   retry_on_failure: true
   retry_max_attempts: 4
   retry_initial_backoff_sec: 10.0
@@ -805,6 +824,23 @@ opencode:
 - Common values: `default`, `bypassPermissions`, `dontAsk`, `acceptEdits`, `delegate`, `plan`
 - Recommended local automation default: `bypassPermissions`
 
+**`mcp_timeout_ms`**
+
+- Type: `number`
+- Runners: `claude`, `opencode`
+- Meaning:
+  - `claude`: MCP server startup timeout forwarded as `MCP_TIMEOUT`
+  - `opencode`: timeout for fetching tools from each MCP server during startup
+- Note: OpenCode's `mcp_timeout_ms` is not tool execution timeout.
+
+**`mcp_tool_timeout_ms`**
+
+- Type: `number`
+- Runners: `claude`, `kimi`
+- Meaning:
+  - `claude`: per-tool MCP timeout forwarded as `MCP_TOOL_TIMEOUT`
+  - `kimi`: MCP tool execution timeout written to `.kimi/config.toml` as `mcp.client.tool_call_timeout_ms`
+
 **`agent`**
 
 - Type: `string`
@@ -886,6 +922,9 @@ opencode:
 - New quests follow `config.default_runner`.
 - Existing quests can override the runner in project settings.
 - Do not lower `mcp_tool_timeout_sec` casually if your workflow uses long-running `bash_exec` sessions.
+- For Kimi, the important timeout is `mcp_tool_timeout_ms`, because the upstream default is much shorter than the long-running `bash_exec` waits DeepScientist often needs.
+- For Claude, the practical execution cap is already large by default; the more common issue is MCP startup timeout, handled by `mcp_timeout_ms`.
+- For OpenCode, `mcp_timeout_ms` only affects MCP tool discovery / startup, not the execution time of one MCP call.
 
 
 ## `connectors.yaml`

@@ -94,6 +94,7 @@ Recommended first values:
 - `agent`: leave empty unless your direct Kimi CLI already depends on a named agent
 - `thinking`: leave `false` first unless you already know you want longer default reasoning
 - `yolo`: keep `true` for unattended local automation
+- `mcp_tool_timeout_ms`: keep a large value when long `bash_exec` waits or other long MCP calls are expected
 
 ## Recommended `runners.yaml` shape
 
@@ -106,6 +107,7 @@ kimi:
   agent: ""
   thinking: false
   yolo: true
+  mcp_tool_timeout_ms: 172800000
 ```
 
 Use raw `runners.yaml` editing only when:

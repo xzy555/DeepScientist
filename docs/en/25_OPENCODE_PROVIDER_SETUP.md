@@ -242,6 +242,7 @@ opencode:
   model: inherit
   default_agent: ""
   variant: ""
+  mcp_timeout_ms: 172800000
   retry_on_failure: true
   retry_max_attempts: 4
   retry_initial_backoff_sec: 10.0
@@ -260,7 +261,7 @@ Use it to:
 
 - switch the global default runner to `OpenCode`
 - enable the OpenCode runner
-- fill `binary`, `config_dir`, `model`, `default_agent`, and `variant`
+- fill `binary`, `config_dir`, `model`, `default_agent`, `variant`, and `mcp_timeout_ms`
 
 ![Models settings page](../images/settings/settings-runners-en.png)
 
@@ -282,6 +283,8 @@ In the web Settings page:
   - optional `--agent`
 - `Runners -> opencode.variant`
   - optional provider-specific `--variant`
+- `Runners -> opencode.mcp_timeout_ms`
+  - timeout for fetching tools from each MCP server during OpenCode startup; this is not tool execution timeout
 
 ## Step 5: validate DeepScientist
 

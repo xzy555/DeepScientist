@@ -206,12 +206,16 @@ def test_apply_claude_runtime_overrides_maps_yolo_and_model(monkeypatch) -> None
     monkeypatch.setenv('DEEPSCIENTIST_CLAUDE_MODEL', 'claude-sonnet-4-5')
     monkeypatch.setenv('DEEPSCIENTIST_CLAUDE_YOLO', 'true')
     monkeypatch.setenv('DEEPSCIENTIST_CLAUDE_MAX_TURNS', '88')
+    monkeypatch.setenv('DEEPSCIENTIST_CLAUDE_MCP_TIMEOUT_MS', '45000')
+    monkeypatch.setenv('DEEPSCIENTIST_CLAUDE_MCP_TOOL_TIMEOUT_MS', '120000')
 
     rendered = apply_claude_runtime_overrides({'permission_mode': 'default'})
 
     assert rendered['model'] == 'claude-sonnet-4-5'
     assert rendered['permission_mode'] == 'bypassPermissions'
     assert rendered['max_turns'] == '88'
+    assert rendered['mcp_timeout_ms'] == '45000'
+    assert rendered['mcp_tool_timeout_ms'] == '120000'
 
 
 def test_claude_runner_prepare_runtime_writes_mcp_config(temp_home: Path) -> None:
@@ -231,13 +235,19 @@ def test_claude_runner_prepare_runtime_writes_mcp_config(temp_home: Path) -> Non
         quest_root=quest_root,
         quest_id='q-001',
         run_id='run-001',
-        runner_config={'config_dir': str(temp_home / 'missing-claude-home')},
+        runner_config={
+            'config_dir': str(temp_home / 'missing-claude-home'),
+            'mcp_timeout_ms': 45000,
+            'mcp_tool_timeout_ms': 120000,
+        },
     )
 
     config_path = Path(str(meta['claude_mcp_config']))
     payload = json.loads(config_path.read_text(encoding='utf-8'))
     artifact_server = payload['mcpServers']['artifact']
     assert env['CLAUDE_CONFIG_DIR'].endswith('/.ds/claude-home')
+    assert env['MCP_TIMEOUT'] == '45000'
+    assert env['MCP_TOOL_TIMEOUT'] == '120000'
     assert sorted(payload['mcpServers']) == ['artifact', 'bash_exec', 'memory']
     assert artifact_server['command'] == sys.executable
     assert artifact_server['args'] == ['-m', 'deepscientist.mcp.server', '--namespace', 'artifact']

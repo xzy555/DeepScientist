@@ -68,6 +68,8 @@ def claude_runtime_overrides() -> dict[str, str]:
     binary = _as_text(os.environ.get("DEEPSCIENTIST_CLAUDE_BINARY") or os.environ.get("DS_CLAUDE_BINARY"))
     model = _as_text(os.environ.get("DEEPSCIENTIST_CLAUDE_MODEL") or os.environ.get("DS_CLAUDE_MODEL"))
     max_turns = _as_text(os.environ.get("DEEPSCIENTIST_CLAUDE_MAX_TURNS"))
+    mcp_timeout_ms = _as_text(os.environ.get("DEEPSCIENTIST_CLAUDE_MCP_TIMEOUT_MS"))
+    mcp_tool_timeout_ms = _as_text(os.environ.get("DEEPSCIENTIST_CLAUDE_MCP_TOOL_TIMEOUT_MS"))
     yolo_enabled = _as_optional_bool_env("DEEPSCIENTIST_CLAUDE_YOLO")
 
     overrides: dict[str, str] = {}
@@ -77,6 +79,10 @@ def claude_runtime_overrides() -> dict[str, str]:
         overrides["model"] = model
     if max_turns:
         overrides["max_turns"] = max_turns
+    if mcp_timeout_ms:
+        overrides["mcp_timeout_ms"] = mcp_timeout_ms
+    if mcp_tool_timeout_ms:
+        overrides["mcp_tool_timeout_ms"] = mcp_tool_timeout_ms
     if yolo_enabled is True:
         overrides["permission_mode"] = "bypassPermissions"
     elif yolo_enabled is False:

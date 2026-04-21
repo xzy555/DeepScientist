@@ -457,7 +457,7 @@ codex:
   retry_initial_backoff_sec: 10.0
   retry_backoff_multiplier: 6.0
   retry_max_backoff_sec: 1800.0
-  mcp_tool_timeout_sec: 180000
+  mcp_tool_timeout_sec: 172800
   env: {}
 claude:
   enabled: false
@@ -465,6 +465,24 @@ claude:
   config_dir: ~/.claude
   model: inherit
   permission_mode: bypassPermissions
+  mcp_timeout_ms: 172800000
+  mcp_tool_timeout_ms: 172800000
+  retry_on_failure: true
+  retry_max_attempts: 4
+  retry_initial_backoff_sec: 10.0
+  retry_backoff_multiplier: 4.0
+  retry_max_backoff_sec: 600.0
+  env: {}
+  status: supported
+kimi:
+  enabled: false
+  binary: kimi
+  config_dir: ~/.kimi
+  model: inherit
+  agent: ""
+  thinking: false
+  yolo: true
+  mcp_tool_timeout_ms: 172800000
   retry_on_failure: true
   retry_max_attempts: 4
   retry_initial_backoff_sec: 10.0
@@ -479,6 +497,7 @@ opencode:
   model: inherit
   default_agent: ""
   variant: ""
+  mcp_timeout_ms: 172800000
   retry_on_failure: true
   retry_max_attempts: 4
   retry_initial_backoff_sec: 10.0
@@ -570,6 +589,23 @@ opencode:
 - 常见值：`default`、`bypassPermissions`、`dontAsk`、`acceptEdits`、`delegate`、`plan`
 - 本地自动化的推荐默认值：`bypassPermissions`
 
+**`mcp_timeout_ms`**
+
+- 类型：`number`
+- 适用 runner：`claude`、`opencode`
+- 作用：
+  - `claude`：MCP server 启动超时，会透传为 `MCP_TIMEOUT`
+  - `opencode`：启动时从每个 MCP server 拉取 tools 的超时
+- 说明：OpenCode 的 `mcp_timeout_ms` 不是工具执行超时。
+
+**`mcp_tool_timeout_ms`**
+
+- 类型：`number`
+- 适用 runner：`claude`、`kimi`
+- 作用：
+  - `claude`：单次 MCP 工具超时，会透传为 `MCP_TOOL_TIMEOUT`
+  - `kimi`：MCP 工具执行超时，会写入 `.kimi/config.toml` 的 `mcp.client.tool_call_timeout_ms`
+
 **`agent`**
 
 - 类型：`string`
@@ -652,6 +688,9 @@ opencode:
 - 新 quest 会跟随 `config.default_runner`。
 - 老 quest 可以在项目设置里单独覆盖 runner。
 - 如果工作流依赖长时间 `bash_exec`，不要随意把 `mcp_tool_timeout_sec` 调小。
+- 对 Kimi 来说，更关键的是 `mcp_tool_timeout_ms`，因为上游默认值比 DeepScientist 常见的长时间 `bash_exec` 等待要短得多。
+- 对 Claude 来说，默认单工具超时已经很大；更常见的问题是 MCP server 启动超时，可以用 `mcp_timeout_ms` 调整。
+- 对 OpenCode 来说，`mcp_timeout_ms` 只影响 MCP 工具发现 / 启动，不影响单次 MCP 调用执行时长。
 
 
 ## `connectors.yaml`

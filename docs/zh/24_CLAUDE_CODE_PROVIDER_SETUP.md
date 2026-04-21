@@ -199,6 +199,8 @@ claude:
   config_dir: ~/.claude
   model: inherit
   permission_mode: bypassPermissions
+  mcp_timeout_ms: 172800000
+  mcp_tool_timeout_ms: 172800000
   retry_on_failure: true
   retry_max_attempts: 4
   retry_initial_backoff_sec: 10.0
@@ -228,6 +230,10 @@ claude:
   - 不想写死模型时保持 `inherit`
 - `Runners -> claude.permission_mode`
   - 想要接近 Codex 的本地自动化时，通常用 `bypassPermissions`
+- `Runners -> claude.mcp_timeout_ms`
+  - Claude Code 的 MCP server 启动超时，会透传成 `MCP_TIMEOUT`
+- `Runners -> claude.mcp_tool_timeout_ms`
+  - Claude Code 的单次 MCP 工具超时，会透传成 `MCP_TOOL_TIMEOUT`
 - `Runners -> claude.env`
   - 写 `ANTHROPIC_API_KEY`、`ANTHROPIC_BASE_URL` 等运行时环境变量
 

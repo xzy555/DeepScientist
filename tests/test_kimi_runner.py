@@ -59,6 +59,8 @@ def test_kimi_runner_command_uses_stdin_print_mode(temp_home: Path) -> None:
 def test_kimi_runner_prepare_runtime_materializes_home_and_mcp_config(temp_home: Path) -> None:
     quest_root = temp_home / "quest"
     source_home = temp_home / "source-kimi-home"
+    source_home.mkdir(parents=True, exist_ok=True)
+    (source_home / "config.toml").write_text('[profiles.default]\n', encoding="utf-8")
     (source_home / "skills" / "global-skill").mkdir(parents=True, exist_ok=True)
     (source_home / "skills" / "global-skill" / "SKILL.md").write_text("GLOBAL\n", encoding="utf-8")
     (quest_root / ".kimi" / "skills" / "quest-skill").mkdir(parents=True, exist_ok=True)
@@ -78,17 +80,20 @@ def test_kimi_runner_prepare_runtime_materializes_home_and_mcp_config(temp_home:
         quest_root=quest_root,
         quest_id="q-001",
         run_id="run-001",
-        runner_config={"config_dir": str(source_home)},
+        runner_config={"config_dir": str(source_home), "mcp_tool_timeout_ms": 180000000},
     )
 
     mcp_config = Path(str(meta["kimi_mcp_config"]))
     payload = json.loads(mcp_config.read_text(encoding="utf-8"))
+    kimi_config_text = (Path(env["HOME"]) / ".kimi" / "config.toml").read_text(encoding="utf-8")
     assert env["HOME"].endswith("/runtime/runners/kimi/q-001/run-001")
     assert (Path(env["HOME"]) / ".kimi" / "skills" / "global-skill" / "SKILL.md").exists()
     assert (Path(env["HOME"]) / ".kimi" / "skills" / "quest-skill" / "SKILL.md").exists()
     assert not (Path(env["HOME"]) / ".kimi" / "sessions").exists()
     assert sorted(payload["mcpServers"]) == ["artifact", "bash_exec", "memory"]
     assert payload["mcpServers"]["artifact"]["command"] == sys.executable
+    assert "[mcp.client]" in kimi_config_text
+    assert "tool_call_timeout_ms = 180000000" in kimi_config_text
 
 
 def test_kimi_runner_translates_assistant_and_tool_messages() -> None:

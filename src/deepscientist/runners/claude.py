@@ -97,6 +97,16 @@ def _compact_tool_event_payload(payload: dict[str, Any]) -> dict[str, Any]:
 class ClaudeRunner(SimpleCliRunner):
     runner_name = "claude"
 
+    @staticmethod
+    def _positive_timeout_ms(value: object) -> int | None:
+        try:
+            if value is None or str(value).strip() == "":
+                return None
+            timeout = int(float(value))
+        except (TypeError, ValueError):
+            return None
+        return timeout if timeout > 0 else None
+
     def _command_uses_stdin_prompt(self) -> bool:
         return True
 
@@ -155,9 +165,17 @@ class ClaudeRunner(SimpleCliRunner):
         }
         mcp_config_path = target / "mcp.json"
         write_json(mcp_config_path, mcp_config)
+        runner_timeout_env: dict[str, str] = {}
+        mcp_timeout_ms = self._positive_timeout_ms(resolved_runner_config.get("mcp_timeout_ms"))
+        if mcp_timeout_ms is not None:
+            runner_timeout_env["MCP_TIMEOUT"] = str(mcp_timeout_ms)
+        mcp_tool_timeout_ms = self._positive_timeout_ms(resolved_runner_config.get("mcp_tool_timeout_ms"))
+        if mcp_tool_timeout_ms is not None:
+            runner_timeout_env["MCP_TOOL_TIMEOUT"] = str(mcp_tool_timeout_ms)
         return {
             "CLAUDE_CONFIG_DIR": str(target),
             **cli_auth_env,
+            **runner_timeout_env,
         }, {
             "claude_home": str(target),
             "claude_mcp_config": str(mcp_config_path),

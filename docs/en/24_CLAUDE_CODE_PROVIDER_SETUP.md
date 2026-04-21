@@ -203,6 +203,8 @@ claude:
   config_dir: ~/.claude
   model: inherit
   permission_mode: bypassPermissions
+  mcp_timeout_ms: 172800000
+  mcp_tool_timeout_ms: 172800000
   retry_on_failure: true
   retry_max_attempts: 4
   retry_initial_backoff_sec: 10.0
@@ -226,7 +228,7 @@ Use it to:
 
 - switch the global default runner to `Claude`
 - enable the Claude runner
-- fill `binary`, `config_dir`, `model`, `permission_mode`, and `env`
+- fill `binary`, `config_dir`, `model`, `permission_mode`, `mcp_timeout_ms`, `mcp_tool_timeout_ms`, and `env`
 
 ![Models settings page](../images/settings/settings-runners-en.png)
 
@@ -246,6 +248,10 @@ In the web Settings page:
   - use `inherit` unless you want a fixed Claude model
 - `Runners -> claude.permission_mode`
   - use `bypassPermissions` when you want Codex-like local automation
+- `Runners -> claude.mcp_timeout_ms`
+  - MCP server startup timeout forwarded to Claude Code as `MCP_TIMEOUT`
+- `Runners -> claude.mcp_tool_timeout_ms`
+  - per-tool MCP timeout forwarded to Claude Code as `MCP_TOOL_TIMEOUT`
 - `Runners -> claude.env`
   - put `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, and related gateway values here
 
