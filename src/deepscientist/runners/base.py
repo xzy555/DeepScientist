@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -10,6 +12,7 @@ from ..shared import read_yaml
 DEFAULT_BUILTIN_MCP_SERVER_NAMES: tuple[str, ...] = ("memory", "artifact", "bash_exec")
 SETTINGS_ISSUE_CUSTOM_PROFILE = "settings_issue"
 START_SETUP_PREPARE_PROFILE = "start_setup_prepare"
+_START_SETUP_PATCH_BLOCK_RE = re.compile(r"```start_setup_patch\s*([\s\S]*?)```", re.IGNORECASE)
 
 
 def resolve_custom_profile_for_quest(quest_root: Path) -> str | None:
@@ -39,6 +42,23 @@ def builtin_mcp_server_names_for_custom_profile(custom_profile: str | None) -> t
     if normalized in {SETTINGS_ISSUE_CUSTOM_PROFILE, START_SETUP_PREPARE_PROFILE}:
         return ("artifact", "bash_exec")
     return DEFAULT_BUILTIN_MCP_SERVER_NAMES
+
+
+def extract_start_setup_patch_from_text(text: str) -> dict[str, Any] | None:
+    source = str(text or "").strip()
+    if not source:
+        return None
+    match = _START_SETUP_PATCH_BLOCK_RE.search(source)
+    if not match:
+        return None
+    candidate = match.group(1).strip()
+    if not candidate:
+        return None
+    try:
+        payload = json.loads(candidate)
+    except json.JSONDecodeError:
+        return None
+    return dict(payload) if isinstance(payload, dict) else None
 
 
 @dataclass(frozen=True)

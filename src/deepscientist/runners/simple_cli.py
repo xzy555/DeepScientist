@@ -14,7 +14,7 @@ from ..process_control import process_session_popen_kwargs
 from ..prompts import PromptBuilder
 from ..runtime_logs import JsonlLogger
 from ..shared import append_jsonl, ensure_dir, ensure_utf8_subprocess_env, generate_id, read_yaml, utc_now, write_json, write_text
-from .base import RunRequest, RunResult
+from .base import RunRequest, RunResult, extract_start_setup_patch_from_text
 
 
 class SimpleCliRunner:
@@ -244,6 +244,11 @@ class SimpleCliRunner:
                 output_text = output_text or fatal_error_text
                 if exit_code == 0:
                     exit_code = 1
+            self._apply_start_setup_patch_fallback_if_present(
+                request=request,
+                output_text=output_text,
+                quest_events=quest_events,
+            )
             self._emit_setup_tool_schema_warning_if_needed(
                 request=request,
                 output_text=output_text,
@@ -483,6 +488,48 @@ class SimpleCliRunner:
                     "tool_name": "prepare_start_setup_form",
                     "required_argument": "form_patch",
                     "runner_name": self.runner_name,
+                },
+                "created_at": utc_now(),
+            },
+        )
+
+    def _apply_start_setup_patch_fallback_if_present(
+        self,
+        *,
+        request: RunRequest,
+        output_text: str,
+        quest_events: Path,
+    ) -> None:
+        quest_yaml = read_yaml(request.quest_root / "quest.yaml", {})
+        startup_contract = quest_yaml.get("startup_contract") if isinstance(quest_yaml.get("startup_contract"), dict) else {}
+        if not isinstance(startup_contract.get("start_setup_session"), dict):
+            return
+        patch = extract_start_setup_patch_from_text(output_text)
+        if not patch:
+            return
+        result = self.artifact_service.apply_start_setup_form_patch(
+            request.quest_root,
+            form_patch=patch,
+            message="Applied from runner fallback `start_setup_patch` block.",
+        )
+        patch_keys = sorted(result.get("form_patch", {}).keys()) if isinstance(result.get("form_patch"), dict) else sorted(patch.keys())
+        append_jsonl(
+            quest_events,
+            {
+                "event_id": generate_id("evt"),
+                "type": "runner.turn_postprocess_info",
+                "quest_id": request.quest_id,
+                "run_id": request.run_id,
+                "source": self.runner_name,
+                "skill_id": request.skill_id,
+                "summary": (
+                    "Applied the fenced `start_setup_patch` fallback block to the quest startup form "
+                    "so the suggested form stays synchronized even when the runner answered with a patch block "
+                    "instead of a direct MCP tool call."
+                ),
+                "details": {
+                    "warning_code": "start_setup_patch_fallback_applied",
+                    "patch_keys": patch_keys,
                 },
                 "created_at": utc_now(),
             },

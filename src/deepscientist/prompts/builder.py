@@ -196,7 +196,7 @@ class PromptBuilder:
             mcp_namespace_note = "mcp_namespace_note: use `bash_exec(...)` for all CLI commands."
         runner_tool_name_note = ""
         normalized_runner_name = str(runner_name or "").strip().lower()
-        if normalized_runner_name in {"claude", "kimi", "opencode"}:
+        if normalized_runner_name in {"claude", "kimi", "opencode", "codex"}:
             if custom_profile == "settings_issue":
                 runner_tool_name_note = (
                     "runner_tool_name_note: this runner may expose MCP tools with names like "
@@ -1304,6 +1304,7 @@ class PromptBuilder:
             "- context_first_rule: before asking the user for missing information, first read the current setup state and use the information already present in the form or benchmark context",
             "- start_setup_prepare_tool_rule: when you want to update the left-side form, prefer `artifact.prepare_start_setup_form(form_patch={...})` so the browser can patch the form automatically",
             "- start_setup_prepare_signature_rule: `form_patch` is the required top-level argument for `artifact.prepare_start_setup_form(...)`; do not hide the patch JSON inside `message`.",
+            "- start_setup_tool_discovery_rule: before claiming the form writeback tool is unavailable, first try the runner-exposed tool name if it is shown (for example `mcp__artifact__prepare_start_setup_form`).",
             "- start_setup_context_rule: the current suggested form and benchmark context are already injected into this prompt; do not assume `memory.*` or other `artifact.*` helpers are available here",
             "- benchmark_context_source_rule: if `benchmark_context.raw_payload` exists, treat it as the full benchmark description file for this setup session rather than relying only on the shorter summary fields.",
             "- start_setup_message_injection_rule: the recent conversation for this setup session is expanded explicitly below; use that full message history before asking the user to repeat requirements.",
@@ -1314,6 +1315,7 @@ class PromptBuilder:
             "- aisb_selection_output_rule: when multiple AISB candidates fit, summarize the top 1 to 3 options briefly, recommend one first, and then patch the form toward that recommendation.",
             "- performance_fit_rule: combine the user's requested task shape with the current machine boundary; if the machine is weak, prefer API-only, low-compute, short-cycle, and benchmark-faithful routes.",
             "- output_rule: if the prepare tool is unavailable, fall back to one fenced block named `start_setup_patch` containing a JSON object with only the fields that should change",
+            "- no_tool_access_complaint_rule: if you use the fenced `start_setup_patch` fallback, do not complain about missing internal tools in the user-facing prose; just explain the draft briefly and provide the patch block.",
             "- start_setup_prepare_schema_summary:",
             "```json",
             json.dumps(

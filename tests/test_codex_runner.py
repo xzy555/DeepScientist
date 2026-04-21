@@ -4,7 +4,11 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+from deepscientist.artifact import ArtifactService
+from deepscientist.config import ConfigManager
 from deepscientist.diagnostics.runner_failures import diagnose_runner_failure
+from deepscientist.home import ensure_home_layout, repo_root
+from deepscientist.quest import QuestService
 from deepscientist.runners import ClaudeRunner, CodexRunner, OpenCodeRunner, RunRequest
 from deepscientist.runners.codex import (
     _compact_tool_event_payload,
@@ -13,7 +17,8 @@ from deepscientist.runners.codex import (
     _tool_event,
 )
 from deepscientist.runners.runtime_overrides import apply_claude_runtime_overrides
-from deepscientist.shared import read_json, read_jsonl, write_yaml
+from deepscientist.shared import read_json, read_jsonl, read_yaml, write_yaml
+from deepscientist.skills import SkillInstaller
 
 
 def test_codex_message_events_preserve_stream_identity() -> None:
@@ -449,6 +454,106 @@ def test_codex_runner_includes_profile_when_runner_config_requests_it(temp_home)
     command = runner._build_command(request, "prompt", runner_config={"profile": "m27"})
 
     assert command[1:4] == ["--search", "--profile", "m27"]
+
+
+def test_codex_runner_limits_timeout_overrides_to_active_builtin_servers_for_start_setup(temp_home) -> None:  # type: ignore[no-untyped-def]
+    quest_root = temp_home / "quest"
+    quest_root.mkdir(parents=True, exist_ok=True)
+    write_yaml(
+        quest_root / "quest.yaml",
+        {
+            "quest_id": "q-start-setup",
+            "title": "start setup",
+            "startup_contract": {
+                "custom_profile": "freeform",
+                "start_setup_session": {"source": "benchstore"},
+            },
+        },
+    )
+    runner = CodexRunner(
+        home=temp_home,
+        repo_root=temp_home,
+        binary="codex",
+        logger=object(),  # type: ignore[arg-type]
+        prompt_builder=object(),  # type: ignore[arg-type]
+        artifact_service=object(),  # type: ignore[arg-type]
+    )
+    request = RunRequest(
+        quest_id="q-start-setup",
+        quest_root=quest_root,
+        worktree_root=None,
+        run_id="run-start-setup",
+        skill_id="scout",
+        message="hello",
+        model="gpt-5.4",
+        approval_policy="never",
+        sandbox_mode="danger-full-access",
+        reasoning_effort="xhigh",
+    )
+
+    command = runner._build_command(request, "prompt", runner_config={"mcp_tool_timeout_sec": 180000})
+    rendered = " ".join(command)
+
+    assert "mcp_servers.artifact.tool_timeout_sec=180000" in rendered
+    assert "mcp_servers.bash_exec.tool_timeout_sec=180000" in rendered
+    assert "mcp_servers.memory.tool_timeout_sec=180000" not in rendered
+
+
+def test_codex_runner_applies_start_setup_patch_fallback_block(temp_home) -> None:  # type: ignore[no-untyped-def]
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    quest = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home)).create(
+        "start setup fallback patch quest",
+        startup_contract={
+            "workspace_mode": "copilot",
+            "launch_mode": "custom",
+            "custom_profile": "freeform",
+            "start_setup_session": {
+                "source": "benchstore",
+                "locale": "zh",
+                "suggested_form": {
+                    "title": "Original title",
+                },
+            },
+        },
+    )
+    quest_root = Path(quest["quest_root"])
+    runner = CodexRunner(
+        home=temp_home,
+        repo_root=temp_home,
+        binary="codex",
+        logger=SimpleNamespace(log=lambda *args, **kwargs: None),
+        prompt_builder=object(),  # type: ignore[arg-type]
+        artifact_service=ArtifactService(temp_home),
+    )
+    request = RunRequest(
+        quest_id=quest["quest_id"],
+        quest_root=quest_root,
+        worktree_root=None,
+        run_id="run-fallback-patch",
+        skill_id="scout",
+        message="help",
+        model="gpt-5.4",
+        approval_policy="never",
+        sandbox_mode="danger-full-access",
+    )
+
+    runner._apply_start_setup_patch_fallback_if_present(
+        request=request,
+        output_text=(
+            "我先整理出一版草案。\n\n```start_setup_patch\n"
+            "{\"title\":\"Patched title\",\"goal\":\"Patched goal\"}\n```"
+        ),
+        quest_events=quest_root / ".ds" / "events.jsonl",
+    )
+
+    quest_yaml = read_yaml(quest_root / "quest.yaml", {})
+    startup_contract = quest_yaml.get("startup_contract") if isinstance(quest_yaml.get("startup_contract"), dict) else {}
+    start_setup_session = startup_contract.get("start_setup_session") if isinstance(startup_contract.get("start_setup_session"), dict) else {}
+    suggested_form = start_setup_session.get("suggested_form") if isinstance(start_setup_session.get("suggested_form"), dict) else {}
+
+    assert suggested_form["title"] == "Patched title"
+    assert suggested_form["goal"] == "Patched goal"
 
 
 def test_codex_runner_downgrades_xhigh_for_legacy_codex_cli(monkeypatch, temp_home) -> None:  # type: ignore[no-untyped-def]

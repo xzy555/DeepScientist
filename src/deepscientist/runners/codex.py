@@ -29,6 +29,7 @@ from .base import (
     RunRequest,
     RunResult,
     builtin_mcp_server_names_for_custom_profile,
+    extract_start_setup_patch_from_text,
     resolve_mcp_tool_profile_for_quest,
 )
 
@@ -1031,6 +1032,11 @@ class CodexRunner:
                 )
                 or summary_text
             )
+            self._apply_start_setup_patch_fallback_if_present(
+                request=request,
+                output_text=output_text,
+                quest_events=quest_events,
+            )
             append_jsonl(
                 quest_events,
                 {
@@ -1157,6 +1163,48 @@ class CodexRunner:
             process.wait(timeout=3)
         return interrupted
 
+    def _apply_start_setup_patch_fallback_if_present(
+        self,
+        *,
+        request: RunRequest,
+        output_text: str,
+        quest_events: Path,
+    ) -> None:
+        quest_yaml = read_yaml(request.quest_root / "quest.yaml", {})
+        startup_contract = quest_yaml.get("startup_contract") if isinstance(quest_yaml.get("startup_contract"), dict) else {}
+        if not isinstance(startup_contract.get("start_setup_session"), dict):
+            return
+        patch = extract_start_setup_patch_from_text(output_text)
+        if not patch:
+            return
+        result = self.artifact_service.apply_start_setup_form_patch(
+            request.quest_root,
+            form_patch=patch,
+            message="Applied from runner fallback `start_setup_patch` block.",
+        )
+        patch_keys = sorted(result.get("form_patch", {}).keys()) if isinstance(result.get("form_patch"), dict) else sorted(patch.keys())
+        append_jsonl(
+            quest_events,
+            {
+                "event_id": generate_id("evt"),
+                "type": "runner.turn_postprocess_info",
+                "quest_id": request.quest_id,
+                "run_id": request.run_id,
+                "source": "codex",
+                "skill_id": request.skill_id,
+                "summary": (
+                    "Applied the fenced `start_setup_patch` fallback block to the quest startup form "
+                    "so the suggested form stays synchronized even when Codex answered with a patch block "
+                    "instead of a direct MCP tool call."
+                ),
+                "details": {
+                    "warning_code": "start_setup_patch_fallback_applied",
+                    "patch_keys": patch_keys,
+                },
+                "created_at": utc_now(),
+            },
+        )
+
     def _build_command(self, request: RunRequest, prompt: str, *, runner_config: dict[str, Any] | None = None) -> list[str]:
         workspace_root = request.worktree_root or request.quest_root
         resolved_binary = resolve_runner_binary(self.binary, runner_name="codex")
@@ -1193,7 +1241,9 @@ class CodexRunner:
         tool_timeout_sec = self._positive_timeout_seconds(resolved_runner_config.get("mcp_tool_timeout_sec"))
         if tool_timeout_sec is not None:
             timeout_value = int(tool_timeout_sec) if float(tool_timeout_sec).is_integer() else float(tool_timeout_sec)
-            for server_name in ("memory", "artifact", "bash_exec"):
+            custom_profile = resolve_mcp_tool_profile_for_quest(request.quest_root)
+            server_names = builtin_mcp_server_names_for_custom_profile(custom_profile)
+            for server_name in server_names:
                 command.extend(["-c", f"mcp_servers.{server_name}.tool_timeout_sec={timeout_value}"])
         if request.sandbox_mode:
             command.extend(["--sandbox", request.sandbox_mode])

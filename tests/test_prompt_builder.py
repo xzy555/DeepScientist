@@ -1434,7 +1434,7 @@ def test_prompt_builder_start_setup_prompt_avoids_unavailable_context_tools(temp
     assert "\"runner_namespaced_tool\": \"mcp__artifact__prepare_start_setup_form\"" in prompt
 
 
-def test_prompt_builder_runner_namespaced_notes_cover_claude_and_opencode_profiles(temp_home: Path) -> None:
+def test_prompt_builder_runner_namespaced_notes_cover_supported_mcp_profiles(temp_home: Path) -> None:
     ensure_home_layout(temp_home)
     ConfigManager(temp_home).ensure_files()
     service = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home))
@@ -1461,6 +1461,19 @@ def test_prompt_builder_runner_namespaced_notes_cover_claude_and_opencode_profil
         ),
         (
             "opencode",
+            {
+                "workspace_mode": "copilot",
+                "launch_mode": "custom",
+                "custom_profile": "freeform",
+                "start_setup_session": {
+                    "source": "benchstore",
+                    "locale": "zh",
+                },
+            },
+            "mcp__artifact__prepare_start_setup_form",
+        ),
+        (
+            "codex",
             {
                 "workspace_mode": "copilot",
                 "launch_mode": "custom",
