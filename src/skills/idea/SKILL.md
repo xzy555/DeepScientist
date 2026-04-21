@@ -13,6 +13,98 @@ When `startup_contract.need_research_paper = false` and the quest already has a 
 In that algorithm-first case, `idea` should usually produce a small method-brief frontier and then defer candidate ranking, promotion, and bounded search to `optimize`.
 When doing that handoff, prefer the brief-shaping discipline later used by `optimize`: clarify the bottleneck and constraints, keep only a small differentiated `2-3` option slate, and hand off a recommended brief rather than a pile of loose intuitions.
 
+## Match signals
+
+Use `idea` when:
+
+- the accepted baseline and metric contract already exist, but the next route is still unresolved
+- the current line failed and the quest needs a new falsifiable direction
+- the problem is not "build a new module" but "decide what kind of route should be tried next"
+- the current bottleneck might be a mechanism problem, an objective mismatch, a measurement/evaluator problem, or an infrastructure constraint that changes what should be tested next
+
+Do not use `idea` when:
+
+- the baseline gate is still unresolved
+- the current board state is too stale or conflicting to say what the mainline actually is
+- the next step is already obviously `write`, `review`, or `finalize`
+
+If the current board cannot be compressed cleanly, route through `decision` or `intake-audit` before widening the frontier.
+
+## One-sentence summary
+
+Turn the current objective, board state, and bottleneck into a small differentiated frontier, then select the next falsifiable route.
+
+## Control workflow
+
+1. Write the objective contract.
+   Use `references/objective-contract-template.md`.
+   Make the real target, trusted proxies, false-progress signals, and hard constraints explicit before generating ideas.
+2. Write the current board packet.
+   Use `references/current-board-packet-template.md`.
+   Compress the incumbent, latest decisive result, active blocker, and stale routes-to-ignore into one current state surface.
+3. Identify the important contradiction and plausible novelty source.
+   Use `references/high-value-idea-sourcing.md`.
+   Start from the most important unresolved contradiction, anomaly, bottleneck, or failure region rather than from a preferred mechanism.
+4. Run a broad, history-aware literature search.
+   Use `references/related-work-playbook.md` and `references/research-history-playbook.md`.
+   If DeepXiv is available, use it for broad paper-centric discovery and citation expansion; otherwise use search engines and citation chaining directly.
+5. Choose the idea family mix.
+   At minimum, decide whether the current pass should consider some mix of:
+   - mechanism-family routes
+   - objective-family routes
+   - measurement-family routes
+   - infrastructure-family routes
+6. Run bounded brainstorming.
+   Use `references/controlled-brainstorming-playbook.md` when the route is not already obvious.
+   Generate a small, meaningfully different slate rather than a pile of micro-variants.
+7. Filter aggressively.
+   Use `references/selection-gate.md`.
+   Remove candidates that only improve a surrogate, reopen a stale route without new evidence, violate leakage or submission-time boundaries, or lack a cheap falsification path.
+8. Select and hand off.
+   The selected package must include the route, why now, novelty type, main risk, anti-win condition, core hypothesis, mechanism sketch, strongest falsification experiment, minimal validation, abandonment condition, and the next stage.
+
+## AVOID / pitfalls
+
+- Do not start from swapping method A for method B before naming the important contradiction or bottleneck.
+- Do not brainstorm before the real objective and false-progress signals are explicit.
+- Do not treat lower loss, better average surrogate, or cleaner intermediate metrics as route health if the real target is unchanged.
+- Do not reopen stale routes unless new evidence explicitly weakens the current mainline.
+- Do not generate a large within-family variant swarm before the mechanism family itself is chosen.
+- Do not treat novelty as “totally unprecedented”; it may come from a new problem, view, mechanism, method, setting, evaluation, or boundary condition.
+- Do not promote a direction that fails a value/feasibility screen simply because it sounds exciting.
+- Do not promote a direction without a cheap falsification path and a visible anti-win condition.
+
+## Constraints
+
+- Keep the accepted dataset, metric, and evaluation contract fixed unless scope explicitly changed.
+- Do not propose routes that depend on submit-time unavailable features.
+- Do not propose routes that introduce leakage-prone targets or labels into training.
+- Do not let implementation convenience outrank target alignment.
+- Search should be broad enough to map the main paradigms, history, and strongest overlaps, not just skim a few recent papers.
+- If DeepXiv is available, prefer it for broad paper-centric discovery; otherwise use search engines, citation chaining, and open-web search directly.
+- A serious candidate should be explainable in terms of importance, novelty type, feasibility, verification path, and failure value.
+- In system optimization work, a valid idea may be a mechanism change, an objective/evaluator correction, a measurement fix, or an infrastructure change if that is what best improves the real target.
+
+## Validation
+
+Before the idea pass can end, the durable selected idea package should make explicit:
+
+- the important contradiction, gap, anomaly, or bottleneck it is targeting
+- the dominant novelty type
+- the targeted limitation
+- the real objective and the strongest false-progress signal
+- the selected direction and why it won now
+- the value/feasibility screen or equivalent judgment
+- the core hypothesis
+- the mechanism sketch
+- the strongest falsification experiment
+- the anti-win condition
+- the minimal validation
+- the abandonment condition
+- the next stage
+
+If those fields are still fuzzy, continue ideation or route back through `decision` rather than pretending the route is ready.
+
 ## Interaction discipline
 
 - Follow the shared interaction contract injected by the system prompt.
@@ -50,6 +142,12 @@ The idea node should make explicit:
 - which candidate families are still live
 - what selection gate must be cleared before experiment
 
+Before widening the frontier, the node should also make explicit:
+
+- the current objective contract
+- the current board packet
+- which candidate-family mix is actually being explored in this pass
+
 ## Stage purpose
 
 The idea stage should not generate vague inspiration.
@@ -61,7 +159,7 @@ It should produce executable hypotheses tied to:
 - the strongest relevant prior work
 
 This stage is not just "brainstorming".
-It is the research-direction selection stage.
+It is a controlled brainstorming plus route-selection stage.
 It still needs a bounded creative-divergence phase before convergence.
 Do not collapse onto the first plausible route just because it sounds implementable.
 It should normally create a new candidate direction branch and node; it does not by itself decide the next optimization round.
@@ -128,6 +226,8 @@ Candidate sets should usually cover some mix of:
 - a strong local refinement of the incumbent
 - an orthogonal alternative that addresses the same bottleneck differently
 - a cleaner or more defensible route with lower conceptual complexity
+- an objective/evaluator fix when the current route may be optimizing the wrong thing
+- an infrastructure or throughput fix when measurement cost itself is blocking useful iteration
 
 Do not default to “run a small experiment and see” as the way to break ties.
 Break ties primarily through careful reasoning over:
@@ -240,6 +340,7 @@ Do not skip the `scout` pass just because the quest is already in the `idea` sta
 
 Use `references/idea-thinking-flow.md` when the main need is better reasoning hygiene.
 Use `references/idea-generation-playbook.md` when the main need is to create a new idea slate and select one clear next research object.
+Use `references/high-value-idea-sourcing.md` when the main need is to identify a truly important contradiction or bottleneck before widening.
 
 Default creation flow for a fresh idea pass:
 
@@ -311,10 +412,20 @@ If durable quest memory already contains a recent and explicit survey, reuse it 
 For a normal selected-idea decision, the durable sweep must end with at least `5` and usually `5-10` papers that are close enough to the task-modeling problem, failure mode, mechanism, or codebase translation question to inform the actual design.
 This floor exists to prevent thin novelty claims and under-motivated ideas, not to reward quota chasing.
 
+Do not treat “recent papers” as a substitute for “the field history”.
+At minimum, map:
+
+- seminal or foundational papers
+- turning-point or paradigm-shift papers
+- current mainstream or SOTA papers
+
+Then use citation chaining to reconstruct how the question evolved and where the real breakpoints still are.
+
 When tools allow it, combine:
 
 - `memory.search(...)` and recent memory reads
-- web search for arXiv and adjacent sources
+- DeepXiv for broad paper-centric discovery and citation expansion when available
+- otherwise web search for arXiv and adjacent sources
 - `artifact.arxiv(paper_id=..., full_text=False)` for actually reading shortlisted papers
 - citation expansion or open-web search for follow-up papers, code, and comparisons
 
@@ -366,6 +477,8 @@ If the search is still too thin to support a novelty or value judgment, the idea
 
 The idea stage should usually leave behind:
 
+- an objective contract
+- a current board packet
 - a limitations analysis
 - a literature survey report
 - a survey-delta section that marks:
@@ -416,6 +529,9 @@ Recommended durable files:
 - `artifacts/idea/research_outline.md`
 
 When producing the literature survey report, prefer the structure in `references/literature-survey-template.md`.
+When writing the objective contract, prefer `references/objective-contract-template.md`.
+When writing the current board packet, prefer `references/current-board-packet-template.md`.
+When the route needs a bounded but real creative-divergence pass, prefer `references/controlled-brainstorming-playbook.md`.
 
 When producing a full research-outline style note, prefer the detailed structure in `references/research-outline-template.md`.
 

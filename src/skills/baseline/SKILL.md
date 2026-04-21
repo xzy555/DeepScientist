@@ -6,14 +6,75 @@ skill_role: stage
 
 # Baseline
 
-This skill establishes the reference system the quest will compare against.
-The real goal is to secure one trustworthy comparator and then get out of the way so the next scientific step can begin.
-The target is one trustworthy baseline line, not an endless reproduction diary.
+Use this skill to secure one trustworthy comparator and then get out of the way.
+The target is one accepted baseline line, not an endless reproduction diary.
+
+## Match signals
+
+Use `baseline` when:
+
+- no credible baseline exists yet
+- the current baseline is unverified or stale
+- the user already has a baseline package that should be attached or imported
+- a local code path or local service should be verified as the comparator
+- a reproduction failed earlier and now needs repair
+- the quest resumed and the baseline trust state is unclear
+
+Do not use `baseline` when:
+
+- a verified active baseline already exists and the next move is obviously `idea`, `experiment`, `write`, or `finalize`
+- the baseline gate was already explicitly waived for the current route
+
+## One-sentence summary
+
+Secure the lightest trustworthy comparator, make the comparison contract explicit, then confirm, waive, or block the baseline and stop.
+
+## Control workflow
+
+1. Choose the current acceptance target and the lightest route that can satisfy it.
+   Prefer `attach`, `import`, or `verify-local-existing` before full reproduction.
+2. Make the comparator identity and core metric contract explicit.
+   Record task, dataset, split, evaluation path, required metric ids, metric directions, source identity, and known deviations.
+3. Collect only the evidence needed to establish comparability.
+   Do not widen into broad codebase audit or heavy reruns unless the lighter route cannot be trusted.
+4. Verify before acceptance.
+   Check that outputs are real, metrics trace to real evidence, and the intended dataset/split and metric definitions match the contract.
+5. Close the gate explicitly.
+   Call `artifact.confirm_baseline(...)`, call `artifact.waive_baseline(...)`, or record an explicit blocker and next route.
+
+## AVOID / pitfalls
+
+- Do not default to full source reproduction when reuse or verify-local-existing is already sufficient.
+- Do not treat attach, import, or publish alone as baseline acceptance.
+- Do not accept metrics that are fabricated, copied from the paper, or not traceable to real outputs, logs, or service responses.
+- Do not silently normalize away deviations in dataset, split, metric definition, evaluation path, or source identity.
+- Do not keep doing baseline work after the current acceptance target is already satisfied.
+- Do not repeat the same failure class without new evidence, code changes, environment changes, or a route change.
+
+## Constraints
+
+- Routes, templates, filenames, smoke tests, and environment choices are tactics; the hard requirement is objective evidence sufficient to accept, waive, block, or switch the route.
+- `<baseline_root>/json/metric_contract.json` is the canonical accepted comparison contract.
+- Accepted baselines still require `artifact.confirm_baseline(...)`.
+- Waived baselines still require `artifact.waive_baseline(...)`.
+- Attach/import/publish alone do not open the downstream gate.
+- Later stages must not need to guess the active comparator, trusted metrics, or main caveats.
+
+## Validation
+
+Before `baseline` can end, all applicable checks should be true:
+
+- comparator identity is explicit and stable enough to cite later
+- task, dataset, split, evaluation path, required metric ids, metric directions, source identity, and known deviations are durably recorded
+- trusted metric values or trusted output pointers trace to real files, logs, service responses, or source artifacts
+- verification checked the intended dataset/split and metric definitions
+- the accepted comparison contract exists at `<baseline_root>/json/metric_contract.json`
+- the route ended in `artifact.confirm_baseline(...)`, `artifact.waive_baseline(...)`, or an explicit blocked state with next-step routing
 
 ## Interaction discipline
 
 Follow the shared interaction contract injected by the system prompt.
-Follow the shared interaction contract and keep baseline updates brief unless trust state, blocker state, route, cost, or user-facing risk changed materially.
+Keep baseline updates brief unless trust state, blocker state, route, cost, or user-facing risk changed materially.
 
 ## Tool discipline
 
@@ -28,10 +89,6 @@ Follow the shared interaction contract and keep baseline updates brief unless tr
 
 The agent owns the execution path.
 It may choose the workspace layout, environment manager, command order, debugging route, smoke strategy, local paths, and whether the best route is attach, import, verify-local-existing, reproduce, or repair.
-
-Do not treat templates, filenames, `uv`, smoke tests, detached runs, or the phase order as required paths.
-They are tactics.
-The hard requirement is objective evidence sufficient to accept, block, waive, or switch the baseline route.
 
 Ask the user only when the next move depends on a real scope, cost, permission, data-access, or scientific-preference decision that cannot be inferred from the quest contract.
 Ordinary route, path, environment, and debugging choices are autonomous unless they change the accepted comparison meaning.
@@ -49,48 +106,24 @@ not:
 
 Default to the lightest baseline path that can still support a fair downstream comparison.
 Default to a fast path when it can establish trust with less work.
-Do not escalate from attach / import / verify-local-existing into full source reproduction unless the lighter route cannot support a fair comparison.
-A more complete baseline package is only the default when the acceptance target is explicitly `paper_repro_ready` or `registry_publishable`.
+Do not restart broad discovery or front-load a full codebase audit when the comparator, command path, and metric contract are already concrete.
+When resuming a previously blocked or ambiguous route, recover the relevant memory before trusting the old path again.
 
-- Attach/import/publish alone do not open the downstream gate.
-- If reusing a registry baseline, first materialize it with `artifact.attach_baseline(...)` when available, then verify the comparator and metric contract, then call `artifact.confirm_baseline(...)`.
-- If publishing a quest-local baseline for reuse, call `artifact.publish_baseline(...)` only after verification is complete and provenance, metrics, and caveats are trustworthy.
-- Once the accepted baseline root and trusted comparison contract are clear, call `artifact.confirm_baseline(...)`.
-- If the quest must continue without a baseline, call `artifact.waive_baseline(...)` with the reason.
-- Do not treat chat, memory, `attachment.yaml`, `PLAN.md`, local files, or published registry entries as a substitute for `artifact.confirm_baseline(...)` or `artifact.waive_baseline(...)`.
+If runtime already exposes `requested_baseline_ref` or a matching `confirmed_baseline_ref`, default to reuse-and-verify.
+Escalate to fuller audit, reproduction, or repair only when no concrete comparator, command path, or core comparability surface can be trusted yet.
 
-- do not restart broad baseline discovery by default
-- do not front-load a full codebase audit
-- do not require a fresh memory pass for every fast-path validation
-- fast-path exception: if you are resuming a previously blocked or ambiguous route, recover the relevant memory before trusting the old path again
-- use `memory.list_recent(...)` or `memory.search(...)` when resuming, reopening old command paths, or avoiding repeated failures
-- fast-path exception: when the comparator, command path, and metric contract are already concrete, do not force a new memory sweep before a lightweight verify-local-existing or attach/import decision
-- if runtime already exposes `requested_baseline_ref` or a matching `confirmed_baseline_ref`, default to reuse-and-verify
-- escalate to fuller audit, reproduction, or repair only when no concrete comparator, command path, or core comparability surface can be trusted yet
-
-For route examples and artifact examples, read `references/route-selection.md`, `references/artifact-flow-examples.md`, and `references/boundary-cases.md`.
-
-- the comparator identity is explicit and stable enough for later stages to cite
-- the task, dataset, split, evaluation path, required metric ids, metric directions, source identity, and known deviations are durably recorded
-- trusted metric values or trusted output pointers are traceable to real files, logs, service responses, source artifacts, or an accepted registry/package record
-- verification checked that the evidence came from the intended dataset/split and metric definitions
-- `<baseline_root>/json/metric_contract.json` exists as the canonical accepted comparison contract
-- `artifact.confirm_baseline(...)` opened the gate, or `artifact.waive_baseline(...)` explicitly bypassed it
-
-- no credible baseline exists yet
-- the current baseline is unverified or stale
-- the user already has a baseline package that should be attached or imported
-- a local code path or local service should be verified as the comparator
-- a reproduction failed earlier and now needs repair
-- the quest resumed and the baseline trust state is unclear
+For route examples and boundary cases, read `references/route-selection.md`, `references/artifact-flow-examples.md`, and `references/boundary-cases.md`.
 
 ## Acceptance targets
 
-- `comparison_ready`: the default target; one comparator is trustworthy enough for downstream comparison
-- `paper_repro_ready`: the baseline supports paper-facing reproduction or comparison claims
-- `registry_publishable`: the package is reusable enough to publish as a durable baseline package
-- `blocked`: the route cannot clear the gate cleanly and the next move is explicit
-- `waived`: the quest continues without a baseline for a recorded reason
+- `comparison_ready`: the default target; one comparator is trustworthy enough for downstream comparison, and the core metric contract is durably recorded
+- `paper_repro_ready`: the baseline is strong enough to support paper-facing reproduction or comparison claims
+- `registry_publishable`: the baseline package is reusable and clean enough to publish as a durable baseline package
+- `blocked`: the current route cannot clear the gate cleanly, and the next move is explicit
+- `waived`: the quest must continue without a baseline, and the reason is durably recorded
+
+Not every baseline needs paper-grade exact reproduction.
+A verified attached, imported, or local-existing comparator can be enough when the acceptance target is only `comparison_ready`.
 
 ## Hard acceptance gates
 
@@ -101,25 +134,12 @@ A baseline is successful only when all applicable gates are true:
 - the comparator identity is explicit and stable enough for later stages to cite
 - the task, dataset, split, evaluation path, required metric ids, metric directions, source identity, and known deviations are durably recorded
 - trusted metric values or trusted output pointers are traceable to real files, logs, service responses, source artifacts, or an accepted registry/package record
-- verification has checked that the evidence came from the intended dataset/split and metric definitions
+- verification checked that the evidence came from the intended dataset/split and metric definitions
 - the accepted comparison contract is written to `<baseline_root>/json/metric_contract.json`
 - the baseline gate is opened with `artifact.confirm_baseline(...)`, or intentionally bypassed with `artifact.waive_baseline(...)`
 
-Attach, import, or publish alone do not open the downstream gate.
-The comparison-ready minimum still requires `<baseline_root>/json/metric_contract.json`.
-Once a comparison-ready baseline is durably confirmed, baseline should usually stop immediately and hand off to the next scientific step.
+Once a comparison-ready baseline is durably confirmed, baseline should usually stop immediately.
 Any extra baseline work after that must name one explicit unresolved comparison risk it is meant to remove.
-
-## Acceptance targets
-
-- `comparison_ready`: the default target; one comparator is trustworthy enough for downstream comparison, and the core metric contract is durably recorded
-- `paper_repro_ready`: the baseline is strong enough to support paper-facing reproduction or comparison claims
-- `registry_publishable`: the baseline package is reusable and clean enough to publish as a durable baseline package
-- `blocked`: the current route cannot clear the gate cleanly, and the next move is explicit
-- `waived`: the quest must continue without a baseline, and the reason is durably recorded
-
-Not every baseline needs a paper-grade exact reproduction.
-A verified attached/imported/local-existing comparator can be enough when the acceptance target is only `comparison_ready`.
 
 ## Route success criteria
 
@@ -138,7 +158,7 @@ Do not replace a working comparison-ready comparator with a heavier route merely
 
 ## Objective evidence requirements
 
-The stage may use any efficient path, but the final evidence must cover these facts before acceptance:
+The final evidence should cover these facts before acceptance:
 
 - comparator candidate and baseline id
 - source paper, source repo, source commit/version/tag, local service identity, or registry/package identity as applicable
@@ -180,9 +200,6 @@ Verification should explicitly separate likely implementation mismatch, environm
 
 ## Core metric contract
 
-The baseline stage is not complete just because something ran.
-It is complete when later stages can compare against it fairly.
-
 Before declaring a baseline usable, make the core comparison contract explicit:
 
 - task identity
@@ -221,49 +238,14 @@ Metric-contract rules:
 - `Result/metric.md` is optional temporary scratch memory only; reconcile against it before calling `artifact.confirm_baseline(...)`, but do not treat it as a required durable file
 - for stable accepted payload shapes, read `references/artifact-payload-examples.md`
 
-## Durable route records
+## Operational guidance
 
-Durable records are required in substance, not in fixed filenames.
-The agent may choose the shortest durable form that lets a later turn resume without guessing.
+The main skill keeps the control surface in front.
+For the longer operational notes, read `references/operational-guidance.md`.
 
-For non-trivial, code-touching, expensive, unstable, or long-running baseline work, leave a route record that states:
-
-- chosen route and acceptance target
-- comparator identity and source identity
-- command or evaluation path if one exists
-- expected outputs or trusted-output pointers
-- acceptance condition
-- current blocker or fallback
-- verification verdict
-
-`PLAN.md`, `CHECKLIST.md`, `setup.md`, `execution.md`, `verification.md`, `analysis_plan.md`, and `REPRO_CHECKLIST.md` are allowed compatibility surfaces, not mandatory success paths.
-Use `references/baseline-plan-template.md` and `references/baseline-checklist-template.md` when they help, but do not expand them as paperwork.
-
-`attachment.yaml` or equivalent provenance is required for attached or imported baselines.
-`<baseline_root>/json/metric_contract.json` as the canonical accepted comparison contract is required for accepted baselines.
-
-## Execution tactics
-
-Use whatever route is most faithful, observable, and efficient while preserving the hard gates.
-
-- If source reproduction or repair is actually the active route, read the source paper and source repo before substantial setup.
-- For attach, import, or verify-local-existing, inspect only the minimum evidence needed to trust the provided or local comparator.
-- A bounded smoke test is usually helpful only when command path, environment viability, evaluator wiring, or output schema is still unclear.
-- If the path is already concrete, go straight to real verification or the real run.
-- Treat smoke/pilot work as a `0-2` default budget, but the real rule is not to repeat an unchanged check without new evidence, a code/environment change, or a route change.
-- If runtime is uncertain or likely long, prefer `bash_exec(mode='detach', ...)` plus managed monitoring instead of pretending a short foreground timeout is enough.
-- If a run is clearly invalid, wedged, or superseded, stop it cleanly and relaunch with the new route rather than stacking more retries.
-
-## Environment tactics
-
-For Python baselines, prefer a reproducible isolated environment, but choose the route that is most faithful to the source package and most likely to produce comparable evidence.
-
-`uv` is a useful default tactic when the repo does not require a stronger native route.
-Examples include `uv sync`, `uv venv`, `uv pip install ...`, and `uv run ...`.
-Switch to repo-native conda, docker, poetry, shell scripts, service startup, or another local environment route when that is clearly more trustworthy, required by the source, or necessary to match the paper/package behavior.
-
-Record only environment facts that affect trust or comparability.
-Do not force a global `uv` route when it would make the reproduced baseline less faithful.
+- use it when you need the exact durable route record shape
+- use it when you need detailed execution tactics or environment tactics
+- use it when reuse or memory handling materially affects the route
 
 ## Negative cases and stop rules
 
@@ -299,15 +281,6 @@ A blocked result must state:
 
 Bounded autonomous fixes are acceptable only when they do not change confirmed scope, metrics, permissions, resource assumptions, or scientific meaning.
 Reasonable bounded fixes include missing dependency installs, wrong dataset paths, permission fixes on scripts, obvious environment activation mistakes, and conservative batch-size reductions for OOM.
-
-## Reuse and memory
-
-Reuse or publish a baseline only after verification is complete and the current quest no longer depends on guesswork about provenance or comparability.
-Do not publish a baseline for reuse if verification is incomplete, metrics are untrusted, or provenance is still weak.
-
-Use memory only to avoid repeating known failures or to preserve reusable baseline lessons, not as a required step before every validation pass.
-Write quest memory for route rationale, setup failures, paper-to-code mismatch notes, and accepted caveats that later stages must carry forward.
-Promote to global memory only when another quest is likely to benefit from the lesson.
 
 ## Baseline id and variant rules
 

@@ -2,7 +2,33 @@
 
 Use this reference when choosing the final idea and preparing the handoff to `experiment`.
 
-## 1. Lightweight quality gate
+## 1. Value and feasibility screen
+
+Before promotion, score each serious candidate on a compact `1-5` scale:
+
+- importance
+- novelty
+- feasibility
+- verifiability
+- paper or report potential
+- failure value
+
+Also check the FINER-style screen explicitly:
+
+- `F`
+  - feasible with current data, compute, codebase, and schedule
+- `I`
+  - interesting enough that the field would care
+- `N`
+  - novel in a meaningful sense relative to the strongest nearby work
+- `E`
+  - ethically acceptable and not obviously high-risk
+- `R`
+  - relevant to an important bottleneck rather than a decorative tweak
+
+If the route scores poorly on both value and feasibility, do not promote it merely because it feels exciting.
+
+## 2. Lightweight quality gate
 
 Score the final serious candidate on a `0/1/2` scale:
 
@@ -34,7 +60,7 @@ Also treat these as hard gates before promotion:
 - the closest-prior-work comparison must explain why the idea is still needed
 - the final selected-idea draft must be ready to carry standard-format citations for the papers actually used
 
-## 2. Honest novelty / value labels
+## 3. Honest novelty / value labels
 
 Use these labels explicitly:
 
@@ -44,7 +70,23 @@ Use these labels explicitly:
 
 Only the first two are eligible for promotion.
 
-## 3. Handoff fields for experiment
+## 4. Mechanism and falsification gate
+
+Before a candidate can be promoted, it should make explicit:
+
+- core hypothesis
+- mechanism sketch
+- strongest falsification experiment
+
+The mechanism sketch can be brief, but it must answer:
+
+- why should this route work at all?
+- what part of the current limitation does it change?
+- for whom, where, or under what condition should it work or fail?
+
+If the mechanism sketch or strongest falsification experiment is still vague, the route is not yet ready.
+
+## 5. Handoff fields for experiment
 
 The selected idea record should include:
 
@@ -69,7 +111,7 @@ Inside the implementation handoff, also include:
 - `abandon_condition`
 - `strongest_alternative_hypothesis`
 
-## 4. Recommended presentation shape
+## 6. Recommended presentation shape
 
 Use a compact Pyramid structure:
 
@@ -78,7 +120,7 @@ Use a compact Pyramid structure:
 - then the minimal validation plan
 - then a short `References` or `Bibliography` section that cites the survey-stage papers actually used
 
-## 5. Promotion gate
+## 7. Promotion gate
 
 Do not promote a candidate if any of these remain unclear:
 

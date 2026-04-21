@@ -41,6 +41,9 @@ Its purpose is to answer four questions before deeper work begins:
 3. what can be reused directly?
 4. which skill should take over next?
 
+In practice, `intake-audit` should usually leave behind one authoritative current-board surface.
+That board packet exists so later `decision`, `idea`, `experiment`, and `write` passes do not have to reconstruct the active mainline from several partially stale state sources.
+
 This skill exists because many quests do **not** start from a clean slate.
 Common non-blank starts include:
 
@@ -206,7 +209,24 @@ Then reconcile it with the durable artifact layer:
 
 If the evidence is insufficient for a durable backfill, record that insufficiency explicitly instead of inventing a cleaned-up history.
 
-### 5. Choose the next anchor
+### 5. Compile the current board packet
+
+Before choosing the next anchor, compress the intake result into one durable current-board packet.
+
+At minimum, make explicit:
+
+- `current_mainline`
+- `incumbent`
+- `latest_decisive_result`
+- `active_blocker`
+- `stale_routes_to_ignore`
+- `next_decision_scope`
+- `budget_class`
+
+The point is not to summarize everything.
+The point is to give the next skill one authoritative board surface instead of forcing it to merge branch state, memory, summaries, and artifacts again from scratch.
+
+### 6. Choose the next anchor
 
 After reconciliation, write one durable route decision with `artifact.record(payload={'kind': 'decision', ...})`.
 
@@ -219,7 +239,7 @@ Typical next anchors:
 - review package is active -> `rebuttal`
 - the quest is effectively complete or should pause -> `finalize`
 
-### 6. Report and hand off
+### 7. Report and hand off
 
 At the end of the intake pass, send one threaded `artifact.interact(kind='milestone', ...)` update that says:
 
@@ -231,6 +251,7 @@ At the end of the intake pass, send one threaded `artifact.interact(kind='milest
 ## Recommended durable outputs
 
 - `artifacts/intake/state_audit.md`
+- `artifacts/intake/current_board_packet.md`
 - `artifacts/intake/recommended_next_step.md`
 - one `decision` artifact for the post-audit route
 - one or more repair/backfill artifact calls when justified
@@ -282,6 +303,7 @@ When the audit concerns a specific existing line, include identifiers when known
 - the quest's current state is understandable
 - the trustworthy reusable assets are explicit
 - the untrusted gaps are explicit
+- the current board packet is explicit enough that a later skill can continue from one authoritative board surface
 - the next anchor is explicit
 - the system can continue without pretending the quest started from zero
 

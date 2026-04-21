@@ -18,7 +18,7 @@ skill_role: stage
 1. Refresh control state first.
    Run `memory.list_recent(scope='quest', limit=5)` plus one writing-relevant `memory.search(...)`. If restart context is unclear, use `artifact.get_quest_state(detail='summary')`, `artifact.read_quest_documents(...)`, or `artifact.get_conversation_context(...)`.
 2. Lock the paper contract before heavy prose.
-   Keep `paper/selected_outline.json`, `paper/evidence_ledger.json`, and `paper/paper_experiment_matrix.md` or `.json` aligned. Use `artifact.get_paper_contract_health(detail='full')` when outline state, experiment rows, or evidence ownership may be stale. Use `artifact.submit_paper_outline(mode='candidate'|'select'|'revise', ...)` instead of leaving outline choice only in prose.
+   Keep `paper/selected_outline.json`, `paper/evidence_ledger.json`, and `paper/paper_experiment_matrix.md` or `.json` aligned. Use `artifact.get_paper_contract(detail='full')` as the default paper-reading surface when section rows, experiment rows, or analysis rows matter. Use `artifact.get_paper_contract_health(detail='full')` when outline state, experiment rows, or evidence ownership may be stale. Use `artifact.submit_paper_outline(mode='candidate'|'select'|'revise', ...)` instead of leaving outline choice only in prose.
 3. Refresh literature and citation truth.
    Run `breadth -> shortlist -> depth`. Use DeepXiv or OpenAlex for discovery when available, then retrieve BibTeX from DOI or arXiv, not from memory. Keep `paper/references.bib` machine-usable and audit it before bundle submission.
 4. Plan displays before prose.
@@ -31,6 +31,8 @@ skill_role: stage
 ## Tool Use
 - `artifact.get_paper_contract_health(detail='full')`:
   use when a weak section may actually be caused by stale outline state, unresolved experiment rows, or unclear evidence ownership.
+- `artifact.get_paper_contract(detail='full')`:
+  use by default before drafting any section, table, or analysis prose that depends on concrete main-experiment rows, analysis rows, or section-level `result_table` content.
 - `artifact.get_quest_state(detail='summary')`, `artifact.read_quest_documents(...)`, `artifact.get_conversation_context(...)`:
   use when restart context is unclear, when exact durable wording matters, or when you need file truth instead of chat recollection.
 - `artifact.submit_paper_outline(mode='candidate'|'select'|'revise', ...)`:
@@ -51,15 +53,18 @@ skill_role: stage
 ## AVOID / Pitfalls
 - Do not start with background explanation or overview prose; start with contract health, section job, and evidence state.
 - Do not keep drafting while outline, evidence ledger, or experiment matrix are stale.
+- Do not treat `paper_contract_health` as a substitute for reading the actual section `result_table`, evidence rows, or experiment-matrix rows.
 - Do not draft around missing evidence, unstable baselines, or unresolved non-optional experiment rows.
 - Do not hand-write BibTeX, citations, metrics, or method details from memory.
 - Do not improvise a new plotting stack inside `write` when `paper-plot` should own the first-pass figure.
 - Do not merge experiments and analysis into one undifferentiated result dump when they need distinct reviewer-facing jobs.
+- Do not use rows that are not clearly bound to the current `selected_outline_ref` / active paper line.
 - Do not keep appending new material to the top control block until it turns back into prose-heavy documentation; keep the top short and use the longer guidance below only when the task actually matches it.
 
 ## Constraints
 - Keep these files aligned when they exist:
   `paper/selected_outline.json`, `paper/evidence_ledger.json`, `paper/paper_experiment_matrix.md` or `.json`, `paper/references.bib`, `paper/claim_evidence_map.json`, `paper/paper_bundle_manifest.json`.
+- If a section depends on experiment or analysis evidence, draft from the current paper contract rows, not from remembered summaries.
 - Any shell, CLI, Python, bash, node, git, npm, uv, LaTeX, or file-inspection execution in this stage must go through `bash_exec(...)`.
 - Use `artifact.create_analysis_campaign(...)` only for real paper-facing evidence gaps, not for prose cleanup or citation chores.
 - Use `artifact.submit_paper_bundle(...)` only after draft, bibliography, and bundle metadata are durable enough to hand off.
@@ -70,6 +75,7 @@ skill_role: stage
 ## Validation
 - The current section or draft has a clear job and does not exceed the available evidence.
 - Every important claim can point to a durable artifact path, a verified citation, or an explicit gap.
+- Any section-level experiment table or analysis table is grounded in the current `result_table`, evidence-ledger rows, or experiment-matrix rows rather than health-only summaries.
 - `paper/references.bib` is real, current, and not hand-written from memory.
 - Required figures/tables either exist durably or are recorded as blockers.
 - Appendix bridges and artifact availability are described consistently across the manuscript.

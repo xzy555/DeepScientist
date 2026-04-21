@@ -33,6 +33,16 @@
 - missing metric contract:
 - stale draft risk:
 
+## Current Board Packet
+
+- current_mainline:
+- incumbent:
+- latest_decisive_result:
+- active_blocker:
+- stale_routes_to_ignore:
+- next_decision_scope:
+- budget_class:
+
 ## Route Recommendation
 
 - next anchor:

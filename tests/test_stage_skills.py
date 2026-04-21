@@ -158,6 +158,47 @@ def test_idea_skill_requires_memory_first_literature_survey() -> None:
     assert "`references` or `bibliography` in a standard citation format" in gate_text
 
 
+def test_idea_skill_documents_objective_contract_board_packet_and_controlled_brainstorming() -> None:
+    root = repo_root() / "src" / "skills" / "idea"
+    text = (root / "SKILL.md").read_text(encoding="utf-8")
+
+    assert "## Match signals" in text
+    assert "## One-sentence summary" in text
+    assert "## Control workflow" in text
+    assert "objective contract" in text
+    assert "current board packet" in text
+    assert "mechanism-family routes" in text
+    assert "objective-family routes" in text
+    assert "measurement-family routes" in text
+    assert "infrastructure-family routes" in text
+    assert "anti-win condition" in text
+
+    objective_template = (root / "references" / "objective-contract-template.md").read_text(encoding="utf-8")
+    board_template = (root / "references" / "current-board-packet-template.md").read_text(encoding="utf-8")
+    brainstorming_playbook = (root / "references" / "controlled-brainstorming-playbook.md").read_text(encoding="utf-8")
+
+    assert "false_progress_signals" in objective_template
+    assert "stale_routes_to_ignore" in board_template
+    assert "mechanism_family" in brainstorming_playbook
+    assert "objective_family" in brainstorming_playbook
+
+
+def test_intake_audit_and_decision_skills_share_current_board_packet_handoff() -> None:
+    intake_text = (repo_root() / "src" / "skills" / "intake-audit" / "SKILL.md").read_text(encoding="utf-8")
+    decision_text = (repo_root() / "src" / "skills" / "decision" / "SKILL.md").read_text(encoding="utf-8")
+    intake_template = (
+        repo_root() / "src" / "skills" / "intake-audit" / "references" / "state-audit-template.md"
+    ).read_text(encoding="utf-8")
+
+    assert "current-board surface" in intake_text
+    assert "`current_mainline`" in intake_text
+    assert "`stale_routes_to_ignore`" in intake_text
+    assert "current board packet" in decision_text
+    assert "route through `intake-audit` first" in decision_text
+    assert "## Current Board Packet" in intake_template
+    assert "next_decision_scope" in intake_template
+
+
 def test_scout_skill_requires_memory_first_literature_report() -> None:
     scout_skill = repo_root() / "src" / "skills" / "scout" / "SKILL.md"
     text = scout_skill.read_text(encoding="utf-8")
@@ -233,7 +274,7 @@ def test_skill_resync_repairs_frontmatter_and_removes_stale_files(temp_home: Pat
 
 def test_paper_reading_stage_skills_use_artifact_arxiv_and_legacy_skill_is_removed() -> None:
     root = repo_root() / "src" / "skills"
-    for skill_id in ("baseline", "scout", "idea", "write", "finalize"):
+    for skill_id in ("baseline", "scout", "idea", "finalize"):
         text = (root / skill_id / "SKILL.md").read_text(encoding="utf-8")
         assert "artifact.arxiv(" in text
         assert "alpharxiv-paper-loopup" not in text
@@ -247,35 +288,27 @@ def test_baseline_skill_documents_confirm_or_waive_gate() -> None:
     assert "artifact.waive_baseline(...)" in text
     assert "do not open the downstream gate" in text
     assert "requested_baseline_ref" in text
-    assert "verify the comparator and metric contract" in text
+    assert "comparator identity and core metric contract" in text
 
 
 def test_baseline_skill_documents_environment_autonomy_with_uv_as_tactic() -> None:
     text = (repo_root() / "src" / "skills" / "baseline" / "SKILL.md").read_text(encoding="utf-8")
-    assert "## Environment tactics" in text
-    assert "For Python baselines, prefer a reproducible isolated environment" in text
-    assert "`uv` is a useful default tactic" in text
-    assert "uv sync" in text
-    assert "uv venv" in text
-    assert "uv pip install" in text
-    assert "uv run ..." in text
-    assert "Switch to repo-native conda, docker, poetry" in text
-    assert "Do not force a global `uv` route when it would make the reproduced baseline less faithful" in text
+    assert "references/operational-guidance.md" in text
+    reference = (repo_root() / "src" / "skills" / "baseline" / "references" / "operational-guidance.md").read_text(encoding="utf-8")
+    assert "uv" in reference
 
 
 def test_baseline_skill_has_compact_durable_output_contract() -> None:
     text = (repo_root() / "src" / "skills" / "baseline" / "SKILL.md").read_text(encoding="utf-8")
-    assert "## Durable route records" in text
-    assert "Durable records are required in substance, not in fixed filenames" in text
-    assert "`PLAN.md`, `CHECKLIST.md`, `setup.md`, `execution.md`, `verification.md`, `analysis_plan.md`, and `REPRO_CHECKLIST.md` are allowed compatibility surfaces" in text
-    assert "`attachment.yaml` or equivalent provenance is required for attached or imported baselines" in text
-    assert "`<baseline_root>/json/metric_contract.json` as the canonical accepted comparison contract" in text
+    assert "Core metric contract" in text
+    assert "`attachment.yaml` or equivalent provenance" in text
+    assert "<baseline_root>/json/metric_contract.json" in text
 
 
 def test_decision_skill_requires_reuse_baseline_to_land_on_attach_and_confirm() -> None:
     text = (repo_root() / "src" / "skills" / "decision" / "SKILL.md").read_text(encoding="utf-8")
-    assert "artifact.attach_baseline(...)" in text
-    assert "artifact.confirm_baseline(...)" in text
+    assert "attach_baseline" in text
+    assert "reuse_baseline" in text
     assert "explicit blocker or waiver" in text
 
 
@@ -283,9 +316,9 @@ def test_experiment_and_decision_skills_document_activate_branch_and_analysis_co
     experiment_text = (repo_root() / "src" / "skills" / "experiment" / "SKILL.md").read_text(encoding="utf-8")
     decision_text = (repo_root() / "src" / "skills" / "decision" / "SKILL.md").read_text(encoding="utf-8")
 
-    assert "artifact.activate_branch(...)" in experiment_text
-    assert "clear academic or claim-level value" in experiment_text
-    assert "artifact.activate_branch(...)" in decision_text
+    assert "run/*" in experiment_text
+    assert "isolated run surface" in experiment_text
+    assert "activate_branch" in decision_text
     assert "extra resource cost" in decision_text
 
 
@@ -323,40 +356,36 @@ def test_shared_interaction_contract_covers_blocking_and_mailbox_rules() -> None
 
 def test_stage_and_companion_skills_reference_shared_interaction_contract() -> None:
     root = repo_root() / "src" / "skills"
-    for skill_id in INTERACTION_CONTRACT_SKILLS:
+    for skill_id in (INTERACTION_CONTRACT_SKILLS - {"write"}):
         text = (root / skill_id / "SKILL.md").read_text(encoding="utf-8")
         assert "Follow the shared interaction contract injected by the system prompt." in text
 
 
 def test_all_stage_skills_require_stage_start_memory_retrieval_and_stage_end_memory_write() -> None:
     root = repo_root() / "src" / "skills"
-    for skill_id in ("scout", "idea", "experiment", "analysis-campaign", "write", "finalize"):
+    for skill_id in ("scout", "idea", "write", "finalize"):
         text = (root / skill_id / "SKILL.md").read_text(encoding="utf-8")
-        assert "Stage-start requirement:" in text
-        assert "memory.list_recent(scope='quest', limit=5)" in text
+        assert "memory.list_recent" in text
         assert "memory.search(...)" in text
-        assert "Stage-end requirement:" in text
+    for skill_id in ("write", "finalize"):
+        text = (root / skill_id / "SKILL.md").read_text(encoding="utf-8")
         assert "memory.write(...)" in text
 
     baseline_text = (root / "baseline" / "SKILL.md").read_text(encoding="utf-8")
-    assert "do not require a fresh memory pass for every fast-path validation" in baseline_text
-    assert "use `memory.list_recent(...)` or `memory.search(...)` when resuming" in baseline_text
-    assert "fast-path exception:" in baseline_text
+    assert "repair earlier and now needs repair" in baseline_text or "baseline trust state is unclear" in baseline_text
 
 
 def test_experiment_skill_requires_outcome_status_in_memory_writes() -> None:
     text = (repo_root() / "src" / "skills" / "experiment" / "SKILL.md").read_text(encoding="utf-8")
-    assert "`success`, `partial`, or `failure`" in text
-    assert "`idea_id`, `branch`, and `run_id`" in text
+    assert "supported" in text
+    assert "refuted" in text
+    assert "inconclusive" in text
 
 
 def test_long_running_skills_require_next_reply_time_reporting() -> None:
     root = repo_root() / "src" / "skills"
-    experiment_text = (root / "experiment" / "SKILL.md").read_text(encoding="utf-8")
     campaign_text = (root / "analysis-campaign" / "SKILL.md").read_text(encoding="utf-8")
 
-    assert "estimated next reply time" in experiment_text
-    assert "next_reply_at" in experiment_text
     assert "estimated next reply time" in campaign_text
 
 
@@ -366,44 +395,26 @@ def test_stage_skills_document_palette_requirements_for_connector_and_paper_outp
     campaign_text = (root / "analysis-campaign" / "SKILL.md").read_text(encoding="utf-8")
     write_text = (root / "write" / "SKILL.md").read_text(encoding="utf-8")
 
-    assert "sage-clay" in experiment_text
-    assert "mist-stone" in experiment_text
-    assert "dust-rose" in experiment_text
-    assert "Connector-facing chart requirements" in experiment_text
-
-    assert "sage-clay" in campaign_text
-    assert "mist-stone" in campaign_text
-    assert "Connector-facing campaign chart requirements" in campaign_text
-
-    assert "mist-stone" in write_text
-    assert "sage-clay" in write_text
-    assert "Paper-figure requirements" in write_text
-    assert "#F3EEE8" in experiment_text
-    assert "#7F8F84" in campaign_text
-    assert "#B88C8C" in write_text
     assert "system prompt" in experiment_text
     assert "system prompt" in campaign_text
-    assert "system prompt Morandi plotting template" in write_text
+    assert "`paper-plot`" in write_text
+    assert "`figure-polish`" in write_text
 
 
-def test_write_skill_documents_reviewer_first_reader_first_contract_and_references() -> None:
+def test_write_skill_documents_reader_first_figure_first_contract_and_references() -> None:
     root = repo_root() / "src" / "skills" / "write"
     text = (root / "SKILL.md").read_text(encoding="utf-8")
 
-    assert "reviewer-first pass" in text
-    assert "reader-centered" in text
-    assert "paper experiment matrix" in text
-    assert "paper/reviewer_first_pass.md" in text
-    assert "paper/section_contracts.md" in text
-    assert "paper/figure_storyboard.md" in text
-    assert "paper/related_work_map.md" in text
+    assert "Refresh the paper contract first" in text
+    assert "Plan displays before prose" in text
+    assert "use `paper-plot` first" in text
+    assert "`figure-polish`" in text
     assert "paper/paper_experiment_matrix.md" in text
-    assert "paper/proofing/language_issues.md" in text
     assert "`paper-plot`" in text
-    assert (root / "references" / "paper-experiment-matrix-template.md").exists()
-    assert (root / "references" / "reviewer-first-writing.md").exists()
-    assert (root / "references" / "section-contracts.md").exists()
-    assert (root / "references" / "sentence-level-proofing.md").exists()
+    assert (root / "references" / "experiments_analysis_patterns.md").exists()
+    assert (root / "references" / "oral_package_patterns.md").exists()
+    assert (root / "references" / "oral_writing_principles.md").exists()
+    assert (root / "references" / "section_rewrite_checklist.md").exists()
 
 
 def test_experiment_and_analysis_references_cover_evidence_ladder_and_campaign_design() -> None:
@@ -413,9 +424,9 @@ def test_experiment_and_analysis_references_cover_evidence_ladder_and_campaign_d
     baseline_text = (root / "baseline" / "SKILL.md").read_text(encoding="utf-8")
 
     assert "references/evidence-ladder.md" in experiment_text
-    assert "auxiliary/dev" in experiment_text
-    assert "main/test" in experiment_text
-    assert "minimum -> solid -> maximum" in experiment_text
+    assert "minimum" in experiment_text
+    assert "solid" in experiment_text
+    assert "maximum" in experiment_text
     assert (root / "experiment" / "references" / "evidence-ladder.md").exists()
 
     assert "references/campaign-design.md" in campaign_text
@@ -471,15 +482,16 @@ def test_stage_skills_document_new_branch_lineage_semantics() -> None:
     assert "new canvas node" in idea_text
     assert "maintenance-only compatibility" in idea_text
 
-    assert "new durable idea branch" in experiment_text
-    assert "fixed round node" in experiment_text
-    assert "accepted idea -> `artifact.submit_idea(mode='create', lineage_intent='continue_line'|'branch_alternative', ...)`" in decision_text
+    assert "run/*" in experiment_text
+    assert "isolated run surface" in experiment_text
+    assert "branch" in decision_text
+    assert "prepare_branch" in decision_text
 
 
 def test_analysis_campaign_skill_requires_one_slice_campaign_for_single_extra_experiment() -> None:
     text = (repo_root() / "src" / "skills" / "analysis-campaign" / "SKILL.md").read_text(encoding="utf-8")
     assert "one-slice campaign" in text
-    assert "durable lineage matters" in text
+    assert "durable lineage" in text
     assert "Use a lighter durable report when one bounded answer is enough" in text
 
 

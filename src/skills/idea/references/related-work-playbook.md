@@ -2,6 +2,21 @@
 
 Use this reference during the `idea` stage when you need a deeper and more explicit process for literature scouting, novelty checking, and value judgment.
 
+For a broader history-aware search before final narrowing, also read `research-history-playbook.md`.
+
+## 0. Broad search policy
+
+Search should be broad enough to map the field and its history, not only to confirm the first attractive candidate.
+
+If DeepXiv is available under the runtime contract, prefer it for broad paper-centric discovery, citation expansion, and shortlist triage.
+If DeepXiv is unavailable, use search engines directly and keep the same breadth target:
+
+- recent papers
+- foundational papers
+- turning-point papers
+- citation chaining
+- adjacent-domain mechanism search
+
 ## 1. Search objective
 
 The goal is not to collect random citations.
@@ -41,6 +56,21 @@ Then search externally for the missing neighborhood:
 
 The goal is not to search the same cluster from zero every time.
 The goal is to reuse what the quest already knows and only spend new search budget on gaps, recency, or unresolved overlap.
+
+## 2.2 History-aware pass
+
+Before claiming novelty, identify:
+
+- seminal papers
+- paradigm-shift papers
+- current mainstream or SOTA papers
+
+Then use both:
+
+- backward citation chaining
+- forward citation chaining
+
+to reconstruct the problem lineage rather than only the current keyword cluster.
 
 ## 3. Coverage targets
 
@@ -89,6 +119,15 @@ Recommended columns:
 Before stopping, also leave behind a literature survey report.
 Prefer the structure in `literature-survey-template.md`.
 
+For harder cases, also keep a lineage-style table with:
+
+- research problem
+- core assumption or mechanism
+- method and data
+- main conclusion
+- explicit limitation
+- implicit limitation you detect
+
 ## 6. Novelty triage logic
 
 Ask these questions in order:
@@ -127,6 +166,8 @@ Watch for these traps:
 - mistaking recency for relevance
 - importing a concept from another domain without proving the translation makes sense here
 - treating a paper title match as evidence without checking dataset and metric overlap
+- reading only the last few years and mistaking recency for centrality
+- skipping citation chaining and therefore missing the evolution of the question itself
 
 ## 9. Exit condition
 
