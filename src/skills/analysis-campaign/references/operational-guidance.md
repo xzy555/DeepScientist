@@ -69,7 +69,8 @@ Use whatever execution route is most faithful, observable, and efficient while p
 - If you only need wall-clock waiting between checks, use the canonical sleep choice:
   - `bash_exec(command='sleep N', mode='await', timeout_seconds=N+buffer, ...)`
   - do not set `timeout_seconds` exactly equal to `N`
-  - if you are waiting on an already running session, prefer `bash_exec(mode='await', id=..., timeout_seconds=...)` instead of starting a new sleep command
+  - if you are waiting on an already running session, prefer `bash_exec(mode='await', id=..., wait_timeout_seconds=1800)` instead of starting a new sleep command
+  - if that bounded await returns while the session is still `running`, read the log and inspect real progress before deciding whether another `1800s` wait is justified
 - when you control the slice code, prefer a throttled `tqdm` progress reporter and concise structured progress markers when feasible
 - if the same failure class appears again without a real route or evidence change, stop widening the campaign and route through `decision`
 - if the same slice repeatedly fails because the environment cannot support it, stop retrying and redesign the slice set around the real resource envelope

@@ -259,9 +259,10 @@ Then inspect:
 ```text
 bash_exec.bash_exec(mode="list", status="running")
 bash_exec.bash_exec(mode="read", id="<bash_id>")
+bash_exec.bash_exec(mode="await", id="<bash_id>", wait_timeout_seconds=1800)
 ```
 
-Use `kill` only when the quest truly needs to stop the session.
+If that bounded `await` returns while the session is still `running`, the process keeps going in the background. Read the saved log, judge real forward progress, and then decide whether another `1800s` wait is warranted. Use `kill` only when the quest truly needs to stop the session.
 
 ## 6. Prompt-level expectations
 

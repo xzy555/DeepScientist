@@ -176,6 +176,7 @@ def test_system_prompt_strengthens_bash_exec_only_terminal_contract() -> None:
     assert "Common `bash_exec` usage patterns:" in text
     assert "Terminal-command mapping examples:" in text
     assert "bash_exec(command='python -m pytest tests/test_x.py', mode='await', timeout_seconds=120, comment=...)" in text
+    assert "bash_exec(mode='await', id=..., wait_timeout_seconds=1800)" in text
     assert "bash_exec(mode='history')" in text
     assert "bash_exec(mode='kill', id=..., wait=true, timeout_seconds=...)" in text
 
@@ -663,10 +664,21 @@ def test_stage_skill_progress_contracts_match_tool_call_keepalive_policy() -> No
 def test_experiment_and_analysis_skills_require_smoke_then_detach_tail_monitoring() -> None:
     experiment_text = _skill_text("experiment")
     analysis_text = _skill_text("analysis-campaign")
+    experiment_ops_text = (
+        repo_root() / "src" / "skills" / "experiment" / "references" / "execution-playbook.md"
+    ).read_text(encoding="utf-8")
+    analysis_ops_text = (
+        repo_root() / "src" / "skills" / "analysis-campaign" / "references" / "operational-guidance.md"
+    ).read_text(encoding="utf-8")
     baseline_text = _skill_text("baseline")
+    baseline_ops_text = (
+        repo_root() / "src" / "skills" / "baseline" / "references" / "operational-guidance.md"
+    ).read_text(encoding="utf-8")
 
     for text in (experiment_text, analysis_text):
         assert "smoke test" in text
+
+    for text in (experiment_ops_text, analysis_ops_text):
         assert "bash_exec(mode='detach', ...)" in text
         assert "2000 lines or fewer" in text
         assert ("first 500 lines plus the last 1500 lines" in text) or ("first 500 lines plus last 1500 lines" in text)
@@ -679,18 +691,16 @@ def test_experiment_and_analysis_skills_require_smoke_then_detach_tail_monitorin
         assert "canonical sleep choice" in text
         assert "bash_exec(command='sleep N', mode='await', timeout_seconds=N+buffer, ...)" in text
         assert "do not set `timeout_seconds` exactly equal to `N`" in text
-        assert "prefer `bash_exec(mode='await', id=..., timeout_seconds=...)` instead of starting a new sleep command" in text
+        assert "prefer `bash_exec(mode='await', id=..., wait_timeout_seconds=1800)` instead of starting a new sleep command" in text
 
     assert "verify-local-existing" in baseline_text
-    assert "same failure class appears again" in baseline_text
     assert "acceptance target" in baseline_text
-    assert "`0-2` budget" in experiment_text
-    assert "`0-2`" in analysis_text
-    assert "`0-2` default budget" in baseline_text
-
+    assert "Run a bounded smoke or pilot only when" in experiment_text
+    assert "For meaningful long-running slices" in analysis_text
     assert "smoke test" in baseline_text
-    assert "bash_exec(mode='detach', ...)" in baseline_text
-    assert "tqdm" in experiment_text
+    assert "bash_exec(mode='detach', ...)" in baseline_ops_text
+    assert "`0-2` default budget" in baseline_ops_text
+    assert "tqdm" in experiment_ops_text
     assert "tqdm" in analysis_text
 
 

@@ -502,6 +502,7 @@ The design rule is simple:
 
 - anything shell-like should go through `bash_exec`
 - do not hide important execution in transient shell snippets
+- for already running managed sessions, prefer bounded waits such as `bash_exec.bash_exec(mode='await', id=..., wait_timeout_seconds=1800)`; if the wait window ends first, the process keeps running and the next step should usually be reading logs rather than killing the session
 
 ## 9. How the three MCP namespaces divide responsibility
 

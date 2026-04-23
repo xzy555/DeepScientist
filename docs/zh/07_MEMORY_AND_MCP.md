@@ -242,9 +242,10 @@ bash_exec.bash_exec(command="python train.py --config configs/main.yaml", mode="
 ```text
 bash_exec.bash_exec(mode="list", status="running")
 bash_exec.bash_exec(mode="read", id="<bash_id>")
+bash_exec.bash_exec(mode="await", id="<bash_id>", wait_timeout_seconds=1800)
 ```
 
-只有在确实需要停止时才使用 `kill`。
+如果这个有界 `await` 返回时 session 仍然是 `running`，说明进程还在后台继续跑。此时先读取保存的日志、判断是否存在真实前进，再决定是否还要继续等下一个 `1800s` 窗口。只有在确实需要停止时才使用 `kill`。
 
 ## 6. Prompt 级纪律（建议）
 

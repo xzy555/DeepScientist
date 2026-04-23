@@ -502,6 +502,7 @@ artifact 名字虽然多，但本质上还是一个家族。
 
 - 任何 shell-like 的执行都应该走 `bash_exec`
 - 不要把关键执行藏在一次性 shell 片段里
+- 对已经在跑的 managed session，优先使用有界等待，例如 `bash_exec.bash_exec(mode='await', id=..., wait_timeout_seconds=1800)`；如果等待窗口先结束，进程仍会继续运行，下一步通常应该先读日志，而不是直接杀掉 session
 
 ## 9. 这三个 MCP namespace 是怎么分工的
 

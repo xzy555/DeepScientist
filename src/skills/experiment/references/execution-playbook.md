@@ -213,11 +213,12 @@ For commands that may run longer than a few minutes:
   - wait about `600s`, then inspect logs
   - wait about `1800s`, then inspect logs
   - then keep checking about every `1800s` while the run is still active
-- if needed, use an explicit bounded wait such as `bash_exec(command='sleep 60', mode='await', timeout_seconds=70)` or `bash_exec(mode='await', id=..., timeout_seconds=...)` between checks
+- if needed, use an explicit bounded wait such as `bash_exec(command='sleep 60', mode='await', timeout_seconds=70)` or `bash_exec(mode='await', id=..., wait_timeout_seconds=1800)` between checks
 - canonical sleep choice:
   - if you only need wall-clock waiting between checks, use `bash_exec(command='sleep N', mode='await', timeout_seconds=N+buffer, ...)`
   - keep a real buffer on that sleep timeout; do not set `timeout_seconds` exactly equal to `N`
-  - if you are waiting on an already running managed session, prefer `bash_exec(mode='await', id=..., timeout_seconds=...)` instead of starting a new sleep command
+  - if you are waiting on an already running managed session, prefer `bash_exec(mode='await', id=..., wait_timeout_seconds=1800)` instead of starting a new sleep command
+  - if that bounded await returns while the session is still `running`, treat that as expected managed-monitoring behavior; read the log, judge forward progress, and then decide whether another `1800s` wait is justified
 - after every completed sleep or await cycle, inspect logs first; only send `artifact.interact(kind='progress', ...)` when the user-visible state, frontier, blocker status, or ETA materially changed
 - after the first meaningful signal and then at real checkpoints such as completion, recovery, blocker, or a materially widened comparable surface, keep those progress updates going rather than waiting silently
 - if the run is clearly invalid, wedged, or superseded, stop it with `bash_exec(mode='kill', id=..., wait=true, timeout_seconds=...)`; if it must die immediately, add `force=true`, record the reason, fix the issue, and relaunch cleanly
