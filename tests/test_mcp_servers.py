@@ -408,6 +408,7 @@ def test_artifact_mcp_server_tools_cover_core_flows(temp_home: Path) -> None:
             "publish_baseline",
             "attach_baseline",
             "confirm_baseline",
+            "overwrite_baseline",
             "waive_baseline",
             "arxiv",
             "refresh_summary",
@@ -825,6 +826,68 @@ def test_artifact_mcp_server_tools_cover_core_flows(temp_home: Path) -> None:
         )
         assert completion_result["ok"] is True
         assert completion_result["snapshot"]["status"] == "completed"
+
+    asyncio.run(scenario())
+
+
+def test_artifact_overwrite_baseline_tool_refreshes_confirmed_ref(temp_home: Path) -> None:
+    async def scenario() -> None:
+        ensure_home_layout(temp_home)
+        ConfigManager(temp_home).ensure_files()
+        quest = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home)).create(
+            "mcp overwrite baseline quest"
+        )
+        quest_root = Path(quest["quest_root"])
+        context = McpContext(
+            home=temp_home,
+            quest_id=quest["quest_id"],
+            quest_root=quest_root,
+            run_id="run-mcp-overwrite-baseline",
+            active_anchor="baseline",
+            conversation_id="quest:test",
+            agent_role="baseline",
+            worker_id="worker-main",
+            worktree_root=None,
+            team_mode="single",
+        )
+        server = build_artifact_server(context)
+
+        artifact = ArtifactService(temp_home)
+        baseline_root = quest_root / "baselines" / "local" / "mcp-overwrite-baseline"
+        baseline_root.mkdir(parents=True, exist_ok=True)
+        (baseline_root / "README.md").write_text("# MCP Overwrite Baseline\n", encoding="utf-8")
+        artifact.confirm_baseline(
+            quest_root,
+            baseline_path=str(baseline_root),
+            baseline_id="mcp-overwrite-baseline",
+            summary="Initial MCP overwrite baseline",
+            metrics_summary={"acc": 0.8},
+            primary_metric={"metric_id": "acc", "value": 0.8},
+            metric_contract=_detailed_metric_contract(["acc"]),
+            strict_metric_contract=True,
+        )
+
+        overwritten = _unwrap_tool_result(
+            await server.call_tool(
+                "overwrite_baseline",
+                {
+                    "baseline_id": "mcp-overwrite-baseline",
+                    "baseline_path": "baselines/local/mcp-overwrite-baseline",
+                    "change_summary": "Add a canonical f1 metric after the second baseline pass.",
+                    "metrics_summary": {"acc": 0.82, "f1": 0.79},
+                    "primary_metric": {"metric_id": "acc", "value": 0.82},
+                    "metric_contract": _detailed_metric_contract(["acc", "f1"]),
+                },
+            )
+        )
+
+        assert overwritten["ok"] is True
+        assert overwritten["compatibility_verdict"] == "metrics_only_safe"
+        confirmed_ref = overwritten["confirmed_baseline_ref"]
+        assert confirmed_ref["baseline_id"] == "mcp-overwrite-baseline"
+        assert confirmed_ref["overwrite"]["change_summary"] == "Add a canonical f1 metric after the second baseline pass."
+        metric_contract_payload = read_json(Path(overwritten["metric_contract_json_path"]), {})
+        assert metric_contract_payload["overwrite"]["compatibility_verdict"] == "metrics_only_safe"
 
     asyncio.run(scenario())
 
@@ -1935,6 +1998,45 @@ def test_bash_exec_sleep_protocol_supports_sleep_and_existing_session_waits(temp
         assert timeout_final["status"] == "terminated"
         assert timeout_final["stop_reason"] == "timeout"
 
+        bounded_wait = _unwrap_tool_result(
+            await server.call_tool(
+                "bash_exec",
+                {
+                    "command": "sleep 2; printf 'bounded-wait-done\\n'",
+                    "mode": "await",
+                    "timeout_seconds": 5,
+                    "wait_timeout_seconds": 1,
+                    "comment": {"stage": "experiment", "goal": "bounded-await-running-notice"},
+                },
+            )
+        )
+        bounded_wait_bash_id = bounded_wait["bash_id"]
+        assert bounded_wait["status"] == "running"
+        assert bounded_wait["still_running"] is True
+        assert bounded_wait["wait_timed_out"] is True
+        assert bounded_wait["wait_timeout_seconds"] == 1
+        assert bounded_wait["suggested_poll_interval_seconds"] == 1800
+        assert f"bash_exec(mode='read', id='{bounded_wait_bash_id}')" == bounded_wait["suggested_read_command"]
+        assert (
+            f"bash_exec(mode='await', id='{bounded_wait_bash_id}', wait_timeout_seconds=1800)"
+            == bounded_wait["suggested_await_command"]
+        )
+        assert "still running" in str(bounded_wait["long_wait_notice"]).lower()
+
+        bounded_wait_final = _unwrap_tool_result(
+            await server.call_tool(
+                "bash_exec",
+                {
+                    "mode": "await",
+                    "id": bounded_wait_bash_id,
+                    "wait_timeout_seconds": 5,
+                },
+            )
+        )
+        assert bounded_wait_final["status"] == "completed"
+        assert bounded_wait_final["exit_code"] == 0
+        assert "wait_timed_out" not in bounded_wait_final
+
         detached = _unwrap_tool_result(
             await server.call_tool(
                 "bash_exec",
@@ -1959,6 +2061,10 @@ def test_bash_exec_sleep_protocol_supports_sleep_and_existing_session_waits(temp
         )
         assert early_wait["bash_id"] == detached_bash_id
         assert early_wait["status"] == "running"
+        assert early_wait["wait_timed_out"] is True
+        assert early_wait["still_running"] is True
+        assert early_wait["wait_timeout_seconds"] == 1
+        assert early_wait["suggested_poll_interval_seconds"] == 1800
 
         final_wait = _unwrap_tool_result(
             await server.call_tool(

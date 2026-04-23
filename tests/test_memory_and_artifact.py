@@ -231,6 +231,169 @@ def test_confirm_baseline_metric_directions_override_and_main_run_prefers_confir
     assert payload["progress_eval"]["beats_baseline"] is True
 
 
+def test_overwrite_baseline_refreshes_canonical_surfaces_and_invalidates_caches(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    quest_service = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home))
+    quest = quest_service.create("overwrite baseline quest")
+    quest_root = Path(quest["quest_root"])
+    artifact = ArtifactService(temp_home)
+
+    baseline_root = quest_root / "baselines" / "local" / "baseline-overwrite"
+    baseline_root.mkdir(parents=True, exist_ok=True)
+    (baseline_root / "README.md").write_text("# Overwrite baseline\n", encoding="utf-8")
+
+    initial = artifact.confirm_baseline(
+        quest_root,
+        baseline_path=str(baseline_root),
+        baseline_id="baseline-overwrite",
+        summary="Initial baseline",
+        metrics_summary={"acc": 0.8},
+        primary_metric={"metric_id": "acc", "value": 0.8},
+        metric_contract=_detailed_metric_contract(
+            ["acc"],
+            primary_metric_id="acc",
+            evaluation_protocol={"scope_id": "full"},
+        ),
+        strict_metric_contract=True,
+    )
+    assert initial["ok"] is True
+
+    quest_service.metrics_timeline(quest["quest_id"])
+    quest_service.baseline_compare(quest["quest_id"])
+    assert (quest_root / ".ds" / "cache" / "metrics_timeline.v1.json").exists()
+    assert (quest_root / ".ds" / "cache" / "baseline_compare.v1.json").exists()
+
+    artifact._write_analysis_baseline_inventory(
+        quest_root,
+        {
+            "entries": [
+                {
+                    "baseline_id": "baseline-overwrite",
+                    "variant_id": None,
+                    "status": "registered",
+                    "baseline_root_rel_path": "baselines/local/baseline-overwrite",
+                    "storage_mode": "local",
+                    "metrics_summary": {"acc": 0.8},
+                }
+            ]
+        },
+    )
+
+    result = artifact.overwrite_baseline(
+        quest_root,
+        baseline_id="baseline-overwrite",
+        baseline_path=str(baseline_root),
+        change_summary="Added canonical f1 and refreshed the verified baseline outputs.",
+        metrics_summary={"acc": 0.82, "f1": 0.79},
+        primary_metric={"metric_id": "acc", "value": 0.82},
+        metric_contract=_detailed_metric_contract(
+            ["acc", "f1"],
+            primary_metric_id="acc",
+            evaluation_protocol={"scope_id": "full"},
+        ),
+        strict_metric_contract=True,
+    )
+
+    assert result["ok"] is True
+    assert result["overwrite_action"] == "in_place_refresh"
+    assert result["compatibility_verdict"] == "metrics_only_safe"
+    assert result["risk_level"] == "low"
+    confirmed_ref = result["confirmed_baseline_ref"]
+    assert confirmed_ref["baseline_id"] == "baseline-overwrite"
+    assert confirmed_ref["overwrite"]["change_summary"] == "Added canonical f1 and refreshed the verified baseline outputs."
+    assert confirmed_ref["metric_contract_json_rel_path"] == "baselines/local/baseline-overwrite/json/metric_contract.json"
+
+    metric_contract_payload = read_json(Path(result["metric_contract_json_path"]), {})
+    assert metric_contract_payload["metrics_summary"] == {"acc": 0.82, "f1": 0.79}
+    assert metric_contract_payload["overwrite"]["compatibility_verdict"] == "metrics_only_safe"
+
+    attachment = read_yaml(quest_root / "baselines" / "imported" / "baseline-overwrite" / "attachment.yaml", {})
+    assert attachment["overwrite"]["change_summary"] == "Added canonical f1 and refreshed the verified baseline outputs."
+
+    analysis_inventory = read_json(quest_root / "artifacts" / "baselines" / "analysis_inventory.json", {})
+    refreshed_entry = next(item for item in analysis_inventory["entries"] if item["baseline_id"] == "baseline-overwrite")
+    assert refreshed_entry["metrics_summary"] == {"acc": 0.82, "f1": 0.79}
+
+    paper_inventory = read_json(quest_root / "paper" / "baseline_inventory.json", {})
+    assert paper_inventory["canonical_baseline_ref"]["baseline_id"] == "baseline-overwrite"
+    assert paper_inventory["canonical_baseline_ref"]["overwrite"]["compatibility_verdict"] == "metrics_only_safe"
+
+    assert str(quest_root / ".ds" / "cache" / "metrics_timeline.v1.json") in result["invalidated_cache_paths"]
+    assert str(quest_root / ".ds" / "cache" / "baseline_compare.v1.json") in result["invalidated_cache_paths"]
+    assert not (quest_root / ".ds" / "cache" / "metrics_timeline.v1.json").exists()
+    assert not (quest_root / ".ds" / "cache" / "baseline_compare.v1.json").exists()
+
+    timeline = quest_service.metrics_timeline(quest["quest_id"])
+    compare_payload = quest_service.baseline_compare(quest["quest_id"])
+    assert timeline["baseline_ref"]["baseline_id"] == "baseline-overwrite"
+    assert {item["metric_id"] for item in timeline["series"]} == {"acc", "f1"}
+    acc_series = next(item for item in timeline["series"] if item["metric_id"] == "acc")
+    assert acc_series["baselines"][0]["value"] == pytest.approx(0.82)
+    assert compare_payload["baseline_ref"]["baseline_id"] == "baseline-overwrite"
+    compare_acc_series = next(item for item in compare_payload["series"] if item["metric_id"] == "acc")
+    compare_f1_series = next(item for item in compare_payload["series"] if item["metric_id"] == "f1")
+    selected_acc = next(item for item in compare_acc_series["values"] if item["selected"] is True)
+    selected_f1 = next(item for item in compare_f1_series["values"] if item["selected"] is True)
+    assert selected_acc["value"] == pytest.approx(0.82)
+    assert selected_f1["value"] == pytest.approx(0.79)
+    outbox = read_jsonl(temp_home / "logs" / "connectors" / "local" / "outbox.jsonl")
+    assert any("Baseline `baseline-overwrite` has been refreshed." in str(item.get("message") or "") for item in outbox)
+    assert result["interaction"]["delivered"] is True
+    assert len(list((quest_root / "artifacts" / "baselines").glob("*.json"))) >= 2
+
+
+def test_overwrite_baseline_rejects_protocol_breaking_change_by_default(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    quest_service = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home))
+    quest = quest_service.create("overwrite baseline reject quest")
+    quest_root = Path(quest["quest_root"])
+    artifact = ArtifactService(temp_home)
+
+    baseline_root = quest_root / "baselines" / "local" / "baseline-overwrite-reject"
+    baseline_root.mkdir(parents=True, exist_ok=True)
+    (baseline_root / "README.md").write_text("# Reject overwrite baseline\n", encoding="utf-8")
+
+    confirmed = artifact.confirm_baseline(
+        quest_root,
+        baseline_path=str(baseline_root),
+        baseline_id="baseline-overwrite-reject",
+        summary="Initial reject baseline",
+        metrics_summary={"acc": 0.8},
+        primary_metric={"metric_id": "acc", "value": 0.8},
+        metric_contract=_detailed_metric_contract(
+            ["acc"],
+            primary_metric_id="acc",
+            evaluation_protocol={"scope_id": "full"},
+        ),
+        strict_metric_contract=True,
+    )
+
+    with pytest.raises(ValueError, match="protocol-breaking"):
+        artifact.overwrite_baseline(
+            quest_root,
+            baseline_id="baseline-overwrite-reject",
+            baseline_path=str(baseline_root),
+            change_summary="Switch to a different primary metric and evaluation protocol.",
+            metrics_summary={"loss": 0.2},
+            primary_metric={"metric_id": "loss", "value": 0.2},
+            metric_contract=_detailed_metric_contract(
+                ["loss"],
+                primary_metric_id="loss",
+                directions={"loss": "minimize"},
+                evaluation_protocol={"scope_id": "subset"},
+            ),
+            strict_metric_contract=True,
+        )
+
+    snapshot = quest_service.snapshot(quest["quest_id"])
+    assert snapshot["confirmed_baseline_ref"]["baseline_id"] == "baseline-overwrite-reject"
+    assert "overwrite" not in snapshot["confirmed_baseline_ref"]
+    metric_contract_payload = read_json(Path(confirmed["metric_contract_json_path"]), {})
+    assert metric_contract_payload["metric_contract"]["primary_metric_id"] == "acc"
+
+
 def test_apply_start_setup_form_patch_persists_and_merges_suggested_form(temp_home: Path) -> None:
     ensure_home_layout(temp_home)
     ConfigManager(temp_home).ensure_files()

@@ -154,10 +154,14 @@ def build_guidance_for_record(record: dict[str, Any]) -> dict[str, Any]:
                 _route("publish_baseline", "Publish baseline", "The baseline should be reused by future quests.", "Adds reusable value now, but does not by itself open the stage gate."),
                 _route("attach_baseline", "Attach another baseline", "The current reference still looks incomplete or mismatched.", "Improves comparability, but delays ideation."),
             ],
-            suggested_artifact_calls=[
-                _artifact_call("artifact.confirm_baseline(...)", "Open the canonical baseline stage gate after acceptance."),
-                _artifact_call("artifact.waive_baseline(...)", "Record an explicit baseline waiver when skipping is justified."),
-            ],
+                suggested_artifact_calls=[
+                    _artifact_call("artifact.confirm_baseline(...)", "Open the canonical baseline stage gate after acceptance."),
+                    _artifact_call(
+                        "artifact.overwrite_baseline(...)",
+                        "Refresh an already accepted baseline after verified code, variant, or canonical metric changes.",
+                    ),
+                    _artifact_call("artifact.waive_baseline(...)", "Record an explicit baseline waiver when skipping is justified."),
+                ],
             source_artifact_kind=kind,
             source_artifact_id=artifact_id,
             related_paths=[str(path) for path in related_paths],

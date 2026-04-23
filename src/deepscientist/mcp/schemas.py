@@ -91,3 +91,24 @@ class MetricContractPayload(BaseModel):
         default=None,
         description="Optional canonical evaluation protocol (scope_id, code_paths, code_hashes, ...).",
     )
+
+
+class SupplementaryBaselinePayload(BaseModel):
+    """Supplementary baseline entry used by overwrite_baseline / analysis inventory refresh."""
+
+    model_config = ConfigDict(extra="allow")
+
+    baseline_id: str = Field(..., description="Stable baseline id.")
+    variant_id: str | None = Field(default=None, description="Optional baseline variant id.")
+    reason: str | None = Field(default=None, description="Why this supplementary baseline matters now.")
+    benchmark: str | None = Field(default=None, description="Optional benchmark label.")
+    split: str | None = Field(default=None, description="Optional split label.")
+    baseline_root_rel_path: str | None = Field(
+        default=None,
+        description="Quest-relative baseline root under `baselines/local/...` or `baselines/imported/...`.",
+    )
+    metrics_summary: dict[str, Any] | None = Field(default=None, description="Flat canonical metrics summary.")
+    evidence_paths: list[str] | None = Field(default=None, description="Optional supporting evidence paths.")
+    published: bool | None = Field(default=None, description="Whether this supplementary baseline was published.")
+    published_entry_id: str | None = Field(default=None, description="Published registry entry id when applicable.")
+    status: str | None = Field(default=None, description="Supplementary baseline status.")

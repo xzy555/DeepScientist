@@ -3944,6 +3944,578 @@ class ArtifactService:
         }
         return self.baselines.publish(registry_payload)
 
+    def _baseline_current_confirmation_context(self, quest_root: Path) -> dict[str, Any]:
+        quest_yaml = self.quest_service.read_quest_yaml(quest_root)
+        confirmed_ref = (
+            dict(quest_yaml.get("confirmed_baseline_ref") or {})
+            if isinstance(quest_yaml.get("confirmed_baseline_ref"), dict)
+            else {}
+        )
+        attachment = self._active_baseline_attachment(quest_root, workspace_root=quest_root)
+        attachment_entry = (
+            dict(attachment.get("entry") or {})
+            if isinstance(attachment, dict) and isinstance(attachment.get("entry"), dict)
+            else {}
+        )
+        current_baseline_id = (
+            str(confirmed_ref.get("baseline_id") or "").strip()
+            or (str(attachment.get("source_baseline_id") or "").strip() if isinstance(attachment, dict) else "")
+            or None
+        )
+        current_variant_id = (
+            str(confirmed_ref.get("variant_id") or "").strip()
+            or (str(attachment.get("source_variant_id") or "").strip() if isinstance(attachment, dict) else "")
+            or None
+        )
+        current_baseline_root_rel_path = str(confirmed_ref.get("baseline_root_rel_path") or "").strip() or None
+        if (
+            current_baseline_root_rel_path is None
+            and isinstance(attachment, dict)
+            and isinstance(attachment.get("confirmation"), dict)
+            and str((attachment.get("confirmation") or {}).get("baseline_root") or "").strip()
+        ):
+            current_baseline_root_rel_path = self._workspace_relative(
+                quest_root,
+                Path(str((attachment.get("confirmation") or {}).get("baseline_root") or "")).expanduser(),
+            )
+        current_source_mode = (
+            str(confirmed_ref.get("source_mode") or "").strip()
+            or (
+                str(((attachment or {}).get("confirmation") or {}).get("source_mode") or "").strip()
+                if isinstance(attachment, dict) and isinstance(attachment.get("confirmation"), dict)
+                else ""
+            )
+            or None
+        )
+        metric_contract_json_rel_path = str(confirmed_ref.get("metric_contract_json_rel_path") or "").strip() or None
+        metric_contract_payload = self._load_metric_contract_payload(quest_root, metric_contract_json_rel_path)
+        current_entry = attachment_entry
+        if not current_entry and current_baseline_id:
+            current_entry = self._latest_baseline_record(quest_root, current_baseline_id) or {}
+        if not current_entry and current_baseline_id:
+            registry_entry = self.baselines.get(current_baseline_id)
+            current_entry = dict(registry_entry or {}) if isinstance(registry_entry, dict) else {}
+        current_metric_contract = (
+            dict(metric_contract_payload.get("metric_contract") or {})
+            if isinstance(metric_contract_payload, dict) and isinstance(metric_contract_payload.get("metric_contract"), dict)
+            else dict(current_entry.get("metric_contract") or {})
+            if isinstance(current_entry.get("metric_contract"), dict)
+            else {}
+        )
+        current_metrics_summary = (
+            normalize_metrics_summary(metric_contract_payload.get("metrics_summary"))
+            if isinstance(metric_contract_payload, dict) and isinstance(metric_contract_payload.get("metrics_summary"), dict)
+            else selected_baseline_metrics(current_entry, current_variant_id)
+        )
+        current_primary_metric = (
+            dict(metric_contract_payload.get("primary_metric") or {})
+            if isinstance(metric_contract_payload, dict) and isinstance(metric_contract_payload.get("primary_metric"), dict)
+            else dict(current_entry.get("primary_metric") or {})
+            if isinstance(current_entry.get("primary_metric"), dict)
+            else {}
+        )
+        return {
+            "confirmed_ref": confirmed_ref,
+            "attachment": attachment,
+            "entry": current_entry,
+            "baseline_id": current_baseline_id,
+            "variant_id": current_variant_id,
+            "baseline_root_rel_path": current_baseline_root_rel_path,
+            "source_mode": current_source_mode,
+            "metric_contract_payload": metric_contract_payload,
+            "metric_contract": current_metric_contract,
+            "metrics_summary": current_metrics_summary,
+            "primary_metric": current_primary_metric,
+        }
+
+    @staticmethod
+    def _metric_direction_map(metric_contract: dict[str, Any] | None) -> dict[str, str]:
+        if not isinstance(metric_contract, dict):
+            return {}
+        result: dict[str, str] = {}
+        for item in metric_contract.get("metrics") or []:
+            if not isinstance(item, dict):
+                continue
+            metric_id = str(item.get("metric_id") or "").strip()
+            if not metric_id:
+                continue
+            result[metric_id] = normalize_metric_direction(item.get("direction"), metric_id=metric_id)
+        return result
+
+    @staticmethod
+    def _primary_metric_id(primary_metric: dict[str, Any] | None, metric_contract: dict[str, Any] | None) -> str | None:
+        if isinstance(primary_metric, dict):
+            metric_id = str(primary_metric.get("metric_id") or primary_metric.get("name") or primary_metric.get("id") or "").strip()
+            if metric_id:
+                return metric_id
+        if isinstance(metric_contract, dict):
+            metric_id = str(metric_contract.get("primary_metric_id") or "").strip()
+            if metric_id:
+                return metric_id
+        return None
+
+    @staticmethod
+    def _normalize_overwrite_scope(value: str | None) -> str:
+        normalized = str(value or "full_refresh").strip().lower() or "full_refresh"
+        allowed = {"metrics_only", "variants_and_metrics", "full_refresh"}
+        if normalized not in allowed:
+            raise ValueError(f"`overwrite_scope` must be one of: {', '.join(sorted(allowed))}.")
+        return normalized
+
+    def _baseline_overwrite_preflight(
+        self,
+        quest_root: Path,
+        *,
+        baseline_id: str | None,
+        baseline_path: str | None,
+        variant_id: str | None,
+        metric_contract: dict[str, Any] | None,
+        metric_directions: dict[str, str] | None,
+        metrics_summary: dict[str, Any] | None,
+        primary_metric: dict[str, Any] | None,
+        allow_path_change: bool,
+        allow_protocol_breaking_change: bool,
+        overwrite_scope: str,
+    ) -> dict[str, Any]:
+        current = self._baseline_current_confirmation_context(quest_root)
+        current_baseline_id = str(current.get("baseline_id") or "").strip()
+        if not current_baseline_id:
+            raise ValueError(
+                "`artifact.overwrite_baseline(...)` requires an already accepted baseline. "
+                "Use `artifact.confirm_baseline(...)` first."
+            )
+
+        target_baseline_id = str(baseline_id or current_baseline_id).strip()
+        if target_baseline_id != current_baseline_id:
+            raise ValueError(
+                "Baseline overwrite only supports the currently active baseline id. "
+                "Use a new `baseline_id` or a new `variant_id` instead of overwriting a different baseline in place."
+            )
+
+        current_source_mode = str(current.get("source_mode") or "").strip().lower() or None
+        resolved_baseline_path = (
+            str(baseline_path or "").strip()
+            or str((current.get("confirmed_ref") or {}).get("baseline_path") or "").strip()
+            or str((current.get("entry") or {}).get("path") or "").strip()
+        )
+        if not resolved_baseline_path:
+            raise ValueError("`baseline_path` is required when the current confirmed baseline path is unavailable.")
+        resolved = self._resolve_baseline_path(quest_root, resolved_baseline_path, baseline_id=target_baseline_id)
+        resolved_source_mode = str(resolved.get("source_mode") or "").strip().lower() or None
+        if current_source_mode == "imported" and resolved_source_mode == "imported":
+            raise ValueError(
+                "In-place overwrite of an imported baseline is not allowed. "
+                "Materialize the updated comparator under `baselines/local/...` or create a new baseline id / variant."
+            )
+
+        current_root_rel_path = str(current.get("baseline_root_rel_path") or "").strip() or None
+        target_root_rel_path = str(resolved.get("baseline_root_rel_path") or "").strip() or None
+        path_changed = bool(current_root_rel_path and target_root_rel_path and current_root_rel_path != target_root_rel_path)
+        if path_changed and not allow_path_change:
+            raise ValueError(
+                "Baseline root changed. Set `allow_path_change=true` only when the new root is still the same comparator "
+                "and you explicitly want an in-place baseline refresh."
+            )
+
+        current_entry = dict(current.get("entry") or {})
+        current_variants = copy.deepcopy(current_entry.get("baseline_variants")) if isinstance(current_entry.get("baseline_variants"), list) else []
+        normalized_variant_id = str(
+            variant_id
+            or current.get("variant_id")
+            or current_entry.get("default_variant_id")
+            or ""
+        ).strip() or None
+        if normalized_variant_id and not current_variants:
+            current_variants = [
+                {
+                    "variant_id": normalized_variant_id,
+                    "label": normalized_variant_id,
+                    "metrics_summary": normalize_metrics_summary(metrics_summary or current.get("metrics_summary")),
+                }
+            ]
+        elif normalized_variant_id and all(
+            str(item.get("variant_id") or "").strip() != normalized_variant_id
+            for item in current_variants
+            if isinstance(item, dict)
+        ):
+            current_variants.append(
+                {
+                    "variant_id": normalized_variant_id,
+                    "label": normalized_variant_id,
+                    "metrics_summary": normalize_metrics_summary(metrics_summary or {}),
+                }
+            )
+
+        current_metrics_summary = normalize_metrics_summary(current.get("metrics_summary"))
+        proposed_metrics_summary = normalize_metrics_summary(metrics_summary or current_metrics_summary)
+        current_primary_metric = dict(current.get("primary_metric") or {}) if isinstance(current.get("primary_metric"), dict) else {}
+        proposed_primary_metric = dict(primary_metric or current_primary_metric)
+        current_metric_contract = normalize_metric_contract(
+            current.get("metric_contract"),
+            baseline_id=target_baseline_id,
+            metrics_summary=current_metrics_summary,
+            primary_metric=current_primary_metric,
+            baseline_variants=current_variants,
+        )
+        proposed_metric_contract = normalize_metric_contract(
+            metric_contract or current_metric_contract,
+            baseline_id=target_baseline_id,
+            metrics_summary=proposed_metrics_summary,
+            primary_metric=proposed_primary_metric,
+            baseline_variants=current_variants,
+        )
+        if metric_directions:
+            proposed_metric_contract = {
+                **proposed_metric_contract,
+                "metrics": [
+                    (
+                        {**item, "direction": metric_directions[str(item.get("metric_id") or "").strip()]}
+                        if isinstance(item, dict)
+                        and str(item.get("metric_id") or "").strip() in metric_directions
+                        else dict(item)
+                        if isinstance(item, dict)
+                        else item
+                    )
+                    for item in (proposed_metric_contract.get("metrics") or [])
+                ],
+            }
+
+        current_direction_map = self._metric_direction_map(current_metric_contract)
+        proposed_direction_map = self._metric_direction_map(proposed_metric_contract)
+        current_metric_ids = set(current_direction_map.keys())
+        proposed_metric_ids = set(proposed_direction_map.keys())
+        added_metric_ids = sorted(proposed_metric_ids - current_metric_ids)
+        removed_metric_ids = sorted(current_metric_ids - proposed_metric_ids)
+        direction_changed_metric_ids = sorted(
+            metric_id
+            for metric_id in (current_metric_ids & proposed_metric_ids)
+            if current_direction_map.get(metric_id) != proposed_direction_map.get(metric_id)
+        )
+        current_primary_metric_id = self._primary_metric_id(current_primary_metric, current_metric_contract)
+        proposed_primary_metric_id = self._primary_metric_id(proposed_primary_metric, proposed_metric_contract)
+        evaluation_protocol_changed = (
+            (current_metric_contract.get("evaluation_protocol") or None)
+            != (proposed_metric_contract.get("evaluation_protocol") or None)
+        )
+        variant_changed = bool(normalized_variant_id and normalized_variant_id != str(current.get("variant_id") or "").strip())
+
+        protocol_breaking_reasons: list[str] = []
+        if removed_metric_ids:
+            protocol_breaking_reasons.append("required metric coverage would shrink")
+        if direction_changed_metric_ids:
+            protocol_breaking_reasons.append("metric directions changed")
+        if current_primary_metric_id and proposed_primary_metric_id and current_primary_metric_id != proposed_primary_metric_id:
+            protocol_breaking_reasons.append("primary metric changed")
+        if evaluation_protocol_changed:
+            protocol_breaking_reasons.append("evaluation protocol changed")
+        if current_source_mode and resolved_source_mode and current_source_mode != resolved_source_mode:
+            protocol_breaking_reasons.append("baseline source mode changed")
+        if protocol_breaking_reasons and not allow_protocol_breaking_change:
+            raise ValueError(
+                "This overwrite would change baseline comparability in a protocol-breaking way: "
+                + "; ".join(protocol_breaking_reasons)
+                + ". Use a new baseline id or variant instead, unless you explicitly allow the breaking change."
+            )
+
+        if protocol_breaking_reasons:
+            compatibility_verdict = "protocol_breaking_change_forced"
+            risk_level = "high"
+        elif added_metric_ids and not variant_changed and not path_changed:
+            compatibility_verdict = "metrics_only_safe"
+            risk_level = "low"
+        elif variant_changed and not path_changed:
+            compatibility_verdict = "variant_refresh_safe"
+            risk_level = "medium"
+        elif path_changed:
+            compatibility_verdict = "path_changed_but_compatible"
+            risk_level = "medium"
+        else:
+            compatibility_verdict = "same_comparator_refresh_safe"
+            risk_level = "low"
+
+        return {
+            "current": current,
+            "resolved": resolved,
+            "baseline_id": target_baseline_id,
+            "variant_id": normalized_variant_id,
+            "overwrite_scope": overwrite_scope,
+            "added_metric_ids": added_metric_ids,
+            "removed_metric_ids": removed_metric_ids,
+            "direction_changed_metric_ids": direction_changed_metric_ids,
+            "current_primary_metric_id": current_primary_metric_id,
+            "proposed_primary_metric_id": proposed_primary_metric_id,
+            "evaluation_protocol_changed": evaluation_protocol_changed,
+            "path_changed": path_changed,
+            "variant_changed": variant_changed,
+            "protocol_breaking_reasons": protocol_breaking_reasons,
+            "compatibility_verdict": compatibility_verdict,
+            "risk_level": risk_level,
+        }
+
+    def _refresh_analysis_inventory_for_overwrite(
+        self,
+        quest_root: Path,
+        *,
+        baseline_id: str,
+        variant_id: str | None,
+        baseline_root_rel_path: str | None,
+        source_mode: str | None,
+        metrics_summary: dict[str, Any],
+        supplementary_baselines: list[dict[str, Any]] | None,
+    ) -> dict[str, Any] | None:
+        inventory = self._read_analysis_baseline_inventory(quest_root)
+        changed = False
+        refreshed_entries: list[dict[str, Any]] = []
+        for raw in inventory.get("entries") or []:
+            if not isinstance(raw, dict):
+                continue
+            entry = dict(raw)
+            if str(entry.get("baseline_id") or "").strip() != baseline_id:
+                refreshed_entries.append(entry)
+                continue
+            entry_variant_id = str(entry.get("variant_id") or "").strip() or None
+            if variant_id and entry_variant_id and entry_variant_id != variant_id:
+                refreshed_entries.append(entry)
+                continue
+            if baseline_root_rel_path and entry.get("baseline_root_rel_path") != baseline_root_rel_path:
+                entry["baseline_root_rel_path"] = baseline_root_rel_path
+                changed = True
+            if source_mode and entry.get("storage_mode") != source_mode:
+                entry["storage_mode"] = source_mode
+                changed = True
+            if metrics_summary and entry.get("metrics_summary") != metrics_summary:
+                entry["metrics_summary"] = dict(metrics_summary)
+                changed = True
+            entry["updated_at"] = utc_now()
+            refreshed_entries.append(entry)
+        if changed:
+            inventory = self._write_analysis_baseline_inventory(quest_root, {"entries": refreshed_entries})
+        if supplementary_baselines:
+            normalized_supplementary = self._normalize_comparison_baselines(quest_root, supplementary_baselines)
+            inventory = self._upsert_analysis_baseline_inventory(quest_root, normalized_supplementary)
+        return inventory if changed or supplementary_baselines else None
+
+    def _invalidate_baseline_view_caches(self, quest_root: Path) -> list[str]:
+        removed: list[str] = []
+        for path in (
+            self.quest_service._metrics_timeline_cache_path(quest_root),
+            self.quest_service._baseline_compare_cache_path(quest_root),
+        ):
+            if path.exists():
+                path.unlink()
+                removed.append(str(path))
+        return removed
+
+    def _build_overwrite_baseline_interaction_message(
+        self,
+        *,
+        baseline_id: str,
+        variant_id: str | None,
+        compatibility_verdict: str | None,
+        change_summary: str,
+        added_metric_ids: list[str] | None,
+        risk_level: str | None,
+    ) -> str:
+        lines = [
+            f"Baseline `{baseline_id}` has been refreshed.",
+        ]
+        if variant_id:
+            lines.append(f"Active variant: `{variant_id}`.")
+        if compatibility_verdict:
+            lines.append(f"Compatibility verdict: `{compatibility_verdict}`.")
+        if added_metric_ids:
+            lines.append(f"Added canonical metrics: {', '.join(f'`{metric_id}`' for metric_id in added_metric_ids)}.")
+        lines.append(f"Change summary: {change_summary}")
+        if risk_level and risk_level != "low":
+            lines.append(f"Risk level: `{risk_level}`.")
+        return "\n".join(lines)
+
+    def overwrite_baseline(
+        self,
+        quest_root: Path,
+        *,
+        baseline_id: str | None = None,
+        baseline_path: str | None = None,
+        variant_id: str | None = None,
+        summary: str | None = None,
+        change_summary: str,
+        baseline_kind: str | None = None,
+        metric_contract: dict[str, Any] | None = None,
+        metric_directions: dict[str, str] | None = None,
+        metrics_summary: dict[str, Any] | None = None,
+        primary_metric: dict[str, Any] | None = None,
+        supplementary_baselines: list[dict[str, Any]] | None = None,
+        overwrite_scope: str = "full_refresh",
+        allow_path_change: bool = False,
+        allow_protocol_breaking_change: bool = False,
+        sync_requested_baseline_ref: bool = True,
+        refresh_analysis_inventory: bool = True,
+        refresh_paper_inventory: bool = True,
+        auto_advance: bool = True,
+        strict_metric_contract: bool = False,
+        comment: str | dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        normalized_change_summary = str(change_summary or "").strip()
+        if not normalized_change_summary:
+            raise ValueError("`change_summary` is required for `artifact.overwrite_baseline(...)`.")
+        normalized_scope = self._normalize_overwrite_scope(overwrite_scope)
+        preflight = self._baseline_overwrite_preflight(
+            quest_root,
+            baseline_id=baseline_id,
+            baseline_path=baseline_path,
+            variant_id=variant_id,
+            metric_contract=metric_contract,
+            metric_directions=metric_directions,
+            metrics_summary=metrics_summary,
+            primary_metric=primary_metric,
+            allow_path_change=allow_path_change,
+            allow_protocol_breaking_change=allow_protocol_breaking_change,
+            overwrite_scope=normalized_scope,
+        )
+        current = dict(preflight.get("current") or {})
+        resolved = dict(preflight.get("resolved") or {})
+        target_baseline_id = str(preflight.get("baseline_id") or "").strip()
+        target_variant_id = str(preflight.get("variant_id") or "").strip() or None
+        overwrite_metadata = {
+            "overwritten_at": utc_now(),
+            "change_summary": normalized_change_summary,
+            "overwrite_scope": normalized_scope,
+            "compatibility_verdict": preflight.get("compatibility_verdict"),
+            "risk_level": preflight.get("risk_level"),
+            "allow_path_change": bool(allow_path_change),
+            "allow_protocol_breaking_change": bool(allow_protocol_breaking_change),
+            "superseded_baseline_ref": dict(current.get("confirmed_ref") or {}) or None,
+            "superseded_metric_contract_json_rel_path": str(
+                ((current.get("confirmed_ref") or {}).get("metric_contract_json_rel_path") or "")
+            ).strip()
+            or None,
+            "added_metric_ids": list(preflight.get("added_metric_ids") or []),
+            "removed_metric_ids": list(preflight.get("removed_metric_ids") or []),
+            "direction_changed_metric_ids": list(preflight.get("direction_changed_metric_ids") or []),
+            "path_changed": bool(preflight.get("path_changed")),
+            "variant_changed": bool(preflight.get("variant_changed")),
+            "protocol_breaking_reasons": list(preflight.get("protocol_breaking_reasons") or []),
+        }
+        effective_comment = (
+            f"{comment}\n\nOverwrite baseline change summary: {normalized_change_summary}"
+            if isinstance(comment, str) and comment.strip()
+            else {"comment": comment, "change_summary": normalized_change_summary}
+            if comment is not None
+            else f"Overwrite baseline change summary: {normalized_change_summary}"
+        )
+        confirm_result = self.confirm_baseline(
+            quest_root,
+            baseline_path=str(resolved.get("relative_path") or baseline_path or ""),
+            comment=effective_comment,
+            baseline_id=target_baseline_id,
+            variant_id=target_variant_id,
+            summary=summary,
+            baseline_kind=baseline_kind,
+            metric_contract=metric_contract,
+            metric_directions=metric_directions,
+            metrics_summary=metrics_summary,
+            primary_metric=primary_metric,
+            auto_advance=auto_advance,
+            strict_metric_contract=strict_metric_contract,
+        )
+        confirmed_ref = dict(confirm_result.get("confirmed_baseline_ref") or {})
+        confirmed_ref["overwrite"] = overwrite_metadata
+        quest_state = self.quest_service.update_baseline_state(
+            quest_root,
+            baseline_gate="confirmed",
+            confirmed_baseline_ref=confirmed_ref,
+            active_anchor=str((confirm_result.get("snapshot") or {}).get("active_anchor") or "baseline"),
+        )
+        if sync_requested_baseline_ref:
+            self.quest_service.update_startup_context(
+                quest_root,
+                requested_baseline_ref={
+                    "baseline_id": target_baseline_id,
+                    "variant_id": target_variant_id,
+                },
+            )
+
+        attachment_path = quest_root / "baselines" / "imported" / target_baseline_id / "attachment.yaml"
+        attachment = read_yaml(attachment_path, {}) if attachment_path.exists() else {}
+        if isinstance(attachment, dict):
+            attachment["overwrite"] = overwrite_metadata
+            write_yaml(attachment_path, attachment)
+
+        metric_contract_json_path = str(confirm_result.get("metric_contract_json_path") or "").strip()
+        if metric_contract_json_path:
+            metric_contract_payload = read_json(Path(metric_contract_json_path), {})
+            if isinstance(metric_contract_payload, dict):
+                metric_contract_payload["overwrite"] = overwrite_metadata
+                write_json(Path(metric_contract_json_path), metric_contract_payload)
+
+        registry_entry = (
+            dict(confirm_result.get("baseline_registry_entry") or {})
+            if isinstance(confirm_result.get("baseline_registry_entry"), dict)
+            else {}
+        )
+        if registry_entry:
+            registry_entry["overwrite"] = overwrite_metadata
+            registry_entry = self.baselines.publish(registry_entry)
+
+        analysis_inventory = None
+        if refresh_analysis_inventory:
+            analysis_inventory = self._refresh_analysis_inventory_for_overwrite(
+                quest_root,
+                baseline_id=target_baseline_id,
+                variant_id=target_variant_id,
+                baseline_root_rel_path=str(confirmed_ref.get("baseline_root_rel_path") or "").strip() or None,
+                source_mode=str(confirmed_ref.get("source_mode") or "").strip() or None,
+                metrics_summary=normalize_metrics_summary(
+                    metrics_summary
+                    or (registry_entry or {}).get("metrics_summary")
+                    or ((attachment.get("entry") or {}) if isinstance(attachment, dict) else {}).get("metrics_summary")
+                ),
+                supplementary_baselines=supplementary_baselines,
+            )
+
+        paper_inventory = self._write_paper_baseline_inventory(quest_root) if refresh_paper_inventory else None
+        invalidated_cache_paths = self._invalidate_baseline_view_caches(quest_root)
+        interaction = self.interact(
+            quest_root,
+            kind="milestone",
+            message=self._build_overwrite_baseline_interaction_message(
+                baseline_id=target_baseline_id,
+                variant_id=target_variant_id,
+                compatibility_verdict=str(preflight.get("compatibility_verdict") or "").strip() or None,
+                change_summary=normalized_change_summary,
+                added_metric_ids=list(preflight.get("added_metric_ids") or []),
+                risk_level=str(preflight.get("risk_level") or "").strip() or None,
+            ),
+            deliver_to_bound_conversations=True,
+            include_recent_inbound_messages=False,
+            attachments=[
+                {
+                    "kind": "baseline_overwrite",
+                    "baseline_id": target_baseline_id,
+                    "variant_id": target_variant_id,
+                    "compatibility_verdict": preflight.get("compatibility_verdict"),
+                    "risk_level": preflight.get("risk_level"),
+                }
+            ],
+        )
+
+        confirm_result["confirmed_baseline_ref"] = quest_state.get("confirmed_baseline_ref")
+        confirm_result["snapshot"] = self.quest_service.snapshot(self._quest_id(quest_root))
+        confirm_result["baseline_registry_entry"] = registry_entry or confirm_result.get("baseline_registry_entry")
+        confirm_result["attachment"] = attachment or confirm_result.get("attachment")
+        confirm_result["analysis_baseline_inventory"] = analysis_inventory
+        confirm_result["paper_baseline_inventory"] = paper_inventory
+        confirm_result["invalidated_cache_paths"] = invalidated_cache_paths
+        confirm_result["interaction"] = interaction
+        confirm_result["overwrite"] = overwrite_metadata
+        confirm_result["overwrite_action"] = "in_place_refresh"
+        confirm_result["compatibility_verdict"] = preflight.get("compatibility_verdict")
+        confirm_result["risk_level"] = preflight.get("risk_level")
+        confirm_result["legacy_guidance"] = (
+            "Baseline overwrite completed. The active baseline reference and downstream inventories were refreshed."
+        )
+        return confirm_result
+
     def _require_baseline_gate_open(self, quest_root: Path, *, action: str) -> None:
         quest_yaml = self.quest_service.read_quest_yaml(quest_root)
         if str(quest_yaml.get("baseline_gate") or "pending").strip().lower() in {"confirmed", "waived"}:

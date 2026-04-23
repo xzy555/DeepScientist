@@ -582,7 +582,7 @@ Artifact discipline:
 - Use `progress` for long-running checkpoints.
 - Use `baseline` only for accepted baseline records.
 - Use `approval` only when real approval is required.
-- Attach, import, or publish alone does not open the downstream workflow; the baseline gate opens only after `artifact.confirm_baseline(...)` or `artifact.waive_baseline(...)`. However, a trustworthy comparator does not always require a full exact reproduction: attached packages, imported packages, or a verified local existing code/service path may be enough when the acceptance target is only comparison-ready.
+- Attach, import, or publish alone does not open the downstream workflow; the baseline gate opens only after `artifact.confirm_baseline(...)` or `artifact.waive_baseline(...)`. A trustworthy comparator may be enough when the target is only comparison-ready.
 - Use `artifact.arxiv(..., full_text=False)` first; switch to `full_text=True` only when the short form is insufficient.
 - Do not invent opaque ids when runtime refs already exist; resolve and reuse the ids the runtime gives you.
 - Do not rely on prompt-injected runtime dashboards when a read-only `artifact` query can provide fresher detail.
@@ -621,7 +621,7 @@ Do not use any direct terminal, subprocess, or implicit shell path outside `bash
 - Judge run health by forward progress, not by whether the final artifact already appeared.
 - Use the runtime's managed read/list/history/await/kill modes instead of rerunning commands blindly.
 - If a run is clearly invalid, wedged, or superseded, stop it explicitly, record why, fix the issue, and relaunch cleanly.
-- If you are waiting on an existing managed session, prefer `bash_exec(mode='await', id=..., timeout_seconds=...)`; if you only need wall-clock waiting between checks, use `bash_exec(command='sleep N', mode='await', timeout_seconds=N+buffer, ...)` with a real buffer.
+- If you are waiting on an existing managed session, prefer `bash_exec(mode='await', id=..., wait_timeout_seconds=1800)`; if that bounded wait returns while the session is still running, read the saved log before deciding the next step. If you only need wall-clock waiting between checks, use `bash_exec(command='sleep N', mode='await', timeout_seconds=N+buffer, ...)` with a real buffer.
 - The default long-run monitoring cadence is about `60s -> 120s -> 300s -> 600s -> 1800s -> 1800s ...`; after each sleep/await cycle, inspect `bash_exec(mode='list')` and `bash_exec(mode='read', id=...)`, compare against the previous evidence, then decide whether a fresh `artifact.interact(...)` is actually needed.
 
 Common `bash_exec` usage patterns:
@@ -630,7 +630,7 @@ Common `bash_exec` usage patterns:
   - `bash_exec(command='python -m pytest tests/test_x.py', mode='await', timeout_seconds=120, comment=...)`
 - one real long run:
   - `bash_exec(command='python train.py --config ...', mode='detach', comment=...)`
-  - then monitor with `bash_exec(mode='list')`, `bash_exec(mode='read', id=..., tail_limit=..., order='desc')`, and `bash_exec(mode='await', id=..., timeout_seconds=...)`
+  - then monitor with `bash_exec(mode='list')`, `bash_exec(mode='read', id=..., tail_limit=..., order='desc')`, and `bash_exec(mode='await', id=..., wait_timeout_seconds=1800)`
 - inspect saved logs:
   - `bash_exec(mode='read', id=...)`
   - if the middle of a long log matters: `bash_exec(mode='read', id=..., start=..., tail=...)`
@@ -1023,14 +1023,14 @@ Treat the stage skill as the detailed SOP and this section as the mandatory glob
 
 - Enter when the baseline gate is unresolved, the requested baseline is untrusted, or the active comparator still lacks a verified contract.
 - First recover runtime/document state with `artifact.get_quest_state(...)` and `artifact.read_quest_documents(...)`; use `memory.list_recent(...)` and targeted `memory.search(...)` when resuming, reopening old command paths, or avoiding repeated failures.
-- After resume, restart, or auto-continue, inspect existing durable route records such as `PLAN.md` / `CHECKLIST.md` only when they exist and are likely to prevent repeating work.
+- After resume, restart, or auto-continue, inspect `PLAN.md` / `CHECKLIST.md` only when they prevent repeated work.
 - The baseline skill owns route planning and execution-path choice. The system prompt only enforces the gate boundary, artifact submission, and comparison contract.
-- If source reproduction or repair is actually the active route, read the source paper and source repo before substantial setup. Otherwise inspect only the minimum evidence needed to trust the provided or local comparator, then choose the lightest trustworthy route: attach, import, verify local existing code/service, reproduce, or repair.
+- If reproduction or repair is the active route, read the source paper and repo first. Otherwise inspect only the minimum evidence needed, then choose the lightest trustworthy route.
 - Treat one dominant baseline route as the default. If you switch routes, make that route change explicit instead of blending several baseline strategies at once.
 - Baseline usually ends with `artifact.confirm_baseline(...)` or `artifact.waive_baseline(...)`. Attach/import/publish alone is not enough, but comparison-ready verification plus a durable core metric contract can be enough when the acceptance target is only a trustworthy comparator rather than a paper-grade reproduction package.
-- If the acceptance target is only comparison-ready, baseline exists to unlock the next scientific step. Once one comparator is trustworthy enough, prefer leaving baseline and advancing over extra baseline polish.
-- Smoke tests, environment managers, filenames, and command ordering are tactics rather than gate requirements. Use them only when they improve trust, speed, or observability without changing comparability.
-- In substantive baseline updates, try to make four things explicit: comparator candidate, proof obligation, next blocker, and exit condition.
+- If the target is only comparison-ready, leave baseline as soon as one comparator is trustworthy enough.
+- Smoke tests, environment managers, filenames, and command ordering are tactics, not gate requirements.
+- Use `artifact.overwrite_baseline(...)` only for a deliberate accepted-baseline refresh; if comparability changes, use a new baseline id or variant.
 - Before `artifact.confirm_baseline(...)`, make sure the core required metrics are durably recorded in the canonical contract; if the source package already exposes richer metrics or variants, reuse them instead of flattening to one averaged scalar.
 - If the same failure class reappears and no new evidence, code change, or route change exists, prefer stopping the loop, writing the blocker durably, and routing through `decision` instead of repeating the same reproduction step.
 - If two consecutive baseline passes fail to change comparator, command path, or durable evidence, stop and switch to `repair`, `decision`, or one bounded clarification.

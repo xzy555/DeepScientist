@@ -39,8 +39,10 @@ Secure the lightest trustworthy comparator, make the comparison contract explici
    Do not widen into broad codebase audit or heavy reruns unless the lighter route cannot be trusted.
 4. Verify before acceptance.
    Check that outputs are real, metrics trace to real evidence, and the intended dataset/split and metric definitions match the contract.
+   Explicitly verify the comparator and metric contract before treating the baseline gate as open.
 5. Close the gate explicitly.
    Call `artifact.confirm_baseline(...)`, call `artifact.waive_baseline(...)`, or record an explicit blocker and next route.
+   When an already accepted baseline needs a deliberate second-pass refresh after verified code, variant, or canonical metric changes, prefer `artifact.overwrite_baseline(...)` over pretending the update is just a first confirmation.
 
 ## AVOID / pitfalls
 

@@ -20,13 +20,15 @@ from ..memory import MemoryService
 from ..quest import QuestService
 from ..shared import read_json
 from .context import McpContext
-from .schemas import MetricContractPayload, PrimaryMetricPayload
+from .schemas import MetricContractPayload, PrimaryMetricPayload, SupplementaryBaselinePayload
 
 DEFAULT_INLINE_BASH_LOG_LINE_LIMIT = 2000
 DEFAULT_INLINE_BASH_LOG_HEAD_LINES = 500
 DEFAULT_INLINE_BASH_LOG_TAIL_LINES = 1500
 DEFAULT_INLINE_BASH_LOG_WINDOW_LINES = 200
 MAX_INLINE_BASH_LOG_WINDOW_LINES = 2000
+DEFAULT_BASH_EXEC_AWAIT_WAIT_TIMEOUT_SECONDS = 1800
+BASH_EXEC_TERMINAL_STATUSES = {"completed", "failed", "terminated"}
 INTERACTION_WATCHDOG_TOOL_CALL_THRESHOLD = 25
 INTERACTION_WATCHDOG_SILENCE_THRESHOLD_SECONDS = 30 * 60
 LONG_BASH_LOG_HINT = (
@@ -142,6 +144,54 @@ def _attach_bash_log_truncation_metadata(payload: dict[str, Any]) -> dict[str, A
             result["seq_window_start"] = 1
             result["seq_window_end"] = latest_seq_value
     return result
+
+
+def _normalize_positive_timeout_seconds(value: Any, *, field_name: str) -> int | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a positive integer.")
+    try:
+        normalized = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} must be a positive integer.") from exc
+    if normalized <= 0:
+        raise ValueError(f"{field_name} must be a positive integer.")
+    return normalized
+
+
+def _build_bash_exec_wait_notice(
+    *,
+    bash_id: str,
+    wait_timeout_seconds: int,
+    status: str,
+) -> dict[str, Any]:
+    suggested_poll_interval_seconds = DEFAULT_BASH_EXEC_AWAIT_WAIT_TIMEOUT_SECONDS
+    suggested_sleep_timeout = suggested_poll_interval_seconds + 60
+    return {
+        "wait_timed_out": True,
+        "still_running": status in {"running", "terminating"},
+        "wait_timeout_seconds": wait_timeout_seconds,
+        "suggested_poll_interval_seconds": suggested_poll_interval_seconds,
+        "suggested_read_command": f"bash_exec(mode='read', id='{bash_id}')",
+        "suggested_await_command": (
+            f"bash_exec(mode='await', id='{bash_id}', "
+            f"wait_timeout_seconds={suggested_poll_interval_seconds})"
+        ),
+        "suggested_sleep_command": (
+            f"bash_exec(command='sleep {suggested_poll_interval_seconds}', mode='await', "
+            f"timeout_seconds={suggested_sleep_timeout})"
+        ),
+        "long_wait_notice": (
+            "This managed bash_exec session is still running, so the bounded await window ended without final completion. "
+            f"Read the saved log with bash_exec(mode='read', id='{bash_id}') and check again in about "
+            f"{suggested_poll_interval_seconds} seconds. Prefer "
+            f"bash_exec(mode='await', id='{bash_id}', wait_timeout_seconds={suggested_poll_interval_seconds}) "
+            "for the next bounded wait on this managed session; if you only need wall-clock waiting between checks, "
+            f"you may use bash_exec(command='sleep {suggested_poll_interval_seconds}', mode='await', "
+            f"timeout_seconds={suggested_sleep_timeout}) before reading the log again."
+        ),
+    }
 ARTIFACT_STATE_CHANGE_WATCHDOG_NOTES = {
     "confirm_baseline": (
         "Baseline confirmation changed durable quest state and this tool does not send a user-visible "
@@ -1576,6 +1626,66 @@ def build_artifact_server(context: McpContext) -> FastMCP:
             return _metric_validation_error_payload(exc)
 
     @server.tool(
+        name="overwrite_baseline",
+        description=(
+            "Refresh an already accepted baseline after verified code, variant, or canonical metric changes. "
+            "This rewrites the active baseline reference and downstream inventories, so comparator-breaking changes "
+            "should usually become a new baseline id or variant instead of an in-place overwrite."
+        ),
+    )
+    def overwrite_baseline(
+        change_summary: str,
+        baseline_id: str | None = None,
+        baseline_path: str | None = None,
+        variant_id: str | None = None,
+        summary: str | None = None,
+        baseline_kind: str | None = None,
+        metric_contract: MetricContractPayload | None = None,
+        metric_directions: dict[str, str] | None = None,
+        metrics_summary: dict[str, Any] | None = None,
+        primary_metric: PrimaryMetricPayload | None = None,
+        supplementary_baselines: list[SupplementaryBaselinePayload] | None = None,
+        overwrite_scope: str = "full_refresh",
+        allow_path_change: bool = False,
+        allow_protocol_breaking_change: bool = False,
+        sync_requested_baseline_ref: bool = True,
+        refresh_analysis_inventory: bool = True,
+        refresh_paper_inventory: bool = True,
+        auto_advance: bool = True,
+        comment: str | dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        try:
+            result = service.overwrite_baseline(
+                context.require_quest_root(),
+                baseline_id=baseline_id,
+                baseline_path=baseline_path,
+                variant_id=variant_id,
+                summary=summary,
+                change_summary=change_summary,
+                baseline_kind=baseline_kind,
+                metric_contract=metric_contract.model_dump(exclude_none=True) if metric_contract is not None else None,
+                metric_directions=metric_directions,
+                metrics_summary=metrics_summary,
+                primary_metric=primary_metric.model_dump(exclude_none=True) if primary_metric is not None else None,
+                supplementary_baselines=[
+                    item.model_dump(exclude_none=True) for item in (supplementary_baselines or [])
+                ]
+                or None,
+                overwrite_scope=overwrite_scope,
+                allow_path_change=allow_path_change,
+                allow_protocol_breaking_change=allow_protocol_breaking_change,
+                sync_requested_baseline_ref=sync_requested_baseline_ref,
+                refresh_analysis_inventory=refresh_analysis_inventory,
+                refresh_paper_inventory=refresh_paper_inventory,
+                auto_advance=auto_advance,
+                strict_metric_contract=True,
+                comment=comment,
+            )
+            return finalize_state_changing_artifact_tool(result, tool_name="overwrite_baseline")
+        except MetricContractValidationError as exc:
+            return _metric_validation_error_payload(exc)
+
+    @server.tool(
         name="waive_baseline",
         description="Explicitly waive the baseline gate and advance with a durable written reason.",
     )
@@ -1721,7 +1831,8 @@ def build_bash_exec_server(context: McpContext) -> FastMCP:
         name="bash_exec",
         description=(
             "Execute a bash command inside the current quest. "
-            "mode=detach returns immediately. mode=await/create waits for completion. "
+            "mode=detach returns immediately. mode=await/create waits for completion up to a bounded wait window, "
+            "then returns a running-session notice if the command is still active. "
             "mode=read returns the saved log. It returns the full saved log up to 2000 lines, "
             "or a 500-line head plus 1500-line tail preview for longer logs. "
             "Use start/tail for rendered line windows and tail_limit/after_seq for seq-based monitoring. "
@@ -1739,6 +1850,7 @@ def build_bash_exec_server(context: McpContext) -> FastMCP:
         export_log: bool = False,
         export_log_to: str | None = None,
         timeout_seconds: int | None = None,
+        wait_timeout_seconds: int | None = None,
         status: str | None = None,
         kind: str | None = None,
         agent_ids: list[str] | None = None,
@@ -1772,6 +1884,34 @@ def build_bash_exec_server(context: McpContext) -> FastMCP:
         if normalized_mode not in {"detach", "await", "read", "kill", "list", "history"}:
             raise ValueError("Mode must be one of `detach`, `await`, `create`, `read`, `kill`, `list`, or `history`.")
         normalized_command = _normalize_bash_exec_command_input(command)
+        normalized_timeout_seconds = _normalize_positive_timeout_seconds(
+            timeout_seconds,
+            field_name="timeout_seconds",
+        )
+        normalized_wait_timeout_seconds = _normalize_positive_timeout_seconds(
+            wait_timeout_seconds,
+            field_name="wait_timeout_seconds",
+        )
+
+        def build_await_payload(session: dict[str, Any], *, wait_timeout: int | None) -> dict[str, Any]:
+            payload = service.build_tool_result(
+                context,
+                session=session,
+                include_log=False,
+                export_log=export_log,
+                export_log_to=export_log_to,
+            )
+            session_status = str(session.get("status") or "").strip().lower()
+            if wait_timeout is not None and session_status not in BASH_EXEC_TERMINAL_STATUSES:
+                payload.update(
+                    _build_bash_exec_wait_notice(
+                        bash_id=str(session["bash_id"]),
+                        wait_timeout_seconds=wait_timeout,
+                        status=session_status,
+                    )
+                )
+            return payload
+
         if normalized_mode in {"list", "history"}:
             resolved_limit = 500 if normalized_mode == "history" and limit == 20 else max(1, min(limit, 500))
             items = service.list_sessions(
@@ -1910,18 +2050,18 @@ def build_bash_exec_server(context: McpContext) -> FastMCP:
                 force=force,
             )
             if wait:
-                session = service.wait_for_session(quest_root, bash_id, timeout_seconds=timeout_seconds)
+                resolved_wait_timeout = normalized_wait_timeout_seconds or normalized_timeout_seconds
+                session = service.wait_for_session(quest_root, bash_id, timeout_seconds=resolved_wait_timeout)
             return finalize(service.build_tool_result(context, session=session, include_log=False))
         if normalized_mode == "await" and not normalized_command:
             bash_id = service.resolve_session_id(quest_root, id)
-            session = service.wait_for_session(quest_root, bash_id, timeout_seconds=timeout_seconds)
-            return finalize(service.build_tool_result(
-                context,
-                session=session,
-                include_log=False,
-                export_log=export_log,
-                export_log_to=export_log_to,
-            ))
+            resolved_wait_timeout = (
+                normalized_wait_timeout_seconds
+                or normalized_timeout_seconds
+                or DEFAULT_BASH_EXEC_AWAIT_WAIT_TIMEOUT_SECONDS
+            )
+            session = service.wait_for_session(quest_root, bash_id, timeout_seconds=resolved_wait_timeout)
+            return finalize(build_await_payload(session, wait_timeout=resolved_wait_timeout))
         if not normalized_command.strip():
             raise ValueError("command is required for `detach` and `await`.")
         session = service.start_session(
@@ -1930,19 +2070,21 @@ def build_bash_exec_server(context: McpContext) -> FastMCP:
             mode=normalized_mode,
             workdir=workdir,
             env=env,
-            timeout_seconds=timeout_seconds,
+            timeout_seconds=normalized_timeout_seconds,
             comment=comment,
         )
         if normalized_mode == "detach":
             return finalize(service.build_tool_result(context, session=session, include_log=False))
-        session = service.wait_for_session(quest_root, str(session["bash_id"]), timeout_seconds=timeout_seconds)
-        return finalize(service.build_tool_result(
-            context,
-            session=session,
-            include_log=False,
-            export_log=export_log,
-            export_log_to=export_log_to,
-        ))
+        resolved_wait_timeout = (
+            normalized_wait_timeout_seconds
+            or DEFAULT_BASH_EXEC_AWAIT_WAIT_TIMEOUT_SECONDS
+        )
+        session = service.wait_for_session(
+            quest_root,
+            str(session["bash_id"]),
+            timeout_seconds=resolved_wait_timeout,
+        )
+        return finalize(build_await_payload(session, wait_timeout=resolved_wait_timeout))
 
     return server
 

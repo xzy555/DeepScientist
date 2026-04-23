@@ -51,6 +51,7 @@ def test_prompt_builder_includes_layered_runtime_context(temp_home: Path) -> Non
     assert "artifact.arxiv(paper_id=..., full_text=False)" in prompt
     assert "artifact.activate_branch(...)" in prompt
     assert "artifact.confirm_baseline(...)" in prompt
+    assert "artifact.overwrite_baseline(...)" in prompt
     assert "artifact.complete_quest(...)" in prompt
     assert "## 5A. Global control surface" in prompt
     assert "chat is only a user-facing projection of state" in prompt
@@ -1101,6 +1102,7 @@ def test_prompt_builder_mentions_baseline_gate_protocol(temp_home: Path) -> None
     assert "baseline_gate: pending" in prompt
     assert "quest_state_tool:" in prompt
     assert "artifact.confirm_baseline(...)" in prompt
+    assert "artifact.overwrite_baseline(...)" in prompt
     assert "artifact.waive_baseline(...)" in prompt
     assert "Attach, import, or publish alone does not open the downstream workflow" in prompt
 

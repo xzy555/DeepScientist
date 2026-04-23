@@ -70,6 +70,7 @@ _BUILTIN_MCP_TOOL_APPROVALS: dict[str, tuple[str, ...]] = {
         "publish_baseline",
         "attach_baseline",
         "confirm_baseline",
+        "overwrite_baseline",
         "waive_baseline",
         "arxiv",
         "refresh_summary",

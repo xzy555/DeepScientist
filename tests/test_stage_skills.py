@@ -285,6 +285,7 @@ def test_paper_reading_stage_skills_use_artifact_arxiv_and_legacy_skill_is_remov
 def test_baseline_skill_documents_confirm_or_waive_gate() -> None:
     text = (repo_root() / "src" / "skills" / "baseline" / "SKILL.md").read_text(encoding="utf-8")
     assert "artifact.confirm_baseline(...)" in text
+    assert "artifact.overwrite_baseline(...)" in text
     assert "artifact.waive_baseline(...)" in text
     assert "do not open the downstream gate" in text
     assert "requested_baseline_ref" in text
