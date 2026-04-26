@@ -389,6 +389,7 @@ def test_artifact_mcp_server_tools_cover_core_flows(temp_home: Path) -> None:
             "resolve_runtime_refs",
             "get_paper_contract",
             "get_paper_contract_health",
+            "validate_manuscript_coverage",
             "get_quest_state",
             "get_global_status",
             "get_research_map_status",
@@ -892,6 +893,96 @@ def test_artifact_overwrite_baseline_tool_refreshes_confirmed_ref(temp_home: Pat
     asyncio.run(scenario())
 
 
+def test_artifact_mcp_create_analysis_campaign_returns_guided_fix_steps_for_missing_outline(temp_home: Path) -> None:
+    async def scenario() -> None:
+        ensure_home_layout(temp_home)
+        ConfigManager(temp_home).ensure_files()
+        quest = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home)).create(
+            "mcp missing outline guidance quest"
+        )
+        quest_root = Path(quest["quest_root"])
+        context = McpContext(
+            home=temp_home,
+            quest_id=quest["quest_id"],
+            quest_root=quest_root,
+            run_id="run-mcp-missing-outline-guidance",
+            active_anchor="baseline",
+            conversation_id="quest:test",
+            agent_role="pi",
+            worker_id="worker-main",
+            worktree_root=None,
+            team_mode="single",
+        )
+        server = build_artifact_server(context)
+        artifact = ArtifactService(temp_home)
+
+        baseline_root = quest_root / "baselines" / "local" / "mcp-outline-gate"
+        baseline_root.mkdir(parents=True, exist_ok=True)
+        (baseline_root / "README.md").write_text("# MCP outline gate baseline\n", encoding="utf-8")
+        artifact.confirm_baseline(
+            quest_root,
+            baseline_path=str(baseline_root),
+            baseline_id="mcp-outline-gate",
+            summary="Outline gate baseline",
+            metrics_summary={"acc": 0.8},
+            primary_metric={"metric_id": "acc", "value": 0.8},
+            metric_contract=_detailed_metric_contract(["acc"], primary_metric_id="acc"),
+        )
+        artifact.submit_idea(
+            quest_root,
+            mode="create",
+            title="Need writing-facing analysis",
+            problem="The analysis campaign should guide the next fix when no outline is selected.",
+            hypothesis="Returning guidance is better than a bare exception.",
+            mechanism="Attach concrete next actions to the MCP error payload.",
+            decision_reason="Prepare the route before writing-facing analysis.",
+        )
+        artifact.submit_paper_outline(
+            quest_root,
+            mode="candidate",
+            title="Candidate outline only",
+            detailed_outline={"title": "Candidate outline only"},
+        )
+
+        result = _unwrap_tool_result(
+            await server.call_tool(
+                "create_analysis_campaign",
+                {
+                    "campaign_title": "Missing outline guidance",
+                    "campaign_goal": "This should fail with explicit next steps.",
+                    "research_questions": ["RQ-main"],
+                    "experimental_designs": ["ED-main"],
+                    "todo_items": [
+                        {
+                            "todo_id": "todo-001",
+                            "slice_id": "slice-001",
+                            "title": "Slice 001",
+                            "research_question": "RQ-main",
+                            "experimental_design": "ED-main",
+                            "completion_condition": "Complete one slice.",
+                        }
+                    ],
+                    "slices": [
+                        {
+                            "slice_id": "slice-001",
+                            "title": "Slice 001",
+                            "goal": "Run one writing-facing slice.",
+                        }
+                    ],
+                },
+            )
+        )
+
+        assert result["ok"] is False
+        assert "selected_outline_ref" in result["message"]
+        assert "submit_paper_outline" in "\n".join(result["guidance"])
+        assert "analysis-lite" in "\n".join(result["guidance"])
+        assert result["outline_candidates"]
+        assert any(item["name"].startswith("artifact.submit_paper_outline") for item in result["suggested_artifact_calls"])
+
+    asyncio.run(scenario())
+
+
 def test_artifact_prepare_github_issue_tool_returns_route_effect(
     temp_home: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1005,6 +1096,15 @@ def test_start_setup_prepare_profile_artifact_server_exposes_only_prepare_form_t
                         "goal": "Run the benchmark faithfully.",
                         "need_research_paper": True,
                     },
+                    "session_patch": {
+                        "recommended_workspace_mode": "copilot",
+                        "launch_readiness": "needs_confirmation",
+                        "missing_confirmations": ["Clarify whether paid APIs are allowed."],
+                        "fit_assessment": {
+                            "verdict": "copilot_recommended",
+                            "summary": "Human collaboration is still needed before an autonomous launch is safe.",
+                        },
+                    },
                     "message": "Prepared the launch form.",
                 },
             )
@@ -1014,6 +1114,7 @@ def test_start_setup_prepare_profile_artifact_server_exposes_only_prepare_form_t
         assert result["suggested_form"]["title"] == "Bench Demo Autonomous Research"
         assert result["ui_effects"][0]["name"] == "start_setup:patch"
         assert result["ui_effects"][0]["data"]["patch"]["goal"] == "Run the benchmark faithfully."
+        assert result["session_patch"]["recommended_workspace_mode"] == "copilot"
         persisted = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home)).read_quest_yaml(quest_root)
         startup_contract = persisted.get("startup_contract") if isinstance(persisted.get("startup_contract"), dict) else {}
         start_setup_session = (
@@ -1025,6 +1126,8 @@ def test_start_setup_prepare_profile_artifact_server_exposes_only_prepare_form_t
         assert suggested_form["title"] == "Bench Demo Autonomous Research"
         assert suggested_form["goal"] == "Run the benchmark faithfully."
         assert suggested_form["need_research_paper"] is True
+        assert start_setup_session["recommended_workspace_mode"] == "copilot"
+        assert start_setup_session["fit_assessment"]["verdict"] == "copilot_recommended"
 
     asyncio.run(scenario())
 
