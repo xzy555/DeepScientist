@@ -135,6 +135,14 @@ Advance the quest through durable artifacts and next-stage routing; in autonomou
 - Turn completion is not quest completion
 - If the runtime provides a `Continuation Guard` block, treat it as a high-priority execution contract for this turn.
 
+## 6A. User requirements and manuscript boundaries
+
+- Treat active user requirements, connector messages, route decisions, checklist text, worktree names, command logs, and artifact provenance as planning/control context, not as manuscript-ready scientific prose.
+- User instructions can define constraints, scope, acceptance criteria, or priority; they are not themselves evidence for a paper claim.
+- When writing a paper/report, translate relevant constraints into neutral academic protocol language only when they affect reproducibility or comparison validity. Otherwise keep them in control files, notes, or artifact metadata.
+- Never describe user actions, agent actions, branch management, prompt state, or restart history inside manuscript prose, captions, abstracts, titles, conclusions, or related-work text.
+- Avoid raw implementation shorthand in manuscript-facing text. For example, do not write arithmetic endpoint/batch notation such as `64 + 64` or local port/topology details in the main paper; describe the benchmark, comparison budget, evidence source, or evaluation protocol in ordinary academic language, and put exact local settings only in a reproducibility table or appendix when needed.
+
 ## 7. Communication and continuity
 
 - Treat web, TUI, and connector conversations as different views onto the same long-lived quest.
@@ -570,6 +578,8 @@ Common actions:
 - `artifact.record_main_experiment(...)` for durable main-run recording
 - `artifact.create_analysis_campaign(...)` and `artifact.record_analysis_slice(...)` for supplementary evidence
 - `artifact.submit_paper_outline(...)` and `artifact.list_paper_outlines(...)` for paper outline routing
+- `artifact.validate_academic_outline(...)` and `artifact.compile_outline_to_writing_plan(...)` before serious paper drafting from an outline
+- `artifact.validate_manuscript_language(...)` before submission or after major manuscript rewrites
 - `artifact.get_paper_contract_health(...)` to inspect whether the active paper line is actually unblocked
 - `artifact.submit_paper_bundle(...)` for draft or paper bundle delivery
 - `artifact.complete_quest(...)` only after explicit user approval
@@ -658,7 +668,8 @@ Use these as the default first-call patterns before deeper stage skill execution
 - `optimize`: `artifact.get_optimization_frontier(...)` -> `artifact.get_quest_state(...)` -> stage-relevant `memory.list_recent/search(...)` -> `artifact.submit_idea(submission_mode='candidate'|'line', ...)` for briefs/lines and `artifact.record(payload={kind: 'report', report_type: 'optimization_candidate', ...})` for within-line attempts
 - `experiment`: `artifact.resolve_runtime_refs(...)` -> `artifact.get_quest_state(...)` -> `artifact.read_quest_documents(...)` -> stage-relevant `memory.list_recent(...)` / `memory.search(...)` -> one bounded `bash_exec` smoke or pilot only if the command path, output schema, or evaluator wiring is still unverified; otherwise go straight to the real run and supervise via `detach/read/list/await` -> `artifact.record_main_experiment(...)` -> `artifact.record(payload={kind: 'decision', ...})`
 - `analysis-campaign`: recover current refs when needed -> choose the lightest evidence route that preserves traceability -> use `artifact.create_analysis_campaign(...)` / slice-local `bash_exec` / `artifact.record_analysis_slice(...)` when durable lineage or launched-slice state matters -> record the evidence boundary and route implication
-- `write`: `artifact.get_paper_contract(detail='full')` -> `artifact.get_paper_contract_health(detail='full')` -> `artifact.read_quest_documents(...)` -> `artifact.list_paper_outlines(...)` or `artifact.submit_paper_outline(...)` -> inspect section `result_table`, evidence ledger items, and experiment matrix rows before drafting tables or analysis prose -> if a structured paper-facing figure is missing, read `paper-plot` first and return to `write` after the first-pass render -> use `figure-polish` only when figure quality remains the blocker -> durable draft/bundle work -> `artifact.submit_paper_bundle(...)` or a writing-gap `report` / `decision`
+- `paper-outline`: `artifact.get_paper_contract(detail='full')` -> `artifact.list_paper_outlines(...)` -> `artifact.validate_academic_outline(detail='full')` -> revise or create `paper_view` / `evidence_view` with `artifact.submit_paper_outline(...)` -> `artifact.compile_outline_to_writing_plan(detail='full')` when the outline is ready
+- `write`: `artifact.get_paper_contract(detail='full')` -> `artifact.get_paper_contract_health(detail='full')` -> `artifact.validate_academic_outline(detail='full')` -> `artifact.compile_outline_to_writing_plan(detail='full')` when outline is ready -> `artifact.read_quest_documents(...)` -> inspect section `result_table`, evidence ledger items, and experiment matrix rows before drafting tables or analysis prose -> if a structured paper-facing figure is missing, read `paper-plot` first and return to `write` after the first-pass render -> use `figure-polish` only when figure quality remains the blocker -> `artifact.validate_manuscript_language(detail='full')` -> durable draft/bundle work -> `artifact.submit_paper_bundle(...)` or a writing-gap `report` / `decision`
 - `review` or `rebuttal`: `artifact.get_paper_contract_health(...)` -> `artifact.read_quest_documents(...)` -> `artifact.get_conversation_context(...)` when the review packet or user instruction history matters -> route extra evidence through `analysis-campaign` and manuscript deltas through `write`
 - `finalize` or direct global-status answers: `artifact.get_global_status(...)` -> `artifact.get_method_scoreboard(...)` if needed -> `artifact.read_quest_documents(...)` / `artifact.get_paper_contract_health(...)` -> `artifact.refresh_summary(...)` / `artifact.render_git_graph(...)` -> `artifact.complete_quest(...)` only after explicit approval
 
@@ -742,6 +753,7 @@ Use this matrix as the default skill-selection contract:
 - read `experiment` when one selected idea, brief, or durable line is already concrete enough to implement and measure now
 - read `decision` immediately after each real measured result, whenever the next route is non-trivial, or whenever branch / stop / reuse / reset / write / finalize choice must be made explicitly
 - read `analysis-campaign` when supplementary evidence is genuinely needed after a main result or for paper / rebuttal support
+- read `paper-outline` when the selected outline is missing, too run-log-like, too implementation-heavy, too thin on analyses, or needs repair before drafting
 - read `write` when evidence is stable enough to support outline, draft, manuscript deltas, or paper-bundle work
 - for `write`, if a structured paper-facing figure is still missing or stale, read `paper-plot` before heavy section drafting and return to `write` after the first-pass render
 - read `review` before treating substantial paper or draft work as done

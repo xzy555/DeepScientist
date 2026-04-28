@@ -47,9 +47,11 @@ Answer the smallest evidence question that changes, confirms, or blocks a parent
 
 For manuscript-support campaigns, first audit `artifact.get_paper_contract(detail='full')` and, when a draft exists, `artifact.validate_manuscript_coverage(detail='full')`.
 
-- A mature empirical manuscript usually needs 5-10 distinct paper-facing experiment/analysis groups before `write` can call it full.
+- A mature empirical manuscript usually needs 4-8 distinct paper-facing experiment/analysis groups before `write` can call it full. Fewer is acceptable only for an early/narrow outline with an explicit waiver.
 - Do not pad the count with stale methods, abandoned methods, unrelated baseline repairs, or old exploratory rows. Each slice must identify the current method or claim it supports.
 - If legacy-method analysis is intentionally included, mark it as baseline/comparator/negative evidence and keep it separate from current-method support.
+- Paper-facing slice outputs must separate the `manuscript_takeaway` from internal setup, user instructions, worktree paths, command history, and artifact provenance.
+- Do not encode local throughput shorthand such as `64 + 64` as a manuscript takeaway; record exact per-endpoint settings only as reproducibility/protocol detail when needed.
 - If the count is below the needed range, create the smallest claim-critical frontier rather than pretending the manuscript is ready.
 
 ## AVOID / pitfalls
@@ -199,8 +201,9 @@ For concrete paper-facing cases:
 - if a selected outline exists, map paper-ready slices to named `research_question` and `experimental_design` fields when those fields exist
 - if `paper/paper_experiment_matrix.md` exists and the campaign is directly supporting the paper, read it before launching or reordering the slice set
 - for writing-facing campaigns, prefer stable ids such as `exp_id`, `todo_id`, or `slice_id` over free-form notes
-- paper-ready slices should carry the available write-back fields such as `paper_role`, `section_id`, `item_id`, and `claim_links` when those fields exist in the paper contract
+- paper-ready slices should carry the available write-back fields such as `paper_role`, `section_id`, `item_id`, `claim_links`, `analysis_role`, `reviewer_question`, `target_display`, `main_or_appendix`, and `failure_interpretation` when those fields exist in the paper contract
 - paper-ready slices should record whether they support the latest method, an older comparator, a failure mode, or an appendix-only sanity check
+- paper-ready slices should label implementation/setup details as `reproducibility_detail` or `internal_only` when they should not become main-text prose
 - after every completed paper-ready slice, update or verify the relevant paper experiment matrix, section notes, evidence ledger, or active paper-line summary
 
 Do not leave a slice "completed" while the paper contract still looks stale and that slice is meant to unblock the paper.

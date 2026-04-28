@@ -96,11 +96,14 @@ For paper-like deliverables, do not finalize while any of these remain true:
 - the active paper line still reports open supplementary work that is expected to block the manuscript
 - the current paper contract rows still fail to expose the main experiment or required analysis rows that the manuscript depends on
 - `artifact.validate_manuscript_coverage(detail='full')` does not report `submission_ready=true`
+- `artifact.validate_academic_outline(detail='full')` does not pass for the selected outline
+- `artifact.validate_manuscript_language(detail='full')` reports main-text wording blockers
 - the latest bundle is only a `draft_checkpoint` or `review_package`
 
 If the current paper-state blocker is not obvious from the existing files, call `artifact.get_paper_contract_health(detail='full')` before deciding whether finalize is legitimate.
 If the exact section rows, evidence rows, or experiment-matrix rows matter, call `artifact.get_paper_contract(detail='full')` before deciding whether finalize is legitimate.
 If a paper bundle exists, call `artifact.validate_manuscript_coverage(detail='full')` before treating the paper line as final.
+If a selected outline or draft exists, call `artifact.validate_academic_outline(detail='full')` and `artifact.validate_manuscript_language(detail='full')` before treating the paper line as final.
 If the active quest/runtime state is unclear after restart or long pause, call `artifact.get_quest_state(detail='summary')` first.
 If the exact latest `SUMMARY.md`, `status.md`, or active user requirement wording matters for closure, call `artifact.read_quest_documents(...)`.
 If earlier user/assistant continuity matters for whether the quest should really stop, call `artifact.get_conversation_context(...)` instead of guessing from prompt context alone.

@@ -82,6 +82,8 @@ They are common research entry states.
 - Do not mark an existing experiment as a durable main result unless it is genuinely the main run for an accepted idea line.
 - Do not silently import old drafts, plots, or notes as the active contract if they belong to a different idea line or branch line.
 - Do not lose provenance. If an artifact is reused, record where it came from and why it is trusted enough.
+- Do not confuse provenance with manuscript content. User requests, agent decisions, branch/worktree names, command logs, and restart notes are control evidence only unless rewritten into a neutral scientific protocol by `write`.
+- Do not import old paper matrices or outline rows as current-method support until legacy-method, comparator, negative-evidence, appendix-only, and latest-method roles are separated.
 - If the quest is really a review/revision task, route to `rebuttal` instead of pretending this is a normal fresh paper-writing pass.
 
 ## Typical intake states
@@ -104,6 +106,14 @@ Also classify every important asset by trust:
 - `reference_only`
 - `stale_or_conflicting`
 - `missing_context`
+
+Also classify every paper-facing asset by manuscript visibility:
+
+- `main_text_candidate`
+- `appendix_or_reproducibility`
+- `comparator_or_negative_evidence`
+- `reference_only`
+- `internal_only`
 
 ## Primary truth sources
 

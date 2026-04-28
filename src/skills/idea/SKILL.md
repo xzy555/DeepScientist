@@ -231,8 +231,8 @@ When multiple routes survive, prefer the most differentiated route that is still
 When the route already looks likely to become a paper-facing line, seed one lightweight structured outline candidate during idea work.
 Use `artifact.submit_paper_outline(mode='candidate', ...)` for that seed instead of leaving the future paper structure only in prose.
 Use `references/outline-seeding-example.md` for the minimum acceptable shape.
-The idea-stage outline candidate is not the full paper line yet, but it should already name the likely `research_questions`, `experimental_designs`, and the first section-level evidence needs that later supplementary slices must satisfy.
-Keep that seed minimal and executable: a small section skeleton plus expected evidence items is better than a long narrative outline with no concrete evidence hooks.
+The idea-stage outline candidate is not the full paper line yet, but it should already name the likely one-sentence paper idea, scoped claims, `research_questions`, `experimental_designs`, and the first section-level evidence needs that later supplementary slices must satisfy.
+Keep that seed minimal and executable: a short `paper_view` plus expected evidence items is better than a long narrative outline with no concrete evidence hooks.
 If the current research head, strongest measured branch, or active runtime refs are unclear after resume, call `artifact.get_quest_state(detail='summary')` and `artifact.list_research_branches(...)` before choosing a foundation.
 If the current brief / plan / status wording matters for direction choice, call `artifact.read_quest_documents(...)`.
 If earlier user conversation materially changes the direction-selection target, call `artifact.get_conversation_context(...)` before locking the next idea.

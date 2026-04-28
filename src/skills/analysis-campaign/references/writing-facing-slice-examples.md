@@ -19,6 +19,11 @@ This is the fuller paper-ready form, not the minimum required shape for every no
   "section_id": "analysis-mechanism",
   "item_id": "AN-ABL-001",
   "claim_links": ["C2"],
+  "analysis_role": "component ablation",
+  "reviewer_question": "Is the gain caused by the proposed component or by incidental extra computation?",
+  "target_display": "Main-text ablation table",
+  "main_or_appendix": "main_text",
+  "failure_interpretation": "If the gain remains unchanged, the paper should weaken the mechanism claim and treat the component as non-essential.",
   "completion_condition": "Show whether the central gain survives removal of the core component.",
   "why_now": "The draft cannot support the mechanism claim without this slice.",
   "success_criteria": "Produce a fair ablation under the accepted metric contract.",
@@ -43,5 +48,8 @@ Why it is bad:
 - no `section_id`
 - no `item_id`
 - no `claim_links`
+- no `analysis_role`
+- no reviewer-facing question
+- no target display or failure interpretation
 - no paper placement
 - impossible to write back into the outline cleanly later

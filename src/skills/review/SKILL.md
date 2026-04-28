@@ -129,6 +129,7 @@ Audit at least these dimensions:
 - experimental validity and baseline comparability
 - claim scope and over-claiming risk
 - writing defensibility and logical flow
+- manuscript language hygiene and provenance leakage
 - figure / table usefulness
 - submission readiness
 
@@ -145,6 +146,8 @@ Identify:
 - the strongest current evidence
 - the weakest current evidence
 - the top 3 likely rejection reasons
+- whether manuscript text leaks user requirements, agent actions, route/control state, branch/worktree names, tool recommendations, TODOs, or raw implementation shorthand
+- whether `artifact.validate_academic_outline(detail='full')` and `artifact.validate_manuscript_language(detail='full')` pass when a selected outline or draft exists
 - whether the likely next route is:
   - text revision
   - literature / novelty audit
@@ -211,9 +214,11 @@ Before creating TODOs, separate three blocker types:
 
 - analysis blockers: missing, failed, unmapped, or legacy-method evidence needed for a claim
 - manuscript blockers: missing sections, missing figures/tables, weak narrative, or stale claim-evidence mapping
+- language/provenance blockers: user/operator/agent wording, restart or route-management phrasing, tool-promotion captions, TODOs, or raw endpoint/batch shorthand in paper-facing text
 - submission blockers: missing PDF, checklist, artifact availability, camera-ready cleanup, or user approval
 
 Do not turn manuscript/submission blockers into fake experiments or mark a `draft_checkpoint_ready` package final.
+Do not accept a draft as reviewable while it still reads like a run log, control memo, or user-request transcript.
 
 When the paper still lacks experimental support, also create or revise:
 
@@ -254,6 +259,7 @@ When building or revising that matrix, explicitly consider:
 Do not assume the paper only needs “analysis experiments”.
 Do not assume case studies belong in the required set.
 If efficiency or cost could become a reviewer-facing strength or concern, put that into the matrix explicitly.
+If local serving, batch size, ports, cache reuse, or command shape are only reproducibility details, route them to appendix/protocol rows rather than main-text claims.
 
 For the matrix, each row should usually record:
 
@@ -282,6 +288,8 @@ Before treating the experiments section as stable, require that every currently 
 - analyzed
 - excluded with a real reason
 - or blocked with a real reason
+
+Before treating the manuscript prose as stable, scan titles, abstract, captions, method setup, conclusion, and section openings for process language. Rewrite or block if they mention user requests, agent decisions, worktrees, branches, artifact ids, "paper restart", "paper should", "remaining work", tool recommendations, or shorthand such as `64 + 64`.
 
 When extra evidence is truly needed, use the shared supplementary-experiment protocol:
 
